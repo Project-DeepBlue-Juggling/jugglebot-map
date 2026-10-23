@@ -1,0 +1,49 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .[test]
+      - run: pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      # hashFiles() is not allowed in a job-level `if`, so the seed check is a step:
+      # until frontend/package.json exists every later step is skipped and the job passes.
+      - id: seeded
+        run: if [ -f package.json ]; then echo "yes=true" >> "$GITHUB_OUTPUT"; else echo "yes=false" >> "$GITHUB_OUTPUT"; echo "frontend not seeded yet - skipping"; fi
+      - if: steps.seeded.outputs.yes == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - if: steps.seeded.outputs.yes == 'true'
+        run: npm ci
+      - if: steps.seeded.outputs.yes == 'true'
+        run: npm run lint
+      - if: steps.seeded.outputs.yes == 'true'
+        run: npm run typecheck
+      - if: steps.seeded.outputs.yes == 'true'
+        run: npm run test -- --run
+      - if: steps.seeded.outputs.yes == 'true'
+        run: npm run build
+
+  no-upstream-name:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash scripts/check_no_upstream_name.sh

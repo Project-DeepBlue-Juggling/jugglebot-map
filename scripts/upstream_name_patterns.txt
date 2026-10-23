@@ -1,0 +1,9 @@
+# Names that must never appear in this repo, one regex per line (case-insensitive): the frontend's
+# origin project and the organisations behind it. This file, the check script and its test are
+# excluded from the scan.
+task-?tree
+aston[-_ ]?dynamics
+deutsche[-_ ]?hydrapro
+hydrapro
+# control pattern planted by tests/test_no_upstream_name.py
+no-such-upstream-control-string

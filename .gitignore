@@ -1,0 +1,10 @@
+frontend/dist/
+frontend/node_modules/
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+*.env
+.env*
+.pytest_cache/
+*.egg-info/

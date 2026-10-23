@@ -1,0 +1,14 @@
+[Unit]
+Description=Fast-forward the Pi's Jugglebot checkout (picks up /inbox items filed elsewhere)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=jeeves
+# --ff-only: this unit never merges, rebases or touches a local edit. While the
+# server holds an unpushed map-bot commit (red banner) the pull refuses to run
+# and exits non-zero; the server's next edit retries its own pull --rebase.
+# The running server's file watcher turns the fast-forward into one invalidate.
+ExecStart=/usr/bin/git -C /home/jeeves/Jugglebot pull --ff-only
+Environment=GIT_TERMINAL_PROMPT=0

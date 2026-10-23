@@ -1,0 +1,13 @@
+[Unit]
+Description=Fast-forward the Pi's Jugglebot checkout every 2 minutes
+
+[Timer]
+# Calendar form (not OnUnitActiveSec) because Persistent= only applies to
+# calendar timers: a powered-off stretch fires one catch-up pull at boot.
+OnCalendar=*:0/2
+Persistent=true
+AccuracySec=10s
+Unit=jugglebot-map-pull.service
+
+[Install]
+WantedBy=timers.target
