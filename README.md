@@ -131,7 +131,7 @@ retry lands.
 
 Acceptance checks:
 
-1. A phone on the same network opens `http://jeeves.local:8765` (192.168.20.7). The bare name `jeeves` has no DNS entry on the LAN; mDNS answers `jeeves.local`, which Windows 10, macOS, iOS and Android resolve natively.
+1. A phone on the same network opens `http://jeeves.local:8765` (or `http://192.168.20.7:8765`, the wired address). The bare name `jeeves` has no DNS entry on the LAN; mDNS answers `jeeves.local` (it may return the Wi-Fi address, 192.168.20.38; same Pi), which Windows 10, macOS, iOS and Android resolve natively.
 2. An edit in the browser lands on `main` within 10 s as `map-bot` (`git log -1 --format='%an %s'
    origin/main` from any checkout after a fetch).
 3. A file edited by hand in `~/Jugglebot/map/` shows in the open page within 1 s.
