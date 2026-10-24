@@ -10,6 +10,8 @@ import { VariantB } from './VariantB';
 import { VariantC } from './VariantC';
 import { VariantD } from './VariantD';
 import { VariantE } from './VariantE';
+import { VariantF } from './VariantF';
+import { VariantG } from './VariantG';
 
 const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLaterViewProps>]> = [
   ['A', 'Horizon strips', VariantA],
@@ -17,6 +19,8 @@ const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLat
   ['C', 'Tiles with a horizon row', VariantC],
   ['D', 'Count matrix', VariantD],
   ['E', 'Metro + ledger', VariantE],
+  ['F', 'Kind grid', VariantF],
+  ['G', 'Plan tracks', VariantG],
   ['Z', 'Current page', NowNextLaterView],
 ];
 
