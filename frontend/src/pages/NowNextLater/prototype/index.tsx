@@ -9,12 +9,14 @@ import { VariantA } from './VariantA';
 import { VariantB } from './VariantB';
 import { VariantC } from './VariantC';
 import { VariantD } from './VariantD';
+import { VariantE } from './VariantE';
 
 const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLaterViewProps>]> = [
   ['A', 'Horizon strips', VariantA],
   ['B', 'Slim metro', VariantB],
   ['C', 'Tiles with a horizon row', VariantC],
   ['D', 'Count matrix', VariantD],
+  ['E', 'Metro + ledger', VariantE],
   ['Z', 'Current page', NowNextLaterView],
 ];
 
