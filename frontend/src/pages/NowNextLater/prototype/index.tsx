@@ -20,7 +20,7 @@ const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLat
 
 export function PrototypeNowNextLater(props: NowNextLaterViewProps) {
   const v = usePrototypeVariant(VARIANTS.map(([k]) => k));
-  const Comp = VARIANTS.find(([k]) => k === v)![2];
+  const Comp = (VARIANTS.find(([k]) => k === v) ?? VARIANTS[0])[2];
   return (
     <>
       <Comp {...props} />
