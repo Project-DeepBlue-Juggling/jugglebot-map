@@ -47,10 +47,12 @@ export function openBlockerIdsOf(view: MapView): (id: string) => string[] {
 export const FRONT_LAYOUT = {
   pad: 12,
   mast: 32,
-  tile: 288,
+  tile: 276,
   gap: 12,
   wallHead: 26,
-  wall: 164,
+  /** One inbox card (fixed) and the wall band: one whole row plus a peek of the next. */
+  card: 148,
+  wall: 168,
 } as const;
 
 export function frontPageHeight(): number {

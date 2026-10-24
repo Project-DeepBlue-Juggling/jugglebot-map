@@ -1,6 +1,13 @@
 import clsx from 'clsx';
 import type { Task } from '../../api/schemas';
-import { displayTitle, phaseCode, phasesOf, planCardName, taskState } from '../../lib/derive';
+import {
+  displayTitle,
+  phaseCode,
+  phasesOf,
+  phaseSummary,
+  planCardName,
+  taskState,
+} from '../../lib/derive';
 import { STATE_STYLES, statusLabel } from '../../theme/palette';
 import { BranchChip, Openable, Owners, PriorityTag, StatusGlyph } from '../FrontPage/bits';
 import { DepTags } from '../FrontPage/DepTags';
@@ -64,8 +71,8 @@ export function PhaseCard({ task, view }: { task: Task; view: MapView }) {
         <span className="truncate">Phase · {plan === undefined ? '' : planCardName(plan)}</span>
       </div>
       <div className="line-clamp-2 text-sm font-medium leading-snug">{displayTitle(task)}</div>
-      {task.description !== '' && (
-        <div className="line-clamp-2 text-slate-500 dark:text-slate-400">{task.description}</div>
+      {phaseSummary(task) !== '' && (
+        <div className="line-clamp-2 text-slate-500 dark:text-slate-400">{phaseSummary(task)}</div>
       )}
       <DepTags task={task} view={view} />
     </Openable>

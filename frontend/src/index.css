@@ -13,6 +13,9 @@
   /* Dark-mode page background. Components use Tailwind dark: variants
      for their own surfaces; this just sets a sensible body fallback so
      any unstyled gap reads as slate-900, not white. */
+  html.dark {
+    color-scheme: dark;
+  }
   html.dark,
   html.dark body {
     background-color: #0f172a;

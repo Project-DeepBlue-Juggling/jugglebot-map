@@ -5,9 +5,6 @@ import { qk } from '../api/queryKeys';
 import { useApi } from '../api/useApi';
 import { useAuth } from '../auth/useAuth';
 import { DrawerProvider } from '../features/drawer/DrawerProvider';
-import { SearchProvider } from '../search/SearchProvider';
-import { CompletionReminderProvider } from '../tasks/CompletionReminderProvider';
-import { DropCascadeProvider } from '../tasks/DropCascadeProvider';
 import { ActiveProjectProvider } from './ActiveProjectContext';
 
 /**
@@ -39,15 +36,9 @@ export default function ActiveProjectShell() {
 
   return (
     <ActiveProjectProvider>
-      <CompletionReminderProvider>
-        <DropCascadeProvider>
-          <SearchProvider>
-            <DrawerProvider>
-              <Outlet />
-            </DrawerProvider>
-          </SearchProvider>
-        </DropCascadeProvider>
-      </CompletionReminderProvider>
+      <DrawerProvider>
+        <Outlet />
+      </DrawerProvider>
     </ActiveProjectProvider>
   );
 }

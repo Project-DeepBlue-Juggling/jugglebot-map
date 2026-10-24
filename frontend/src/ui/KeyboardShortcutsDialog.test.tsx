@@ -7,7 +7,7 @@ import { KeyboardShortcutsDialog } from './KeyboardShortcutsDialog';
  *
  * The dialog is pure presentation, so the contract is: closed renders
  * nothing; open shows the five sections; the rows added for issue #47
- * (Ctrl+k search, canvas group-select / pan / zoom gestures) are listed;
+ * (canvas group-select / pan / zoom gestures) are listed;
  * Esc closes it.
  *
  * The Team Calendar section (ADR 0067 §3a) is tested for the distinction
@@ -73,13 +73,6 @@ describe('KeyboardShortcutsDialog', () => {
     // Calendar's — the section heading before it is what says so.
     const redoRows = screen.getAllByText(/^Redo/);
     expect(redoRows).toHaveLength(1);
-  });
-
-  it('lists Ctrl+k for the global task search', () => {
-    render(<KeyboardShortcutsDialog open={true} onClose={vi.fn()} />);
-    const keys = keysFor('Focus the global task search');
-    expect(within(keys).getByText('Ctrl')).toBeVisible();
-    expect(within(keys).getByText('k')).toBeVisible();
   });
 
   it('lists the canvas group-select, pan, and zoom gestures', () => {

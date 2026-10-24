@@ -3,12 +3,12 @@ import { formatAge } from '../../lib/derive';
 import { kindHue, statusLabel, TICKET_HUE } from '../../theme/palette';
 import { Openable, Owners, PriorityTag } from './bits';
 import { DepTags } from './DepTags';
-import { linkLabel, type MapView } from './mapView';
+import { FRONT_LAYOUT, linkLabel, type MapView } from './mapView';
 
 function LinkChips({ links }: { links: readonly string[] }) {
   if (links.length === 0) return null;
   return (
-    <span className="flex flex-wrap gap-1">
+    <span className="flex min-w-0 shrink gap-1 overflow-hidden">
       {links.map((l) => (
         <a
           key={l}
@@ -54,8 +54,8 @@ function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
       id={task.id}
       view={view}
       label={task.title}
-      className="flex flex-col gap-1 rounded border border-l-4 border-slate-200 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800"
-      style={{ borderLeftColor: edgeHex }}
+      className="flex flex-col gap-1 overflow-hidden rounded border border-l-4 border-slate-200 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800"
+      style={{ borderLeftColor: edgeHex, height: FRONT_LAYOUT.card }}
     >
       <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
         <span className={`rounded px-1 font-semibold ${labelClass}`}>{label}</span>
@@ -65,13 +65,15 @@ function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
           {formatAge(task.created_at, view.now)}
         </span>
       </div>
-      <div className="line-clamp-2 text-sm font-medium leading-snug">{task.title}</div>
-      {task.description !== '' && (
-        <div className="line-clamp-2 text-slate-500 dark:text-slate-400">{task.description}</div>
-      )}
-      <LinkChips links={task.links} />
-      <DepTags task={task} view={view} />
-      <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+      <div className="line-clamp-2 h-[2.2rem] text-sm font-medium leading-tight" title={task.title}>
+        {task.title}
+      </div>
+      <div className="line-clamp-2 h-8 text-slate-500 dark:text-slate-400">{task.description}</div>
+      <div className="flex min-h-[1.125rem] min-w-0 items-center gap-1 overflow-hidden">
+        <LinkChips links={task.links} />
+        <DepTags task={task} view={view} />
+      </div>
+      <div className="mt-auto flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
         <PathwayPin task={task} view={view} />
         {task.assignee_ids.length > 0 && <Owners task={task} view={view} />}
         {task.status === 'promoted' && (

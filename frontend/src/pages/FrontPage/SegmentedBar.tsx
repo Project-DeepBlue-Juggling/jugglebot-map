@@ -33,7 +33,7 @@ function Segment({ unit, view }: { unit: ProgressUnit; view: MapView }) {
 /** One segment per progress unit, coloured by its state. */
 export function SegmentedBar({ units, view }: { units: ProgressUnit[]; view: MapView }) {
   if (units.length === 0) {
-    return <div className="text-[11px] text-slate-400 dark:text-slate-500">No plans yet</div>;
+    return <div aria-hidden className="h-2 rounded-sm bg-slate-200 dark:bg-slate-700/50" />;
   }
   return (
     <div className="flex h-2 gap-px" role="img" aria-label="Progress by stop">

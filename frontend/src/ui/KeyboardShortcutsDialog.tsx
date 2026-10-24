@@ -37,7 +37,6 @@ const GLOBAL_ROWS: Row[] = [
     keys: ['Ctrl', 'z'],
     description: 'Undo the last edit in this project — kept on the server, and no redo',
   },
-  { keys: ['Ctrl', 'k'], description: 'Focus the global task search' },
   { keys: ['Enter'], description: "Edit the open task (focus the detail panel's Title field)" },
   {
     keys: ['Ctrl', 'Enter'],

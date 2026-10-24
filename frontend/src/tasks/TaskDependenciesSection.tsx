@@ -7,7 +7,10 @@ import TaskPicker from './TaskPicker';
 
 interface Props {
   task: TaskDetail;
+  /** The full task list: titles of every edge end resolve from it, and the "blocks" picker offers all of it. */
   allTasks: Task[];
+  /** Applied to the "blocked by" picker only (e.g. the server refuses a phase as a blocker). */
+  blockerFilter?: (task: Task) => boolean;
 }
 
 // Both lists rendered with the same shape — only the resolved title comes
@@ -41,10 +44,15 @@ function DependencyRow({ edgeId, title, busy, onRemove }: RowProps) {
   );
 }
 
-export default function TaskDependenciesSection({ task, allTasks }: Props) {
+export default function TaskDependenciesSection({ task, allTasks, blockerFilter }: Props) {
   const create = useCreateDependency();
   const del = useDeleteDependency();
   const toast = useToast();
+
+  const blockerChoices = useMemo(
+    () => (blockerFilter === undefined ? allTasks : allTasks.filter(blockerFilter)),
+    [allTasks, blockerFilter],
+  );
 
   const taskTitle = useMemo(() => {
     const map = new Map<string, string>();
@@ -224,7 +232,7 @@ export default function TaskDependenciesSection({ task, allTasks }: Props) {
         )}
         <div className="mt-2">
           <TaskPicker
-            tasks={allTasks}
+            tasks={blockerChoices}
             value={null}
             onChange={(id) => {
               if (id !== null) void handleCreate(id, task.id);

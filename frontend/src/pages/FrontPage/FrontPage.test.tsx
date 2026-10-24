@@ -45,8 +45,8 @@ describe('PathwayTile', () => {
     const next = within(tile('Ball Butler')).getByTestId('next-box');
     expect(next).toHaveTextContent('Feature');
     expect(next).toHaveTextContent('Probe round 2');
-    expect(within(tile('Map')).getByTestId('next-box')).toHaveTextContent('A locked design.');
-    expect(within(tile('Map')).getByText('No plans yet')).toBeInTheDocument();
+    expect(within(tile('Map')).getByTestId('next-box')).toHaveTextContent('No plans yet');
+    expect(within(tile('Map')).getByTitle('A locked design.')).toBeInTheDocument();
   });
 
   it('says nothing is ready when every open plan is parked', () => {
@@ -54,7 +54,7 @@ describe('PathwayTile', () => {
       mapTask({ id: 'pw', title: 'Parked only' }),
       mapTask({ id: 'pk', kind: 'plan', status: 'parked', parent_id: 'pw', pathway_id: 'pw' }),
     ]);
-    expect(within(tile('Parked only')).getByTestId('next-box')).toHaveTextContent('Nothing ready');
+    expect(within(tile('Parked only')).getByTestId('next-box')).toHaveTextContent('No open stops');
   });
 
   it('caps what remains at four rows plus "+n more"', () => {
@@ -160,41 +160,45 @@ describe('InboxCard', () => {
   });
 });
 
-describe('no-scroll rule', () => {
+describe('Front page CSS contract (no-scroll rule)', () => {
   /**
-   * happy-dom does no layout (every box measures 0), so `scrollHeight <= 900`
-   * holds trivially here; the load-bearing assertions are the CSS contract:
-   * the shell root (AppLayout) is `h-screen overflow-hidden`,
-   * the page root is `h-full overflow-hidden`, the six tiles share one fixed
-   * height in a 3-column grid of two rows, the inbox wall is a fixed-height
-   * band with `overflow-y-auto`, and the fixed heights sum to under 900 px
-   * less a 40 px allowance for the health banner.
+   * CSS CONTRACT ONLY. happy-dom does no layout (every box measures 0), so
+   * this cannot observe a scrollbar; it pins the classes and inline heights
+   * that produce the no-scroll layout, and sums the fixed heights it reads
+   * from the rendered DOM. The real layout check is the Firefox 1500x900
+   * screenshot (`frontend/scripts/screenshot.sh`).
    */
-  it('six pathways at 1500x900 produce no document scrollbar', () => {
-    const hd = (
-      window as unknown as {
-        happyDOM?: { setViewport(v: { width: number; height: number }): void };
-      }
-    ).happyDOM;
-    hd?.setViewport({ width: 1500, height: 900 });
-    expect(window.innerWidth).toBe(1500);
-    expect(window.innerHeight).toBe(900);
+  it('pins the overflow classes and fixed heights and their sum', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
-    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(900);
 
     expect(layoutSrc).toContain('flex h-screen flex-col overflow-hidden');
     const root = screen.getByTestId('front-page');
     expect(root).toHaveClass('h-full', 'overflow-hidden');
     const grid = screen.getByTestId('tile-grid');
     expect(grid).toHaveClass('grid-cols-3');
-    expect(grid.style.height).toBe(`${2 * FRONT_LAYOUT.tile + FRONT_LAYOUT.gap}px`);
-    const tiles = Array.from(grid.children);
+    const tiles = Array.from(grid.children) as HTMLElement[];
     expect(tiles).toHaveLength(6);
-    tiles.forEach((t) => expect((t as HTMLElement).style.height).toBe(`${FRONT_LAYOUT.tile}px`));
+    const tileH = parseInt(tiles[0].style.height, 10);
+    tiles.forEach((t) => expect(t.style.height).toBe(`${tileH}px`));
     const wall = screen.getByTestId('inbox-wall');
     expect(wall).toHaveClass('overflow-y-auto');
-    expect(wall.style.height).toBe(`${FRONT_LAYOUT.wall}px`);
-    expect(frontPageHeight()).toBeLessThanOrEqual(900 - 40);
+    const wallH = parseInt(wall.style.height, 10);
+    // Sum of the inline heights read from the DOM (two tile rows, the band)
+    // plus the layout's own mast, heading, padding and gaps.
+    const L = FRONT_LAYOUT;
+    const total = 2 * L.pad + L.mast + 3 * L.gap + 2 * tileH + L.wallHead + wallH;
+    expect(total).toBeLessThanOrEqual(900 - 40); // 40 px allowance: health banner
+    expect(total).toBe(frontPageHeight());
+  });
+
+  it('gives every inbox card the same fixed height, inside a band that fits one row', () => {
+    const { tasks, deps } = sixPathwayMap();
+    page(tasks, deps);
+    const wall = screen.getByTestId('inbox-wall');
+    const cards = Array.from(wall.children) as HTMLElement[];
+    expect(cards.length).toBeGreaterThan(0);
+    cards.forEach((c) => expect(c.style.height).toBe(`${FRONT_LAYOUT.card}px`));
+    expect(FRONT_LAYOUT.wall).toBeGreaterThanOrEqual(FRONT_LAYOUT.card);
   });
 });

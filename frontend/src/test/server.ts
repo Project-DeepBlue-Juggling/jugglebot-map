@@ -1,7 +1,7 @@
 import { HttpResponse, http } from 'msw';
 import { setupServer } from 'msw/node';
 import type { DependencyEdge, Project, ProjectMembership, Task, User } from '../api/schemas';
-import { addWorkingDaysMs } from '../tasks/workingDays';
+import { addWorkingDaysMs } from './workingDays';
 
 const now = '2026-04-23T00:00:00Z';
 

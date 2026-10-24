@@ -325,11 +325,6 @@ export function wallItems(ix: MapIndex): Task[] {
     );
 }
 
-/** A plan's short name (its file slug). */
-export function planShortName(plan: Task): string {
-  return plan.slug;
-}
-
 /** A phase's step code (`P1`, `R2`, `STAGE`) from its `<plan>.md#<code>` slug. */
 export function phaseCode(phase: Task): string {
   const i = phase.slug.lastIndexOf('#');
@@ -338,7 +333,7 @@ export function phaseCode(phase: Task): string {
 
 /** The label a card or list row shows: a plan's slug, a phase's code + heading. */
 export function displayTitle(task: Task): string {
-  if (task.kind === 'plan') return planShortName(task);
+  if (task.kind === 'plan') return planCardName(task);
   if (task.kind === 'phase') {
     const code = phaseCode(task);
     return code === '' ? task.title : `${code} ${task.title}`;

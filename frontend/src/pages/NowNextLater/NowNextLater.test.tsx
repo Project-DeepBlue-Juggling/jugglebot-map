@@ -120,18 +120,48 @@ describe('Now / Next / Later page', () => {
   });
 
   /**
-   * happy-dom does no layout, so this asserts the CSS contract: the shell root
-   * is `h-screen overflow-hidden`, the page root `h-full overflow-hidden`, and
-   * lanes and rail scroll internally (`overflow-y-auto`), with six pathways.
+   * CSS CONTRACT ONLY: happy-dom does no layout, so this pins the classes
+   * (shell `h-screen overflow-hidden`, page root `h-full overflow-hidden`,
+   * lanes and rail `overflow-y-auto`). The real check is the Firefox
+   * 1500x900 screenshot (`frontend/scripts/screenshot.sh`).
    */
-  it('does not scroll the document with six pathways', () => {
+  it('CSS contract: six pathways scroll inside the lanes, not the document', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
     expect(screen.getAllByTestId('lane')).toHaveLength(6);
-    expect(document.documentElement.scrollHeight).toBeLessThanOrEqual(900);
     expect(layoutSrc).toContain('flex h-screen flex-col overflow-hidden');
     expect(screen.getByTestId('nnl-page')).toHaveClass('h-full', 'overflow-hidden');
     expect(screen.getByTestId('lanes')).toHaveClass('overflow-y-auto');
     expect(screen.getByTestId('rail')).toHaveClass('overflow-y-auto');
+  });
+
+  it('caps the Done column at six rows and expands in place', () => {
+    const done = Array.from({ length: 9 }, (_, i) =>
+      mapTask({
+        id: `d${i}`,
+        kind: 'feature',
+        title: `Done ${i}`,
+        status: 'complete',
+        pathway_id: 'pw',
+      }),
+    );
+    page([mapTask({ id: 'pw', title: 'Lane' }), ...done]);
+    const col = within(screen.getByTestId('col-done'));
+    expect(
+      col
+        .getAllByRole('button')
+        .filter((b) => /^Done \d$/.test(b.getAttribute('aria-label') ?? b.textContent ?? '')),
+    ).toHaveLength(6);
+    fireEvent.click(col.getByTestId('done-more'));
+    expect(col.getByText('Done 8')).toBeInTheDocument();
+  });
+
+  it('names a plan by its title, not its slug', () => {
+    page([
+      mapTask({ id: 'pw', title: 'Lane' }),
+      ...planWithPhases('slug-of-plan', 'pw', ['not_started'], { title: 'Nice plan: subtitle' }),
+    ]);
+    expect(screen.queryByText('slug-of-plan')).toBeNull();
+    expect(screen.getAllByText(/Nice plan/).length).toBeGreaterThan(0);
   });
 });

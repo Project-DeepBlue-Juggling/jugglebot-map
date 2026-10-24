@@ -37,7 +37,10 @@ export function PathwayTile({ pathway, view }: { pathway: Task; view: MapView })
         <BranchChip branch={pathwayBranch(pathway, plans)} />
       </div>
       <h2 className="truncate text-base font-semibold leading-tight">{pathway.title}</h2>
-      <p className="text-[11px] leading-snug text-slate-600 dark:text-slate-300">
+      <p
+        className="line-clamp-3 text-[11px] leading-snug text-slate-600 dark:text-slate-300"
+        title={pathway.destination}
+      >
         <b className="mr-1 text-[10px] uppercase text-slate-500">Destination</b>
         {pathway.destination}
       </p>
@@ -52,13 +55,7 @@ export function PathwayTile({ pathway, view }: { pathway: Task; view: MapView })
           <span>· {tickets === 1 ? '1 ticket open' : `${tickets} tickets open`}</span>
         )}
       </div>
-      <NextBox
-        pathway={pathway}
-        next={next}
-        hasPlans={plans.length > 0}
-        openStops={pr.remaining.length}
-        view={view}
-      />
+      <NextBox pathway={pathway} next={next} hasPlans={plans.length > 0} view={view} />
       <div className="min-h-0 flex-1 overflow-hidden">
         <WhatRemains remaining={pr.remaining} view={view} />
       </div>

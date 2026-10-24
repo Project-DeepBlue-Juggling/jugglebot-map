@@ -99,10 +99,12 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
             )}
             <div className="mt-4">
               {task.editable ? (
-                // The server refuses a phase as a blocker, so phases are not offered.
+                // Titles resolve from every task; the server refuses a phase as a
+                // blocker, so only the blocked-by picker drops phases.
                 <TaskDependenciesSection
                   task={task}
-                  allTasks={allTasks.filter((t) => t.kind !== 'phase')}
+                  allTasks={allTasks}
+                  blockerFilter={(t) => t.kind !== 'phase'}
                 />
               ) : (
                 <ReadOnlyDependencies task={task} ix={ix} onOpen={onOpen} />
