@@ -340,3 +340,9 @@ export function formatAge(createdAt: string, now: Date = new Date()): string {
   if (days < 60) return `${Math.floor(days / 7)}w`;
   return `${Math.floor(days / 30)}mo`;
 }
+
+/** A plan card's name: its title up to the first colon, at most 40 chars. */
+export function planCardName(plan: Task): string {
+  const head = plan.title.split(':')[0].trim();
+  return head.length > 40 ? `${head.slice(0, 39)}…` : head;
+}
