@@ -54,9 +54,32 @@ const KNOWN_STYLES: Record<string, StatusStyle> = {
   },
 };
 
-/** Known statuses get their style; any other server status uses the not_started style. */
+// The map statuses (theme/palette.ts STATUSES_BY_KIND), each aliased to the
+// shell style that reads the same: live, queued, done, closed.
+const MAP_ALIASES: Record<string, string> = {
+  active: 'in_progress',
+  open: 'not_started',
+  inbox: 'backlog',
+  parked: 'backlog',
+  completed: 'complete',
+  archived: 'complete',
+  superseded: 'dropped',
+  deferred: 'dropped',
+  retired: 'dropped',
+  promoted: 'complete',
+};
+for (const [status, like] of Object.entries(MAP_ALIASES)) KNOWN_STYLES[status] = KNOWN_STYLES[like];
+
+/** A neutral style for a status outside the map vocabulary (server drift). */
+const UNKNOWN_STYLE: StatusStyle = {
+  pillBg: 'bg-slate-100',
+  pillText: 'text-slate-500',
+  borderHex: '#cbd5e1', // slate-300
+};
+
+/** Every map status has its style; an unknown one gets the neutral style. */
 export const STATUS_STYLES: Record<string, StatusStyle> = new Proxy(KNOWN_STYLES, {
-  get: (t, k) => (typeof k === 'string' ? (t[k] ?? t['not_started']) : undefined),
+  get: (t, k) => (typeof k === 'string' ? (t[k] ?? UNKNOWN_STYLE) : undefined),
 });
 
 export const DEPENDENCY_EDGE_COLOR = '#f59e0b';

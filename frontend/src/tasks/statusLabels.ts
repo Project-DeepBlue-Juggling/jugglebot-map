@@ -1,13 +1,13 @@
 import type { TaskStatus } from '../api/schemas';
+import { MAP_STATUS_LABELS } from '../theme/palette';
 
+// Every map status (theme/palette.ts STATUSES_BY_KIND) plus the shell's two
+// legacy ones. A status outside this set is a server drift and is shown as
+// itself.
 const KNOWN_LABELS: Record<string, string> = {
-  backlog: 'Backlog',
-  not_started: 'Not started',
-  in_progress: 'In progress',
+  ...MAP_STATUS_LABELS,
   blocked: 'Blocked',
   qa: 'QA',
-  complete: 'Complete',
-  dropped: 'Dropped',
 };
 
 /** Known statuses get a label; any other server status is shown as itself. */
@@ -35,6 +35,17 @@ export const STATUS_OPTIONS: readonly TaskStatus[] = [
  * suppress the overdue/due-soon indicators and desaturate in the views: a
  * task nobody will ever do cannot be late.
  */
+const SETTLED: ReadonlySet<string> = new Set([
+  'complete',
+  'completed',
+  'dropped',
+  'archived',
+  'superseded',
+  'deferred',
+  'retired',
+  'promoted',
+]);
+
 export function isSettledStatus(status: TaskStatus): boolean {
-  return status === 'complete' || status === 'dropped';
+  return SETTLED.has(status);
 }

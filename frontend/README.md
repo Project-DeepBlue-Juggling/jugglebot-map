@@ -2,7 +2,7 @@
 
 A Vite + React + TypeScript single-page app for the Jugglebot map. In production the Python server serves the built `frontend/dist` and the API (`/api/v1`) from the same origin on port 8765. There is no sign-in: the signed-in user is whatever `GET /users/me` returns.
 
-Right now the app is the shell (API client, schemas, TanStack Query hooks, item detail panel, new-item modal, search, theme) plus two placeholder routes, `/` (front page) and `/now` (Now / Next / Later).
+Right now the app is the shell (API client, schemas, TanStack Query hooks, item detail panel, new-item modal, search, theme) plus the Front page (`/`, see `src/pages/FrontPage/README.md`) and a placeholder `/now` (Now / Next / Later). Computed views live in `src/lib/derive.ts`, colours in `src/theme/palette.ts`, the hover highlight in `src/features/hover/`.
 
 ```bash
 npm ci                     # install

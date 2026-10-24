@@ -1,0 +1,106 @@
+import type { Task } from '../../api/schemas';
+import { formatAge } from '../../lib/derive';
+import { kindHue, statusLabel, TICKET_HUE } from '../../theme/palette';
+import { Openable, Owners, PriorityTag } from './bits';
+import { DepTags } from './DepTags';
+import { linkLabel, type MapView } from './mapView';
+
+function LinkChips({ links }: { links: readonly string[] }) {
+  if (links.length === 0) return null;
+  return (
+    <span className="flex flex-wrap gap-1">
+      {links.map((l) => (
+        <a
+          key={l}
+          href={l}
+          title={l}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="max-w-[12rem] truncate rounded border border-slate-300 px-1 text-[10px] text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+        >
+          {linkLabel(l)}
+        </a>
+      ))}
+    </span>
+  );
+}
+
+function PathwayPin({ task, view }: { task: Task; view: MapView }) {
+  const pw = task.pathway_id === null ? undefined : view.ix.byId.get(task.pathway_id);
+  if (pw === undefined) {
+    return <span className="text-slate-400 dark:text-slate-500">unattached</span>;
+  }
+  const hue = view.hues.get(pw.id) ?? '#64748b';
+  return (
+    <span className="flex min-w-0 items-center gap-1" data-testid="pathway-pin">
+      <i aria-hidden className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: hue }} />
+      <span className="truncate">{pw.title}</span>
+    </span>
+  );
+}
+
+interface CardShellProps {
+  task: Task;
+  view: MapView;
+  edgeHex: string;
+  label: string;
+  labelClass: string;
+}
+
+function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
+  return (
+    <Openable
+      id={task.id}
+      view={view}
+      label={task.title}
+      className="flex flex-col gap-1 rounded border border-l-4 border-slate-200 bg-white p-2 text-xs dark:border-slate-700 dark:bg-slate-800"
+      style={{ borderLeftColor: edgeHex }}
+    >
+      <div className="flex items-center gap-1.5 text-[10px] text-slate-500 dark:text-slate-400">
+        <span className={`rounded px-1 font-semibold ${labelClass}`}>{label}</span>
+        <span>{statusLabel(task.status)}</span>
+        <PriorityTag priority={task.priority} />
+        <span className="ml-auto" title={`Filed ${task.created_at}`}>
+          {formatAge(task.created_at, view.now)}
+        </span>
+      </div>
+      <div className="line-clamp-2 text-sm font-medium leading-snug">{task.title}</div>
+      {task.description !== '' && (
+        <div className="line-clamp-2 text-slate-500 dark:text-slate-400">{task.description}</div>
+      )}
+      <LinkChips links={task.links} />
+      <DepTags task={task} view={view} />
+      <div className="flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+        <PathwayPin task={task} view={view} />
+        {task.assignee_ids.length > 0 && <Owners task={task} view={view} />}
+        {task.status === 'promoted' && (
+          <span className="ml-auto truncate font-medium" data-testid="promoted-to">
+            → {task.promoted_to ?? 'promoted'}
+          </span>
+        )}
+      </div>
+    </Openable>
+  );
+}
+
+/** One card for idea / feature / bug: kind hue edge and label. */
+export function InboxCard({ task, view }: { task: Task; view: MapView }) {
+  const hue = kindHue(task.kind);
+  return (
+    <CardShell task={task} view={view} edgeHex={hue.hex} label={hue.label} labelClass={hue.chip} />
+  );
+}
+
+/** A ticket: the inbox card with a neutral edge and the ticket type as its label. */
+export function TicketCard({ task, view }: { task: Task; view: MapView }) {
+  return (
+    <CardShell
+      task={task}
+      view={view}
+      edgeHex={TICKET_HUE.hex}
+      label={task.ticket_type ?? 'ticket'}
+      labelClass={TICKET_HUE.chip}
+    />
+  );
+}

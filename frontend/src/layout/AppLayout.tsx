@@ -15,7 +15,7 @@ import { useToast } from '../ui/useToast';
 const DARK_MODE_OPTIONS: { value: DarkMode; label: string }[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
-  { value: 'system', label: 'System' },
+  { value: 'system', label: 'Default (dark)' },
 ];
 
 function navClass({ isActive }: { isActive: boolean }) {

@@ -21,7 +21,7 @@ describe('App provider stack', () => {
   it('renders a project page once /users/me resolves', async () => {
     renderApp('/', <FrontPage />);
     await waitFor(() => {
-      expect(screen.getByText('Front page: P4')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Project map' })).toBeInTheDocument();
     });
     expect(await screen.findByText('Alice')).toBeInTheDocument();
   });
