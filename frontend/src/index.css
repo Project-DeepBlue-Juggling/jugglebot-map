@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* Dark-mode page background. Components use Tailwind dark: variants
+     for their own surfaces; this just sets a sensible body fallback so
+     any unstyled gap reads as slate-900, not white. */
+  html.dark,
+  html.dark body {
+    background-color: #0f172a;
+    color: #e2e8f0;
+  }
+
+  /* One-shot "look at me" halo on the Save button when the user clicks
+     outside a dirty task-detail panel. Amber so it pops against both
+     the slate-900 light-mode button and the slate-100 dark-mode button.
+     Applied via `animate-save-pulse` on a remounted button — the parent
+     bumps a key on every dirty outside-click so the animation replays
+     on consecutive triggers. */
+  @keyframes save-pulse {
+    0% {
+      box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.85);
+    }
+    100% {
+      box-shadow: 0 0 0 14px rgba(245, 158, 11, 0);
+    }
+  }
+  .animate-save-pulse {
+    animation: save-pulse 600ms ease-out;
+  }
+
+  /* React Flow's built-in Controls component (the +/- and fit-view
+     buttons at the bottom-left of the canvas) ships its own white-on-
+     white CSS that doesn't honour Tailwind's dark variants. Override
+     the few pieces that show up as white-on-dark in dark mode. */
+  html.dark .react-flow__controls {
+    background-color: #1e293b; /* slate-800 */
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+  html.dark .react-flow__controls-button {
+    background-color: #1e293b; /* slate-800 */
+    border-bottom: 1px solid #334155; /* slate-700 */
+    color: #e2e8f0; /* slate-200 */
+    fill: currentColor;
+  }
+  html.dark .react-flow__controls-button:hover {
+    background-color: #334155; /* slate-700 */
+  }
+  html.dark .react-flow__controls-button svg {
+    fill: currentColor;
+  }
+  /* React Flow's default attribution / minimap also have white surfaces;
+     hideAttribution is on for canvas, but be defensive in case it's
+     ever turned off in a different view. */
+  html.dark .react-flow__attribution {
+    background-color: rgba(30, 41, 59, 0.8); /* slate-800/80 */
+    color: #94a3b8; /* slate-400 */
+  }
+  html.dark .react-flow__attribution a {
+    color: #cbd5e1; /* slate-300 */
+  }
+}
