@@ -131,7 +131,7 @@ retry lands.
 
 Acceptance checks:
 
-1. A phone on the same network opens `http://jeeves:8765`.
+1. A phone on the same network opens `http://jeeves.local:8765` (192.168.20.7). The bare name `jeeves` has no DNS entry on the LAN; mDNS answers `jeeves.local`, which Windows 10, macOS, iOS and Android resolve natively.
 2. An edit in the browser lands on `main` within 10 s as `map-bot` (`git log -1 --format='%an %s'
    origin/main` from any checkout after a fetch).
 3. A file edited by hand in `~/Jugglebot/map/` shows in the open page within 1 s.
@@ -147,6 +147,6 @@ When a check fails:
 - `journalctl -u jugglebot-map -e` - startup lines say whether the git writer is on, off or REFUSED
   (wrong branch), and every git failure is logged with its stderr;
 - `journalctl -u jugglebot-map-pull -e` and `systemctl list-timers jugglebot-map-pull.timer` for check 4;
-- `curl -s http://jeeves:8765/api/v1/health` for the banner and any parse errors;
+- `curl -s http://jeeves.local:8765/api/v1/health` for the banner and any parse errors;
 - `git -C ~/Jugglebot status -sb` - the writer never leaves a rebase in progress; an `ahead` count is a
   commit waiting for the next successful push.
