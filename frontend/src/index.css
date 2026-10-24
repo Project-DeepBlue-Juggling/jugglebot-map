@@ -16,6 +16,23 @@
   html.dark {
     color-scheme: dark;
   }
+  /* Dark scrollbars: the inner scroll areas (lanes, rail, inbox band) otherwise
+     draw the platform's light scrollbar as a white strip on the dark page. */
+  html.dark * {
+    scrollbar-color: #334155 transparent;
+    scrollbar-width: thin;
+  }
+  html.dark *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  html.dark *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  html.dark *::-webkit-scrollbar-thumb {
+    background-color: #334155;
+    border-radius: 4px;
+  }
   html.dark,
   html.dark body {
     background-color: #0f172a;
