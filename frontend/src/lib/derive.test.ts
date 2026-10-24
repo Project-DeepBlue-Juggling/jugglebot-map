@@ -240,6 +240,8 @@ describe('P4 audit fixes (derive)', () => {
     ].join('\n\n');
     const t = mapTask({ id: 'x', kind: 'phase', description: body });
     expect(phaseSummary(t)).toBe('Compute the lanes from plan order using openBlockers.');
+    const bullet = mapTask({ kind: 'phase', description: '- **Sequencing:** rung 2 flew `MET`.' });
+    expect(phaseSummary(bullet)).toBe('rung 2 flew MET.');
     const first = mapTask({
       id: 'y',
       kind: 'phase',

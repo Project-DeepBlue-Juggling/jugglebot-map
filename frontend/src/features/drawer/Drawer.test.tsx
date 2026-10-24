@@ -146,7 +146,7 @@ describe('shared drawer wiring', () => {
 });
 
 describe('five-field new-item modal', () => {
-  it('shows and accepts all five fields at 400 px, single column', async () => {
+  it('CSS contract: the five-field form is single column and viewport-bounded (400 px fit is checked in a browser, see frontend/README.md Visual check); the POST body is asserted for real', async () => {
     (
       window as unknown as {
         happyDOM?: { setViewport(v: { width: number; height: number }): void };
@@ -157,13 +157,12 @@ describe('five-field new-item modal', () => {
     const form = await screen.findByTestId('new-item-form');
     const fields = ['Kind', 'Title', 'One line', 'Priority (optional)', 'Pathway (optional)'];
     for (const name of fields) {
-      const el = within(form).getByLabelText(name);
-      expect(el).toBeVisible();
-      expect(el).toBeEnabled();
+      expect(within(form).getByLabelText(name)).toBeEnabled();
     }
-    // happy-dom does no layout, so the 400 px fit is asserted as the CSS
-    // contract: one column (no grid or sm: breakpoints), full width capped at
-    // max-w-md, and a body that scrolls inside the viewport.
+    // happy-dom does no layout, so toBeVisible() and the viewport width prove
+    // nothing here; the 400 px fit is asserted as the CSS contract: one column
+    // (no grid or sm: breakpoints), full width capped at max-w-md, and a body
+    // that scrolls inside the viewport.
     expect(form.className).toMatch(/\bw-full\b/);
     expect(form.className).toMatch(/\bmax-w-md\b/);
     expect(form.className).toMatch(/\bmax-h-full\b/);

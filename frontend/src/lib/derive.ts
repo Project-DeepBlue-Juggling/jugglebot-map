@@ -370,7 +370,9 @@ export function phaseSummary(task: Task): string {
     .filter((p) => p !== '');
   const para = paras.find((p) => p.startsWith('**Approach:**')) ?? paras[0] ?? '';
   const text = para
+    .replace(/^(?:[-*]\s+)?/, '')
     .replace(/^\*\*[^*]+\*\*\s*/, '')
+    .replace(/^(?:[-*]\s+)?/, '')
     .replace(/\*\*|__|`/g, '')
     .replace(/\s+/g, ' ')
     .trim();
