@@ -26,6 +26,7 @@ import { KIND_LABELS, STATUSES_BY_KIND, statusLabel } from '../../theme/palette'
 import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
 import { fullDescription } from './fullText';
+import { useDrawer } from './drawerContext';
 
 interface DrawerProps {
   taskId: string;
@@ -370,6 +371,21 @@ function EditableBody({
   };
   const body = diff(form);
   const dirty = Object.keys(body).length > 0;
+
+  // Leaving the drawer (close, click outside, another item) saves first.
+  const drawerCtx = useDrawer();
+  const flushRef = useRef<() => boolean | Promise<boolean>>(() => true);
+  flushRef.current = () => {
+    const b = diff(formRef.current);
+    if (Object.keys(b).length === 0) return true;
+    return save(b, task.updated_at, formRef.current).then((at) => at !== null);
+  };
+  const setFlush = drawerCtx?.setFlush;
+  useEffect(() => {
+    if (setFlush === undefined) return;
+    setFlush(() => flushRef.current());
+    return () => setFlush(null);
+  }, [setFlush]);
 
   /** PATCH; on success the baseline becomes the snapshot just saved. */
   const save = async (
