@@ -769,7 +769,7 @@ describe('TaskDetailPanel — Sub-tasks and "+ Add sub-task" (ADR 0084, issue #1
   });
 
   it('creates a child under this task, below it on the canvas, and stays on the parent', async () => {
-    fixtureTask().stage = 'batch';
+    fixtureTask().kind = 'batch';
     fixtureTask().reviewer_id = BOB_ID;
     const onClose = vi.fn();
     await mountPanelAndWait(onClose);
@@ -782,7 +782,7 @@ describe('TaskDetailPanel — Sub-tasks and "+ Add sub-task" (ADR 0084, issue #1
     await waitFor(() => expect(screen.queryByRole('dialog', { name: /new task/i })).toBeNull());
     const created = state.tasks.find((t) => t.title === 'Weld frame');
     expect(created?.parent_id).toBe(TASK_ID);
-    expect(created?.stage).toBe('batch');
+    expect(created?.kind).toBe('batch');
     expect(created?.reviewer_id).toBe(BOB_ID);
     // One node-step (80 px node + 12 px pad, rounded up to the 24 px grid)
     // under the parent at 0, 0.

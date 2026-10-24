@@ -21,7 +21,7 @@ from server.config import MapConfig, setup
 from server.events import Broker
 from server.gitwriter import DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
 from server.watcher import DEFAULT_WATCH_MS, Watcher
-from server.models import (Count, Dependency, Health, Me, Membership, Project, Task,
+from server.models import (Count, Dependency, Health, Membership, Project, Task,
                            TaskDetail, User)
 
 log = logging.getLogger("jugglebot_map")
@@ -127,15 +127,15 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     def list_users() -> Any:
         return USERS
 
-    @r.get("/users/me", response_model=Me)
+    @r.get("/users/me", response_model=User)
     def get_me(request: Request) -> Any:
-        return dict(_me(request), is_availability_member=False)
+        return _me(request)
 
-    @r.patch("/users/me", response_model=Me)
+    @r.patch("/users/me", response_model=User)
     async def patch_me(request: Request) -> Any:
         me = _me(request)
         me.update({k: v for k, v in (await _json_body(request)).items() if k in ("color", "dark_mode")})
-        return dict(me, is_availability_member=False)
+        return me
 
     # --- projects -------------------------------------------------------------
     @r.get("/projects", response_model=List[Project])

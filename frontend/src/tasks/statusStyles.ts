@@ -1,5 +1,3 @@
-import type { TaskStatus } from '../api/schemas';
-
 export interface StatusStyle {
   pillBg: string;
   pillText: string;
@@ -10,7 +8,7 @@ export interface StatusStyle {
   borderHex: string;
 }
 
-export const STATUS_STYLES: Record<TaskStatus, StatusStyle> = {
+const KNOWN_STYLES: Record<string, StatusStyle> = {
   backlog: {
     // A muted neutral that reads "parked" and stays distinct from
     // not_started's slate (ADR 0052).
@@ -55,6 +53,11 @@ export const STATUS_STYLES: Record<TaskStatus, StatusStyle> = {
     borderHex: '#78716c', // stone-500
   },
 };
+
+/** Known statuses get their style; any other server status uses the not_started style. */
+export const STATUS_STYLES: Record<string, StatusStyle> = new Proxy(KNOWN_STYLES, {
+  get: (t, k) => (typeof k === 'string' ? (t[k] ?? t['not_started']) : undefined),
+});
 
 export const DEPENDENCY_EDGE_COLOR = '#f59e0b';
 export const PARENT_EDGE_COLOR = '#94a3b8';

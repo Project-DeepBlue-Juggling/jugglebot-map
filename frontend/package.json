@@ -12,7 +12,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "contract": "vitest run src/api/contract.live.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

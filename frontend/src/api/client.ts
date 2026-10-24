@@ -15,6 +15,7 @@ import {
   type TaskCreateBody,
   type TaskUpdateBody,
   type UserPatchSelfBody,
+  Health,
 } from './schemas';
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '') + '/api/v1';
@@ -81,6 +82,7 @@ export function createApiClient(auth: AuthClient) {
     /** The caller's own row, carrying the two availability bits the nav
      *  gates on (ADR 0063 §6). `/users` is the directory and does not
      *  carry `is_availability_member`. */
+    getHealth: () => request('/health', jsonInit('GET'), Health),
     getMe: () => request('/users/me', jsonInit('GET'), CurrentUser),
     /** Returns `CurrentUserRead`, not `UserRead` — deliberately widened so
      *  a client that replaces its cached user object from this response

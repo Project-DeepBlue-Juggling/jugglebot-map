@@ -27,11 +27,23 @@ function normaliseRoute(input: string): string {
   return `/projects/${TEST_PROJECT_ID}${input === '/' ? '' : input}`;
 }
 
+let lastClient: QueryClient | null = null;
+
+/** Resolve once the most recent renderApp client has no fetch in flight. */
+export async function settleQueries(): Promise<void> {
+  // One macrotask first: a mutation's onSuccess may not have invalidated yet.
+  await new Promise((r) => setTimeout(r, 20));
+  while (lastClient !== null && lastClient.isFetching() > 0) {
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
+
 export function renderApp(initialRoute: string, routeElement: ReactNode) {
   const authClient = new StaticAuthClient();
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, staleTime: 0 } },
   });
+  lastClient = queryClient;
   return Object.assign(
     render(
       <MemoryRouter initialEntries={[normaliseRoute(initialRoute)]}>

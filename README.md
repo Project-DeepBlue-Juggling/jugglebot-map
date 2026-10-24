@@ -39,7 +39,13 @@ pytest -q
 
 The contract suite copies `tests/fixtures/repo` into a temporary directory (writes never touch the
 checkout) and copies a real `mapkit` into it from `$MAPKIT_SRC` (a Jugglebot checkout root), else a
-sibling `../Jugglebot` or `../Jugglebot-map`; it skips when none is found.
+sibling `../Jugglebot` or `../Jugglebot-map`; it skips when none is found. CI clones Jugglebot's `main`
+shallowly into `/tmp/jb` and sets `MAPKIT_SRC=/tmp/jb`, so pytest does not skip there.
+
+The live contract check (`bash scripts/contract_check.sh`, needs Node and `MAPKIT_SRC`) starts the real
+server on a temp copy of the fixture repo and parses every GET response with the frontend's zod
+schemas (`frontend/src/api/contract.live.test.ts`, also `npm run contract` with `CONTRACT_BASE_URL`
+set); a key the server sends and the schema lacks, or the reverse, fails it. CI runs it after pytest.
 
 ## API summary
 
@@ -48,7 +54,7 @@ All under `/api/v1` (the bare path works too). Every response object carries eve
 
 | Endpoint | 2xx | 4xx |
 |---|---|---|
-| `GET /users`, `GET\|PATCH /users/me` | users; me (+`is_availability_member`) | |
+| `GET /users`, `GET\|PATCH /users/me` | users; me | |
 | `GET /projects`, `GET /projects/{p}`, `GET /projects/{p}/memberships` | one project, two admin memberships | 404 unknown project |
 | `GET /projects/{p}/tasks` | every item, plan and plan step as a Task | |
 | `POST /projects/{p}/tasks` | 201 Task (new `map/<kind>-<slug>.md`) | 405 plan/phase kind; 422 schema error |

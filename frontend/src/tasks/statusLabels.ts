@@ -1,6 +1,6 @@
 import type { TaskStatus } from '../api/schemas';
 
-export const STATUS_LABELS: Record<TaskStatus, string> = {
+const KNOWN_LABELS: Record<string, string> = {
   backlog: 'Backlog',
   not_started: 'Not started',
   in_progress: 'In progress',
@@ -9,6 +9,11 @@ export const STATUS_LABELS: Record<TaskStatus, string> = {
   complete: 'Complete',
   dropped: 'Dropped',
 };
+
+/** Known statuses get a label; any other server status is shown as itself. */
+export const STATUS_LABELS: Record<string, string> = new Proxy(KNOWN_LABELS, {
+  get: (t, k) => (typeof k === 'string' ? (t[k] ?? k) : undefined),
+});
 
 // Canonical status order (ADR 0052, extended by ADR 0075): the status
 // `<select>`, the List filter, and the SectionProgressBar segments read this.

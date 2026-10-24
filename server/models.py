@@ -23,12 +23,6 @@ class User(_Strict):
     color: str
     dark_mode: str
     created_at: str
-    is_availability_admin: bool
-    can_access_catalogue: bool
-
-
-class Me(User):
-    is_availability_member: bool
 
 
 class Project(_Strict):
@@ -36,8 +30,6 @@ class Project(_Strict):
     name: str
     stages: List[str]
     due_date_warning_days: int
-    brief_enabled: bool
-    bom_enabled: bool
     created_at: str
     created_by: str
 
@@ -46,7 +38,6 @@ class Membership(_Strict):
     user_id: str
     project_id: str
     role: str
-    can_view_bom: bool
     created_at: str
     created_by: str
 

@@ -2,6 +2,7 @@ import { cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import NewTaskModal from './NewTaskModal';
+import { settleQueries } from '../test/renderApp';
 import { createState, makeServer, type TestState } from '../test/server';
 import { renderApp } from '../test/renderApp';
 
@@ -23,7 +24,9 @@ beforeEach(() => {
   window.history.replaceState(null, '', '/');
 });
 
-afterEach(() => {
+afterEach(async () => {
+  // A create invalidates every query; let the refetches land while msw is still up.
+  await settleQueries();
   cleanup();
   server.resetHandlers();
   server.close();
@@ -234,7 +237,7 @@ describe('NewTaskModal — sub-task defaults (ADR 0084, issue #190)', () => {
   const CHASSIS_ID = '00000000-0000-0000-0000-00000000ff01';
   const BOB_ID = '00000000-0000-0000-0000-000000000003';
 
-  it('pre-fills the parent, stage and reviewer, and sends them on create', async () => {
+  it('pre-fills the parent, kind and reviewer, and sends them on create', async () => {
     const onClose = vi.fn();
     renderApp(
       '/list',
@@ -242,7 +245,7 @@ describe('NewTaskModal — sub-task defaults (ADR 0084, issue #190)', () => {
         project={state.project}
         onClose={onClose}
         defaultParentId={CHASSIS_ID}
-        defaultStage="batch"
+        defaultKind="batch"
         defaultReviewerId={BOB_ID}
       />,
     );
@@ -250,7 +253,7 @@ describe('NewTaskModal — sub-task defaults (ADR 0084, issue #190)', () => {
     // The picker names the parent once the task list has loaded.
     const parentPicker = await screen.findByRole('combobox', { name: /parent/i });
     await waitFor(() => expect(parentPicker).toHaveTextContent('Design chassis'));
-    expect(screen.getByRole('combobox', { name: /stage/i })).toHaveValue('batch');
+    expect(screen.getByRole('combobox', { name: /kind/i })).toHaveValue('batch');
     await waitFor(() =>
       expect(screen.getByRole('combobox', { name: /reviewer/i })).toHaveValue('Bob'),
     );
@@ -261,16 +264,16 @@ describe('NewTaskModal — sub-task defaults (ADR 0084, issue #190)', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     const created = state.tasks.find((t) => t.title === 'Weld frame');
     expect(created?.parent_id).toBe(CHASSIS_ID);
-    expect(created?.stage).toBe('batch');
+    expect(created?.kind).toBe('batch');
     expect(created?.reviewer_id).toBe(BOB_ID);
   });
 
-  it('ignores a default stage the project no longer has', async () => {
+  it('ignores a default kind the project no longer has', async () => {
     renderApp(
       '/list',
-      <NewTaskModal project={state.project} onClose={vi.fn()} defaultStage="retired-stage" />,
+      <NewTaskModal project={state.project} onClose={vi.fn()} defaultKind="retired-kind" />,
     );
 
-    expect(await screen.findByRole('combobox', { name: /stage/i })).toHaveValue('prototype');
+    expect(await screen.findByRole('combobox', { name: /kind/i })).toHaveValue('prototype');
   });
 });

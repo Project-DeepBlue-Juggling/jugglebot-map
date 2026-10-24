@@ -24,7 +24,7 @@ const FIELD_LABELS: Record<string, string> = {
   title: 'Title',
   description: 'Description',
   completion_criteria: 'Completion Criteria',
-  stage: 'Stage',
+  kind: 'Kind',
   status: 'Status',
   parent_id: 'Parent task',
   assignee_ids: 'Assignees',

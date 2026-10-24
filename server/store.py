@@ -97,21 +97,19 @@ def slugify(title: str) -> str:
 
 USERS = [
     {"id": uid("user:harrison"), "email": "harrison@jugglebot.local", "display_name": "Harrison",
-     "color": "#2563eb", "dark_mode": "system", "created_at": T0,
-     "is_availability_admin": False, "can_access_catalogue": False},
+     "color": "#2563eb", "dark_mode": "system", "created_at": T0},
     {"id": uid("user:claude"), "email": "claude@jugglebot.local", "display_name": "Claude",
-     "color": "#d97706", "dark_mode": "system", "created_at": T0,
-     "is_availability_admin": False, "can_access_catalogue": False},
+     "color": "#d97706", "dark_mode": "system", "created_at": T0},
 ]
 USER_BY_ID = {u["id"]: u for u in USERS}
 USER_BY_NAME = {u["email"].split("@")[0]: u for u in USERS}
 OWNER = USERS[0]["id"]
 PROJECT_ID = uid("project:jugglebot")
 PROJECT = {"id": PROJECT_ID, "name": "Jugglebot", "stages": list(PROJECT_KINDS),
-           "due_date_warning_days": 7, "brief_enabled": False, "bom_enabled": False,
+           "due_date_warning_days": 7,
            "created_at": T0, "created_by": OWNER}
 MEMBERSHIPS = [{"user_id": u["id"], "project_id": PROJECT_ID, "role": "admin",
-                "can_view_bom": False, "created_at": T0, "created_by": OWNER} for u in USERS]
+                "created_at": T0, "created_by": OWNER} for u in USERS]
 
 
 def user_id_for(name: Any) -> Optional[str]:

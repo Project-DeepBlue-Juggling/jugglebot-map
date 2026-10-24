@@ -11,8 +11,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # mapkit lives in Jugglebot: clone it shallowly so pytest stops skipping.
+      - run: git clone --depth 1 https://github.com/Project-DeepBlue-Juggling/Jugglebot.git /tmp/jb
       - run: pip install -e .[test]
-      - run: pytest -q
+      - run: MAPKIT_SRC=/tmp/jb pytest -q
+      - run: npm ci
+        working-directory: frontend
+      # Starts the real server on a temp copy of the fixture repo and parses every GET with the zod schemas.
+      - run: MAPKIT_SRC=/tmp/jb bash scripts/contract_check.sh
 
   frontend:
     runs-on: ubuntu-latest

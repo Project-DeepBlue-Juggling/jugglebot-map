@@ -509,7 +509,7 @@ export default function TaskDetailPanel({
           // not preserved; re-POST creates a new row with a new UUID.
           const snapshot: TaskCreateBody = {
             title: task.title,
-            stage: task.stage,
+            kind: task.kind,
             parent_id: task.parent_id,
             description: task.description,
             completion_criteria: task.completion_criteria,
@@ -611,7 +611,7 @@ export default function TaskDetailPanel({
         deleting={del.isPending}
         converting={converting}
       />
-      {/* ADR 0084: the child starts under this task, in its stage, with its
+      {/* ADR 0084: the child starts under this task, in its kind, with its
           reviewer. The panel stays on this task afterwards; the new row
           appears in its Sub-tasks list via the response-driven cache update
           (ADR 0015). A dialog, so the panel's click-outside, Esc and
@@ -621,7 +621,7 @@ export default function TaskDetailPanel({
           project={project}
           onClose={() => setSubtaskPos(null)}
           defaultParentId={task.id}
-          defaultStage={task.stage}
+          defaultKind={task.kind}
           defaultReviewerId={task.reviewer_id}
           defaultCanvasX={subtaskPos.x}
           defaultCanvasY={subtaskPos.y}
@@ -719,7 +719,7 @@ interface EditorProps {
     title: string;
     description: string;
     completion_criteria: string;
-    stage: string;
+    kind: string;
     status: TaskStatus;
     priority: TaskPriority | null;
     parent_id: string | null;
@@ -765,7 +765,7 @@ function TaskDetailEditor({
   const [description, setDescription] = useState(task.description);
   // ADR 0060: free-text completion criteria (a twin of description).
   const [completionCriteria, setCompletionCriteria] = useState(task.completion_criteria);
-  const [stage, setStage] = useState(task.stage);
+  const [kind, setKind] = useState(task.kind);
   const [status, setStatus] = useState<TaskStatus>(task.status);
   // ADR 0052: '' in the radiogroup = no priority (null on the wire).
   const [priority, setPriority] = useState<TaskPriority | ''>(task.priority ?? '');
@@ -829,7 +829,7 @@ function TaskDetailEditor({
     title.trim() !== task.title ||
     description !== task.description ||
     completionCriteria !== task.completion_criteria ||
-    stage !== task.stage ||
+    kind !== task.kind ||
     status !== task.status ||
     (priority === '' ? null : priority) !== task.priority ||
     (parentId === '' ? null : parentId) !== task.parent_id ||
@@ -856,7 +856,7 @@ function TaskDetailEditor({
     title: title.trim(),
     description,
     completion_criteria: completionCriteria,
-    stage,
+    kind,
     status,
     priority: priority === '' ? null : priority,
     parent_id: parentId === '' ? null : parentId,
@@ -987,7 +987,7 @@ function TaskDetailEditor({
             className={inputClass}
           />
         </label>
-        {/* Status / Stage / Assignee render as button-group pills rather
+        {/* Status / Kind / Assignee render as button-group pills rather
             than dropdowns (Harrison's 6.5c review). Status uses the same
             colour family the canvas pill carries so the same user-facing
             colour code applies in every view. Parent uses the searchable
@@ -1070,7 +1070,7 @@ function TaskDetailEditor({
                     aria-checked={selected}
                     onClick={() => setPriority(p)}
                     // One selected treatment for every option, the same dark
-                    // fill "None" and Stage already use. Previously each
+                    // fill "None" and Kind already use. Previously each
                     // option was filled with its own PRIORITY_STYLES pill
                     // colour, which works for a pill *labelling* a priority
                     // but not for a control *reporting a choice*: Low's pill
@@ -1093,17 +1093,17 @@ function TaskDetailEditor({
           </fieldset>
         )}
         <fieldset className="flex flex-col">
-          <legend className="mb-1 font-medium">Stage</legend>
-          <div role="radiogroup" aria-label="Stage" className="flex flex-wrap gap-1.5">
+          <legend className="mb-1 font-medium">Kind</legend>
+          <div role="radiogroup" aria-label="Kind" className="flex flex-wrap gap-1.5">
             {project.stages.map((s) => {
-              const selected = stage === s;
+              const selected = kind === s;
               return (
                 <button
                   key={s}
                   type="button"
                   role="radio"
                   aria-checked={selected}
-                  onClick={() => setStage(s)}
+                  onClick={() => setKind(s)}
                   className={clsx(
                     'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
                     selected

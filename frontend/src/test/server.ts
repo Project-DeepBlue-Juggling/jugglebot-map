@@ -12,33 +12,27 @@ const devUser: User = {
   id: '00000000-0000-0000-0000-000000000001',
   email: 'dev@local',
   display_name: 'Dev Local',
-  color: null,
+  color: '#4f46e5',
   dark_mode: 'system',
   created_at: now,
-  is_availability_admin: false,
-  can_access_catalogue: false,
 };
 
 const alice: User = {
   id: '00000000-0000-0000-0000-000000000002',
   email: 'alice@local',
   display_name: 'Alice',
-  color: null,
+  color: '#4f46e5',
   dark_mode: 'system',
   created_at: now,
-  is_availability_admin: false,
-  can_access_catalogue: false,
 };
 
 const bob: User = {
   id: '00000000-0000-0000-0000-000000000003',
   email: 'bob@local',
   display_name: 'Bob',
-  color: null,
+  color: '#4f46e5',
   dark_mode: 'system',
   created_at: now,
-  is_availability_admin: false,
-  can_access_catalogue: false,
 };
 
 const project: Project = {
@@ -46,8 +40,6 @@ const project: Project = {
   name: 'Test project',
   stages: ['prototype', 'batch'],
   due_date_warning_days: 7,
-  brief_enabled: false,
-  bom_enabled: false,
   created_at: now,
   created_by: devUser.id,
 };
@@ -61,7 +53,18 @@ function makeTask(overrides: Partial<Task>): Task {
     description: '',
     completion_criteria: '',
     assignee_ids: [],
-    stage: 'prototype',
+    kind: 'prototype',
+    slug: 'task',
+    destination: '',
+    branch: null,
+    links: [],
+    filed_by: null,
+    promoted_to: null,
+    rank: null,
+    ticket_type: null,
+    source_path: 'map/task.md',
+    editable: true,
+    pathway_id: null,
     status: 'not_started',
     priority: null,
     is_section: false,
@@ -116,8 +119,6 @@ export function makeProject(id: string, name: string): Project {
     name,
     stages: ['prototype', 'batch'],
     due_date_warning_days: 7,
-    brief_enabled: false,
-    bom_enabled: false,
     created_at: now,
     created_by: devUser.id,
   };
@@ -128,7 +129,6 @@ export function makeMembership(userId: string, projectId: string): ProjectMember
     user_id: userId,
     project_id: projectId,
     role: 'editor',
-    can_view_bom: false,
     created_at: now,
     created_by: userId,
   };
@@ -158,7 +158,6 @@ export function createState(): TestState {
     user_id,
     project_id,
     role: 'editor',
-    can_view_bom: false,
     created_at: now,
     created_by: user_id,
   });
@@ -204,6 +203,13 @@ export function makeServer(state: TestState) {
   }
 
   return setupServer(
+    http.get('http://localhost:8000/api/v1/health', () =>
+      HttpResponse.json({
+        status: 'ok',
+        errors: [],
+        banner: { level: null, message: '', since: null },
+      }),
+    ),
     http.get('http://localhost:8000/api/v1/users', () => HttpResponse.json(state.users)),
 
     // `CurrentUserRead` (ADR 0063 §6) = the directory row plus the one
@@ -212,7 +218,6 @@ export function makeServer(state: TestState) {
       const caller = callerFrom();
       return HttpResponse.json({
         ...caller,
-        is_availability_member: true,
       });
     }),
 
@@ -220,7 +225,7 @@ export function makeServer(state: TestState) {
     // user object from this response keeps the availability bits.
     http.patch('http://localhost:8000/api/v1/users/me', async ({ request }) => {
       const body = (await request.json()) as {
-        color?: string | null;
+        color?: string;
         dark_mode?: User['dark_mode'];
       };
       const caller = callerFrom();
@@ -233,7 +238,6 @@ export function makeServer(state: TestState) {
       if (idx !== -1) state.users[idx] = updated;
       return HttpResponse.json({
         ...updated,
-        is_availability_member: true,
       });
     }),
 
@@ -279,7 +283,7 @@ export function makeServer(state: TestState) {
       const created = makeTask({
         id: `00000000-0000-0000-0000-00000000ff${String(state.nextTaskSerial++).padStart(2, '0')}`,
         title: body.title ?? 'Untitled',
-        stage: body.stage ?? 'prototype',
+        kind: body.kind ?? 'prototype',
         parent_id: body.parent_id ?? null,
         assignee_ids: body.assignee_ids ?? [],
         status: body.status ?? 'not_started',

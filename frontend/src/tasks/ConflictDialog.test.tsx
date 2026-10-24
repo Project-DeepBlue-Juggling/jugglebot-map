@@ -16,11 +16,9 @@ const ALICE: User = {
   id: '00000000-0000-0000-0000-0000000000a1',
   email: 'alice@local',
   display_name: 'Alice',
-  color: null,
+  color: '#4f46e5',
   dark_mode: 'system',
   created_at: '2026-05-06T00:00:00Z',
-  is_availability_admin: false,
-  can_access_catalogue: false,
 };
 
 function makeConflict(overrides: Partial<TaskUpdateConflict> = {}): TaskUpdateConflict {

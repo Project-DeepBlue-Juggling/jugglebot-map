@@ -2,13 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import { useApi } from './useApi';
 import { qk } from './queryKeys';
-import { applyEvent } from './eventReducer';
 import { useActiveProjectId } from '../projects/useActiveProject';
 import { useAuth } from '../auth/useAuth';
 import type {
   CurrentUser,
   DependencyCreateBody,
-  DependencyEdge,
   Task,
   TaskCreateBody,
   TaskUpdateBody,
@@ -30,10 +28,6 @@ import type {
  * Components inside a `/projects/:projectId/...` route don't pass the
  * project id explicitly; the hooks read it from context.
  */
-
-const SYNTHETIC_SEQ = -1;
-const SYNTHETIC_AT = ''; // ignored by the reducer; only seq/type/payload matter
-const SYNTHETIC_ACTOR = '00000000-0000-0000-0000-000000000000';
 
 // -- Project collection + instance ----------------------------------------
 
@@ -180,15 +174,8 @@ export function useCreateTask() {
   const projectId = useActiveProjectId();
   return useMutation({
     mutationFn: (body: TaskCreateBody) => api.createTask(projectId, body),
-    onSuccess: (task: Task) => {
-      applyEvent(qc, {
-        type: 'task.created',
-        seq: SYNTHETIC_SEQ,
-        project_id: projectId,
-        actor_id: SYNTHETIC_ACTOR,
-        at: SYNTHETIC_AT,
-        task,
-      });
+    onSuccess: () => {
+      void qc.invalidateQueries();
     },
   });
 }
@@ -200,15 +187,8 @@ export function usePatchTask() {
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: TaskUpdateBody }) =>
       api.patchTask(projectId, id, body),
-    onSuccess: (task: Task) => {
-      applyEvent(qc, {
-        type: 'task.updated',
-        seq: SYNTHETIC_SEQ,
-        project_id: projectId,
-        actor_id: SYNTHETIC_ACTOR,
-        at: SYNTHETIC_AT,
-        task,
-      });
+    onSuccess: () => {
+      void qc.invalidateQueries();
     },
   });
 }
@@ -260,15 +240,8 @@ export function useDeleteTask() {
   const projectId = useActiveProjectId();
   return useMutation({
     mutationFn: (id: string) => api.deleteTask(projectId, id),
-    onSuccess: (_data, id) => {
-      applyEvent(qc, {
-        type: 'task.deleted',
-        seq: SYNTHETIC_SEQ,
-        project_id: projectId,
-        actor_id: SYNTHETIC_ACTOR,
-        at: SYNTHETIC_AT,
-        task_id: id,
-      });
+    onSuccess: () => {
+      void qc.invalidateQueries();
     },
   });
 }
@@ -279,15 +252,8 @@ export function useCreateDependency() {
   const projectId = useActiveProjectId();
   return useMutation({
     mutationFn: (body: DependencyCreateBody) => api.createDependency(projectId, body),
-    onSuccess: (dep: DependencyEdge) => {
-      applyEvent(qc, {
-        type: 'dependency.created',
-        seq: SYNTHETIC_SEQ,
-        project_id: projectId,
-        actor_id: SYNTHETIC_ACTOR,
-        at: SYNTHETIC_AT,
-        dependency: dep,
-      });
+    onSuccess: () => {
+      void qc.invalidateQueries();
     },
   });
 }
@@ -299,15 +265,18 @@ export function useDeleteDependency() {
   return useMutation({
     mutationFn: ({ id }: { id: string; blockerId: string; blockedId: string }) =>
       api.deleteDependency(projectId, id),
-    onSuccess: (_data, vars) => {
-      applyEvent(qc, {
-        type: 'dependency.deleted',
-        seq: SYNTHETIC_SEQ,
-        project_id: projectId,
-        actor_id: SYNTHETIC_ACTOR,
-        at: SYNTHETIC_AT,
-        dependency_id: vars.id,
-      });
+    onSuccess: () => {
+      void qc.invalidateQueries();
     },
+  });
+}
+
+/** Server health: polled every 15 s, and refetched on every `invalidate` event. */
+export function useHealth() {
+  const api = useApi();
+  return useQuery({
+    queryKey: qk.health,
+    queryFn: () => api.getHealth(),
+    refetchInterval: 15_000,
   });
 }

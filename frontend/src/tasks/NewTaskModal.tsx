@@ -30,11 +30,11 @@ interface Props {
   // Both stay editable, because a prefilled field is a suggestion.
   defaultTitle?: string;
   defaultDescription?: string;
-  // Pre-fill the parent, stage and reviewer. Used by the detail panel's
+  // Pre-fill the parent, kind and reviewer. Used by the detail panel's
   // "+ Add sub-task" (ADR 0084): the child starts under the task being
-  // viewed, in its stage, with its reviewer. All stay editable.
+  // viewed, in its kind, with its reviewer. All stay editable.
   defaultParentId?: string;
-  defaultStage?: string;
+  defaultKind?: string;
   defaultReviewerId?: string | null;
 }
 
@@ -47,7 +47,7 @@ export default function NewTaskModal({
   defaultTitle,
   defaultDescription,
   defaultParentId,
-  defaultStage,
+  defaultKind,
   defaultReviewerId,
 }: Props) {
   const titleRef = useRef<HTMLInputElement | null>(null);
@@ -59,12 +59,12 @@ export default function NewTaskModal({
   const toast = useToast();
 
   const [title, setTitle] = useState(defaultTitle ?? '');
-  // A default stage the project no longer offers (renamed since the parent
-  // was filed) would leave the <select> showing one stage while sending
+  // A default kind the project no longer offers (renamed since the parent
+  // was filed) would leave the <select> showing one kind while sending
   // another, so it only applies when it is still a real option.
-  const [stage, setStage] = useState(
-    defaultStage !== undefined && project.stages.includes(defaultStage)
-      ? defaultStage
+  const [kind, setKind] = useState(
+    defaultKind !== undefined && project.stages.includes(defaultKind)
+      ? defaultKind
       : (project.stages[0] ?? ''),
   );
   const [parentId, setParentId] = useState<string>(defaultParentId ?? '');
@@ -144,7 +144,7 @@ export default function NewTaskModal({
     try {
       const created = await create.mutateAsync({
         title: title.trim(),
-        stage,
+        kind,
         parent_id: parentId === '' ? null : parentId,
         // ADR 0048 / issue #120: a section carries no assignees. The field is
         // hidden when "Make this a section" is ticked, and we drop any chips
@@ -288,10 +288,10 @@ export default function NewTaskModal({
             </span>
           </label>
           <label className="flex flex-col text-sm">
-            <span className="mb-1 font-medium">Stage</span>
+            <span className="mb-1 font-medium">Kind</span>
             <select
-              value={stage}
-              onChange={(e) => setStage(e.target.value)}
+              value={kind}
+              onChange={(e) => setKind(e.target.value)}
               className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             >
               {project.stages.map((s) => (

@@ -10,7 +10,7 @@ import time
 
 import pytest
 
-from server.models import (Dependency, Health, Me, Membership, Project, Task, TaskDetail,
+from server.models import (Dependency, Health, Membership, Project, Task, TaskDetail,
                            User)
 
 API = "/api/v1"
@@ -56,7 +56,7 @@ def test_every_get_parses_against_the_models(client):
     p = pid(client)
     for u in client.get(API + "/users").json():
         User.model_validate(u)
-    Me.model_validate(client.get(API + "/users/me").json())
+    User.model_validate(client.get(API + "/users/me").json())
     Project.model_validate(client.get("%s/projects/%s" % (API, p)).json())
     for m in client.get("%s/projects/%s/memberships" % (API, p)).json():
         Membership.model_validate(m)

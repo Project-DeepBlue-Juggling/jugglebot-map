@@ -3,15 +3,11 @@ import { z } from 'zod';
 // ADR 0052: canonical status order — backlog leads, qa sits before complete.
 // ADR 0075 appends `dropped` (intentionally abandoned), so the two terminal
 // states sit together at the end.
-export const TaskStatus = z.enum([
-  'backlog',
-  'not_started',
-  'in_progress',
-  'blocked',
-  'qa',
-  'complete',
-  'dropped',
-]);
+// The server's status vocabulary is mapkit's and differs per kind (inbox, open,
+// active, promoted, ...), so the wire type is a plain string. The prototype's
+// seven statuses stay the UI's known set (statusLabels / statusStyles fall back
+// for anything else) until the two pages (P4) bring the map statuses.
+export const TaskStatus = z.string();
 export type TaskStatus = z.infer<typeof TaskStatus>;
 
 // ADR 0052: optional triage level. The field is nullable on the wire — `null`
@@ -29,48 +25,20 @@ export const User = z.object({
   id: z.string(),
   email: z.string(),
   display_name: z.string(),
-  color: z.string().nullable(),
+  color: z.string(),
   dark_mode: DarkMode,
   created_at: z.string(),
-  // ADR 0063 §6: a real column on `users`, so it rides every row of the
-  // workspace directory. The *membership* bit deliberately does not —
-  // that would cost a per-row subquery — see `CurrentUser`.
-  is_availability_admin: z.boolean(),
-  // ADR 0077 sect 9: one boolean granting catalogue view and edit
-  // together. It rides every row because the access screen lists
-  // everyone -- its job is "give the new hire access", which needs the
-  // people who do not have it yet.
-  //
-  // Declared here deliberately: a zod object **strips unknown keys
-  // silently**, so a backend field missing from this schema is
-  // `undefined` forever and the nav item can never render. That is the
-  // ADR 0073 `brief_enabled` bug, and it cost a whole visual pass to
-  // find because every unit test passed.
-  can_access_catalogue: z.boolean(),
 });
 export type User = z.infer<typeof User>;
 
 export const UserList = z.array(User);
 
-/**
- * The caller's own row — `GET /users/me` and `PATCH /users/me` (ADR 0063 §6).
- *
- * `is_availability_member` is computed, not stored: it is true for a
- * roster row **or** the admin flag, because the flag grants membership on
- * its own (ADR 0063 §3). These two booleans are the nav-gating bits.
- *
- * Client-side gating is presentation, never the gate. The server refuses
- * regardless, and membership changes emit no SSE (ADR 0063 §9), so a
- * member removed while their tab is open keeps a stale nav entry until the
- * next refetch — at which point the link yields the no-access panel.
- */
-export const CurrentUser = User.extend({
-  is_availability_member: z.boolean(),
-});
+/** The caller's own row: `GET /users/me`. */
+export const CurrentUser = User;
 export type CurrentUser = z.infer<typeof CurrentUser>;
 
 export interface UserPatchSelfBody {
-  color?: string | null;
+  color?: string;
   dark_mode?: DarkMode;
 }
 
@@ -79,16 +47,6 @@ export const Project = z.object({
   name: z.string(),
   stages: z.array(z.string()),
   due_date_warning_days: z.number().int(),
-  // ADR 0073 §12: the Project Brief is admin-enabled per project, and
-  // this is what the nav item keys off. It rides the project row rather
-  // than the brief payload so the sidebar can decide without fetching a
-  // board it may not be allowed to show.
-  brief_enabled: z.boolean(),
-  // ADR 0077 sect 9: off by default, so no project grows a BOM tab
-  // until an admin asks for one. Same reasoning as `brief_enabled` --
-  // it rides the project row so the sidebar can decide without
-  // fetching cost data it may not be allowed to show.
-  bom_enabled: z.boolean(),
   created_at: z.string(),
   created_by: z.string(),
 });
@@ -100,9 +58,6 @@ export const ProjectMembership = z.object({
   user_id: z.string(),
   project_id: z.string(),
   role: MembershipRole,
-  // ADR 0077 sect 9: per-person, per-project. A new member defaults to
-  // no BOM access, and neither grant implies the other.
-  can_view_bom: z.boolean(),
   created_at: z.string(),
   created_by: z.string(),
 });
@@ -124,7 +79,9 @@ export const Task = z.object({
   // the "first assignee" presentation rule (canvas avatar colour,
   // Timeline pill ordering) depends on this ordering being deterministic.
   assignee_ids: z.array(z.string()),
-  stage: z.string(),
+  // One of the project's `stages` list (the kind list): pathway | idea |
+  // feature | bug | ticket | plan | phase.
+  kind: z.string(),
   status: TaskStatus,
   // ADR 0052: optional triage level; null = no priority.
   priority: TaskPriority.nullable(),
@@ -158,11 +115,23 @@ export const Task = z.object({
   // Server-computed for rendering — explicit `start_date` if set,
   // otherwise max blocker due_date (or today). Always populated. Not
   // writeable on Create / Update. ISO `YYYY-MM-DD`.
-  effective_start_date: z.string(),
+  effective_start_date: z.string().nullable(),
   created_at: z.string(),
   created_by: z.string(),
   updated_at: z.string(),
   updated_by: z.string(),
+  // Map fields (server/models.py Task).
+  slug: z.string(),
+  destination: z.string(),
+  branch: z.string().nullable(),
+  links: z.array(z.string()),
+  filed_by: z.string().nullable(),
+  promoted_to: z.string().nullable(),
+  rank: z.number().nullable(),
+  ticket_type: z.string().nullable(),
+  source_path: z.string(),
+  editable: z.boolean(),
+  pathway_id: z.string().nullable(),
 });
 export type Task = z.infer<typeof Task>;
 
@@ -222,7 +191,7 @@ export type TaskUpdateConflict = z.infer<typeof TaskUpdateConflict>;
 
 export interface TaskCreateBody {
   title: string;
-  stage: string;
+  kind: string;
   parent_id?: string | null;
   description?: string;
   // ADR 0060: optional completion criteria; omit for empty (like description).
@@ -258,7 +227,7 @@ export interface TaskUpdateBody {
   // ADR 0034. Omitting leaves the set unchanged; passing `[]` clears it;
   // passing a non-empty list replaces the set with exactly these IDs.
   assignee_ids?: string[];
-  stage?: string;
+  kind?: string;
   status?: TaskStatus;
   // ADR 0052: set/change/clear the triage level. Omit = unchanged; null = clear.
   priority?: TaskPriority | null;
@@ -291,57 +260,15 @@ export interface DependencyCreateBody {
   blocked_id: string;
 }
 
-// ----- SSE event payloads (ADR 0014, extended by ADR 0022) -------------------
+// ----- GET /health -----------------------------------------------------------
 
-const SseBase = z.object({
-  seq: z.number().int().nonnegative(),
-  project_id: z.string(),
-  actor_id: z.string(),
-  at: z.string(),
+export const Health = z.object({
+  status: z.enum(['ok', 'degraded']),
+  errors: z.array(z.object({ path: z.string(), message: z.string() })),
+  banner: z.object({
+    level: z.enum(['error', 'warning']).nullable(),
+    message: z.string(),
+    since: z.string().nullable(),
+  }),
 });
-
-export const TaskCreatedEvent = SseBase.extend({
-  type: z.literal('task.created'),
-  task: Task,
-});
-export type TaskCreatedEvent = z.infer<typeof TaskCreatedEvent>;
-
-export const TaskUpdatedEvent = SseBase.extend({
-  type: z.literal('task.updated'),
-  task: Task,
-});
-export type TaskUpdatedEvent = z.infer<typeof TaskUpdatedEvent>;
-
-export const TaskDeletedEvent = SseBase.extend({
-  type: z.literal('task.deleted'),
-  task_id: z.string(),
-});
-export type TaskDeletedEvent = z.infer<typeof TaskDeletedEvent>;
-
-export const DependencyCreatedEvent = SseBase.extend({
-  type: z.literal('dependency.created'),
-  dependency: DependencyEdge,
-});
-export type DependencyCreatedEvent = z.infer<typeof DependencyCreatedEvent>;
-
-export const DependencyDeletedEvent = SseBase.extend({
-  type: z.literal('dependency.deleted'),
-  dependency_id: z.string(),
-});
-export type DependencyDeletedEvent = z.infer<typeof DependencyDeletedEvent>;
-
-export const ProjectUpdatedEvent = SseBase.extend({
-  type: z.literal('project.updated'),
-  project: Project,
-});
-export type ProjectUpdatedEvent = z.infer<typeof ProjectUpdatedEvent>;
-
-export const ItemTreeEvent = z.discriminatedUnion('type', [
-  TaskCreatedEvent,
-  TaskUpdatedEvent,
-  TaskDeletedEvent,
-  DependencyCreatedEvent,
-  DependencyDeletedEvent,
-  ProjectUpdatedEvent,
-]);
-export type ItemTreeEvent = z.infer<typeof ItemTreeEvent>;
+export type Health = z.infer<typeof Health>;

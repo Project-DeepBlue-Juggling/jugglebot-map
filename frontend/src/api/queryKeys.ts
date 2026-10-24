@@ -6,6 +6,7 @@ export const qk = {
   // Workspace-level
   projects: ['projects'] as const,
   users: ['users'] as const,
+  health: ['health'] as const,
   // The caller's own row, keyed by user id.
   me: (userId: string) => ['users', 'me', userId] as const,
 
