@@ -1,5 +1,7 @@
 import { useDependencies, useTasks, useUsers } from '../../api/hooks';
 import { NowNextLaterView } from './NowNextLaterView';
+import { PROTOTYPE_ON } from '../../ui/PrototypeSwitcher';
+import { PrototypeNowNextLater } from './prototype';
 
 const noop = () => {};
 
@@ -19,8 +21,9 @@ export default function NowNextLater({ onOpen = noop }: NowNextLaterProps) {
   if (tasks.data === undefined || deps.data === undefined) {
     return <div className="p-6 text-slate-500 dark:text-slate-400">Loading the map…</div>;
   }
+  const View = PROTOTYPE_ON ? PrototypeNowNextLater : NowNextLaterView;
   return (
-    <NowNextLaterView
+    <View
       tasks={tasks.data}
       deps={deps.data}
       users={users.data ?? []}
