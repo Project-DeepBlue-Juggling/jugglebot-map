@@ -97,7 +97,7 @@ describe('shared drawer wiring', () => {
     ).toBeInTheDocument();
     expect(within(ro).getByText('plans/active/oval-plan.md')).toBeInTheDocument();
     expect(within(d).queryByRole('button', { name: 'Save' })).toBeNull();
-    expect(within(d).getByText('Dependencies')).toBeInTheDocument();
+    expect(await within(d).findByText('Dependencies')).toBeInTheDocument();
   });
 
   it('Promote PATCHes status and promoted_to with if_unchanged_since', async () => {

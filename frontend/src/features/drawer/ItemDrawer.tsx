@@ -16,7 +16,6 @@ import {
   INBOX_KINDS,
   nextStop,
   phasesOf,
-  phaseSummary,
   plansOf,
   type MapIndex,
 } from '../../lib/derive';
@@ -26,11 +25,14 @@ import { PRIORITY_LABELS, PRIORITY_OPTIONS } from '../../tasks/priority';
 import { KIND_LABELS, STATUSES_BY_KIND, statusLabel } from '../../theme/palette';
 import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
+import { fullDescription } from './fullText';
 
 interface DrawerProps {
   taskId: string;
   onClose: () => void;
   onOpen: (taskId: string) => void;
+  /** True when a page's DrawerSlot hosts it (a flex child), false for the overlay. */
+  docked?: boolean;
 }
 
 const FIELD =
@@ -43,13 +45,18 @@ const LABEL = 'mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400
  * answers 405 to a write). Every PATCH carries `if_unchanged_since`; a 409
  * "Task was modified" raises the ConflictDialog with the server's `current`.
  */
-export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
+export default function ItemDrawer({ taskId, onClose, onOpen, docked = false }: DrawerProps) {
   const detail = useTask(taskId);
   const all = useTasks();
   const deps = useDependencies();
   const users = useUsers();
-  const task = detail.data;
   const allTasks = all.data;
+  // Render at once from the list cache; the detail (blocking / blocked_by)
+  // arrives in the background and only gates the dependency sections.
+  const cached = allTasks?.find((t) => t.id === taskId);
+  const task: TaskDetail | undefined =
+    detail.data ?? (cached === undefined ? undefined : { ...cached, blocking: [], blocked_by: [] });
+  const detailReady = detail.data !== undefined;
 
   const ix = useMemo(
     () => (allTasks === undefined ? null : buildIndex(allTasks, deps.data ?? [], users.data ?? [])),
@@ -60,7 +67,12 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
     <aside
       role="complementary"
       aria-label="Item drawer"
-      className="fixed right-0 top-0 z-30 flex h-full w-[28rem] max-w-full flex-col border-l border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
+      className={clsx(
+        'flex flex-col border-l border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800',
+        docked
+          ? 'h-full min-h-0 w-[26rem] max-w-[45vw] rounded border'
+          : 'fixed right-0 top-0 z-30 h-full w-[28rem] max-w-full shadow-xl',
+      )}
     >
       <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
         <h2 className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -98,7 +110,11 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
               <ReadOnlyBody task={task} ix={ix} onOpen={onOpen} />
             )}
             <div className="mt-4">
-              {task.editable ? (
+              {!detailReady ? (
+                <p data-testid="deps-loading" className="text-xs text-slate-400">
+                  Loading dependencies…
+                </p>
+              ) : task.editable ? (
                 // Titles resolve from every task; the server refuses a phase as a
                 // blocker, so only the blocked-by picker drops phases.
                 <TaskDependenciesSection
@@ -152,8 +168,8 @@ function ReadOnlyBody({
       {task.description !== '' && (
         <div>
           <span className={LABEL}>Summary</span>
-          <p className="text-sm text-slate-700 dark:text-slate-300">
-            {task.kind === 'phase' ? phaseSummary(task) : task.description}
+          <p className="whitespace-pre-line text-sm text-slate-700 dark:text-slate-300">
+            {fullDescription(task.description)}
           </p>
         </div>
       )}

@@ -4,6 +4,8 @@ export interface DrawerValue {
   openId: string | null;
   open: (taskId: string) => void;
   close: () => void;
+  /** Set by a page's `<DrawerSlot />`: the drawer docks there instead of overlaying. */
+  setSlot: (el: HTMLElement | null) => void;
 }
 
 export const DrawerCtx = createContext<DrawerValue | null>(null);

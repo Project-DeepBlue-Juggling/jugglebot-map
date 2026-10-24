@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { DependencyEdge, Task, User } from '../../api/schemas';
+import { DrawerSlot } from '../../features/drawer/DrawerSlot';
 import { HoverProvider } from '../../features/hover';
 import { INBOX_KINDS, isDone } from '../../lib/derive';
 import { InboxCard } from '../FrontPage/InboxCard';
@@ -47,6 +48,7 @@ export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterVie
               <PathwayLane key={pw.id} pathway={pw} view={view} />
             ))}
           </div>
+          <DrawerSlot />
           <aside
             data-testid="rail"
             aria-label="Unattached inbox"
