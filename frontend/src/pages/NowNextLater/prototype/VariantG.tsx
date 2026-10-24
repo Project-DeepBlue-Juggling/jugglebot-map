@@ -259,14 +259,14 @@ function Block({ view, pw, j, level, compact }: { view: MapView; pw: Task; j: Jo
         <span title={pl.title} className="shrink-0 text-[11px]" style={{ color: TOKENS.textMed }}>
           {pl.text} stages
         </span>
-        {j.doneCapsule.units > 0 && (
+        {j.doneCapsule.units + j.doneCapsule.doneTickets > 0 && (
           <span
             title={`${j.doneCapsule.units} done plan${j.doneCapsule.units > 1 ? 's' : ''}${j.doneCapsule.doneTickets > 0 ? `, ${j.doneCapsule.doneTickets} done tickets` : ''}; not drawn`}
             className="shrink-0 rounded-full px-1.5 text-[10px]"
             style={{ backgroundColor: TOKENS.raised, color: TOKENS.textMed, border: `1px solid ${TOKENS.borderStrong}` }}
           >
-            {'\u2713'} {j.doneCapsule.units}{compact ? '' : ` plan${j.doneCapsule.units > 1 ? 's' : ''}`}
-            {j.doneCapsule.doneTickets > 0 && !compact ? ` \u00b7 ${j.doneCapsule.doneTickets} T` : ''}
+            {'\u2713'} {j.doneCapsule.units > 0 ? `${j.doneCapsule.units}${compact ? '' : ` plan${j.doneCapsule.units > 1 ? 's' : ''}`}` : `${j.doneCapsule.doneTickets} T`}
+            {j.doneCapsule.units > 0 && j.doneCapsule.doneTickets > 0 && !compact ? ` \u00b7 ${j.doneCapsule.doneTickets} T` : ''}
           </span>
         )}
         <span className="ml-auto flex shrink-0 items-center gap-2 text-[11px]">
