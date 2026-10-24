@@ -6,6 +6,12 @@ export interface DrawerValue {
   close: () => void;
   /** Set by a page's `<DrawerSlot />`: the drawer docks there instead of overlaying. */
   setSlot: (el: HTMLElement | null) => void;
+  /**
+   * Set by the drawer's edit form: saves unsaved edits and resolves false when
+   * the save failed or raised a conflict, so the drawer stays open. A clean form
+   * answers `true` synchronously, so closing it stays instant.
+   */
+  setFlush: (fn: (() => boolean | Promise<boolean>) | null) => void;
 }
 
 export const DrawerCtx = createContext<DrawerValue | null>(null);

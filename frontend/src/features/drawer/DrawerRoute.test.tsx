@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { HttpResponse, delay, http } from 'msw';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -166,5 +167,59 @@ describe('docking on Now / Next / Later', () => {
     renderApp('/?item=idea1', <FrontRoute />);
     const d = await drawer();
     expect(d.className).toMatch(/\bfixed\b/);
+  });
+});
+
+describe('leaving the drawer saves first', () => {
+  const editTitle = async (value: string) => {
+    renderApp(
+      '/now',
+      <>
+        <Probe />
+        <NowRoute />
+      </>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Wobbly idea/ }));
+    const d = await drawer();
+    const title = await within(d).findByLabelText('Title');
+    await userEvent.clear(title);
+    await userEvent.type(title, value);
+  };
+  const gone = () =>
+    waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
+    );
+
+  it('a click on empty space saves the edit and closes', async () => {
+    await editTitle('Renamed by click-away');
+    fireEvent.pointerDown(screen.getByTestId('nnl-page'));
+    await gone();
+    expect(state.tasks.find((t) => t.id === 'idea1')?.title).toBe('Renamed by click-away');
+    expect(loc()).toBe('/now');
+  });
+
+  it('the close button saves too', async () => {
+    await editTitle('Renamed by close');
+    fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
+    await gone();
+    expect(state.tasks.find((t) => t.id === 'idea1')?.title).toBe('Renamed by close');
+  });
+
+  it('a click on a control or inside the drawer does not close it', async () => {
+    await editTitle('Still editing');
+    fireEvent.pointerDown(screen.getByText('history-back'));
+    fireEvent.pointerDown(await drawer());
+    await settleQueries();
+    expect(screen.getByRole('complementary', { name: 'Item drawer' })).toBeInTheDocument();
+    expect(state.tasks.find((t) => t.id === 'idea1')?.title).toBe('Wobbly idea');
+  });
+
+  it('a conflicting save keeps the drawer open with the dialog', async () => {
+    await editTitle('Mine');
+    const idx = state.tasks.findIndex((t) => t.id === 'idea1');
+    state.tasks[idx] = { ...state.tasks[idx], updated_at: '2030-01-01T00:00:00Z' };
+    fireEvent.pointerDown(screen.getByTestId('nnl-page'));
+    expect(await screen.findByText(/also edited this task/)).toBeInTheDocument();
+    expect(screen.getByRole('complementary', { name: 'Item drawer' })).toBeInTheDocument();
   });
 });
