@@ -159,7 +159,7 @@ export function Track({
       )}
       {capW > 0 && capsule !== undefined && (
         <span
-          title={`${capsule.units} done, not drawn`}
+          title={`${capsule.units} done plans and ${capsule.doneTickets} done tickets, not drawn`}
           className="absolute left-0 flex items-center rounded-full px-1.5 text-[10px] font-medium"
           style={{
             top: lineTop - 8,
@@ -170,6 +170,7 @@ export function Track({
           }}
         >
           ✓ {capsule.units}
+          {capsule.doneTickets > 0 ? ` · ${capsule.doneTickets} T` : ''}
         </span>
       )}
       {shown.map((s, i) => (

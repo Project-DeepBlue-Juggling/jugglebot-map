@@ -127,8 +127,10 @@ export interface Station {
 export interface Capsule {
   /** Done plans compressed out of the track. */
   plans: Task[];
-  /** Done plans plus done tickets: the number shown as `✓ n`. */
+  /** Done plans only: the number shown as `✓ n plans` (critic round 2). */
   units: number;
+  /** Done tickets, shown separately as `✓ n T` when non-zero. */
+  doneTickets: number;
 }
 
 export interface Journey {
@@ -215,7 +217,7 @@ export function journeyByPlan(ix: MapIndex, pathway: Task): JourneyByPlan {
   for (const p of capsulePlans) placed.add(p.id);
   const external = next !== null && !placed.has(next.id) ? next : null;
   return {
-    doneCapsule: { plans: capsulePlans, units: capsulePlans.length + doneTickets },
+    doneCapsule: { plans: capsulePlans, units: capsulePlans.length, doneTickets },
     plans,
     tickets,
     parked,

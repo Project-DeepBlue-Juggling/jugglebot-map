@@ -24,13 +24,19 @@ const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLat
   ['Z', 'Current page', NowNextLaterView],
 ];
 
+// Round 2 (critic-reviewed) cycles in the bar, G first; A-D and F stay reachable by URL.
+const CYCLE = ['G', 'E', 'B', 'Z'];
+
 export function PrototypeNowNextLater(props: NowNextLaterViewProps) {
-  const v = usePrototypeVariant(VARIANTS.map(([k]) => k));
+  const v = usePrototypeVariant([...CYCLE, ...VARIANTS.map(([k]) => k).filter((k) => !CYCLE.includes(k))]);
   const Comp = (VARIANTS.find(([k]) => k === v) ?? VARIANTS[0])[2];
   return (
     <>
       <Comp {...props} />
-      <PrototypeSwitcher variants={VARIANTS.map(([k, n]) => [k, n] as const)} current={v} />
+      <PrototypeSwitcher
+        variants={CYCLE.map((k) => [k, (VARIANTS.find(([x]) => x === k) ?? VARIANTS[0])[1]] as const)}
+        current={v}
+      />
     </>
   );
 }
