@@ -188,12 +188,18 @@ export interface ProgressUnit {
   plan: Task;
 }
 
-/** The stops of a pathway: each plan's phases, or the plan when it has none. */
+/**
+ * The stops of a pathway: each plan's phases, or the plan when it has none.
+ * A finished (done / dropped / superseded) or parked plan is one unit itself,
+ * so its leftover phases never sit in the denominator or in What-remains.
+ */
 export function progressUnits(ix: MapIndex, pathway: Task): ProgressUnit[] {
   const out: ProgressUnit[] = [];
   for (const plan of plansOf(ix, pathway)) {
     const ph = phasesOf(ix, plan);
-    if (ph.length === 0) out.push({ task: plan, plan });
+    const ps = taskState(plan);
+    if (ph.length === 0 || ps === 'done' || ps === 'excluded' || ps === 'parked')
+      out.push({ task: plan, plan });
     else for (const p of ph) out.push({ task: p, plan });
   }
   return out;
@@ -231,8 +237,8 @@ const finished = (t: Task) => {
 /**
  * The pathway's next stop: the first unfinished, unblocked phase of the first
  * ready plan (open, not parked, no open blocker), or that plan when it has no
- * phases. When every open plan waits on a blocker, Next is the first plan's
- * first open blocker. No open plans -> null.
+ * phases. When every open plan waits on a blocker, or every unfinished phase of
+ * the ready plans does, Next is the first open blocker (a task). No open plans -> null.
  */
 export function nextStop(ix: MapIndex, pathway: Task): Task | null {
   const open = plansOf(ix, pathway).filter((p) => !finished(p) && taskState(p) !== 'parked');
@@ -244,6 +250,14 @@ export function nextStop(ix: MapIndex, pathway: Task): Task | null {
     if (phases.length === 0) return plan;
     const n = phases.find((p) => !finished(p) && openBlockers(ix, p.id).length === 0);
     if (n !== undefined) return n;
+  }
+  // Every unfinished phase of every ready plan waits: surface the first blocker.
+  for (const plan of ready) {
+    for (const ph of phasesOf(ix, plan)) {
+      if (finished(ph)) continue;
+      const b = openBlockers(ix, ph.id)[0];
+      if (b !== undefined) return b;
+    }
   }
   return null;
 }
@@ -267,7 +281,9 @@ export interface Lanes {
 
 /**
  * Now / Next / Later / Done for one pathway. Each task lands once, checked in
- * the order done -> now -> next -> later. A plan with phases contributes its
+ * the order done -> now -> next -> later. Now wins over Next on purpose: an
+ * in-progress computed Next stays in Now and the Next lane is then empty (the
+ * page rings the next card wherever it sits). A plan with phases contributes its
  * phases, unless it is done, dropped or parked (then the plan card itself).
  * Attached inbox items never go to Now. A computed Next outside the pathway
  * (a blocker) is appended to Next.
@@ -345,4 +361,23 @@ export function formatAge(createdAt: string, now: Date = new Date()): string {
 export function planCardName(plan: Task): string {
   const head = plan.title.split(':')[0].trim();
   return head.length > 40 ? `${head.slice(0, 39)}…` : head;
+}
+
+/**
+ * A phase's summary from its description: the `**Approach:**` paragraph when
+ * present, else the first paragraph; leading bold label and markdown
+ * emphasis / code markers stripped; clipped to 240 characters.
+ */
+export function phaseSummary(task: Task): string {
+  const paras = (task.description ?? '')
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p !== '');
+  const para = paras.find((p) => p.startsWith('**Approach:**')) ?? paras[0] ?? '';
+  const text = para
+    .replace(/^\*\*[^*]+\*\*\s*/, '')
+    .replace(/\*\*|__|`/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 240 ? `${text.slice(0, 239)}…` : text;
 }

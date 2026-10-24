@@ -34,6 +34,11 @@ const FIELD_LABELS: Record<string, string> = {
   canvas_y: 'Canvas Y',
   canvas_collapsed: 'Canvas collapsed',
   due_date: 'Due date',
+  destination: 'Destination',
+  priority: 'Priority',
+  branch: 'Branch',
+  links: 'Links',
+  promoted_to: 'Promoted to',
 };
 
 interface Props {
@@ -177,6 +182,7 @@ function renderValue(
   if (field === 'reviewer_id' && typeof value === 'string') {
     return users.find((u) => u.id === value)?.display_name ?? value;
   }
+  if (field === 'links' && Array.isArray(value)) return value.join(', ');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'string') return value;
   if (typeof value === 'number') return String(value);

@@ -8,6 +8,7 @@ import {
   nextStop,
   openBlockers,
   orderPathways,
+  phaseSummary,
   progress,
   progressUnits,
   taskState,
@@ -178,5 +179,75 @@ describe('wallItems and formatAge', () => {
     expect(formatAge('2026-04-22T12:00:00Z', now)).toBe('3w');
     expect(formatAge('2026-01-13T12:00:00Z', now)).toBe('4mo');
     expect(formatAge('garbage', now)).toBe('');
+  });
+});
+
+describe('P4 audit fixes (derive)', () => {
+  it('A1: a superseded or parked plan is one unit, not its phases', () => {
+    const tasks = [
+      mapTask({ id: 'pw' }),
+      ...planWithPhases('old', 'pw', ['complete', 'not_started'], { status: 'superseded' }),
+      ...planWithPhases('later', 'pw', ['not_started', 'not_started'], { status: 'parked' }),
+    ];
+    const ix = buildIndex(tasks, []);
+    const pr = progress(ix, get(ix, 'pw'));
+    expect(ids(pr.units.map((u) => u.task)).sort()).toEqual(['later', 'old']);
+    expect(pr.done).toBe(1);
+    expect(ids(pr.remaining.map((u) => u.task))).toEqual(['later']);
+    const only = buildIndex(
+      [
+        mapTask({ id: 'pw' }),
+        ...planWithPhases('old', 'pw', ['not_started'], { status: 'superseded' }),
+      ],
+      [],
+    );
+    const p2 = progress(only, get(only, 'pw'));
+    expect([p2.total, p2.done, p2.remaining.length]).toEqual([1, 1, 0]);
+  });
+
+  it('A2: an in-progress computed Next stays in Now and the Next lane is empty', () => {
+    const ix = buildIndex(
+      [
+        mapTask({ id: 'pw' }),
+        ...planWithPhases('p', 'pw', ['complete', 'in_progress', 'not_started']),
+      ],
+      [],
+    );
+    const l = lanes(ix, get(ix, 'pw'));
+    expect(nextStop(ix, get(ix, 'pw'))?.id).toBe('p#P2');
+    expect(ids(l.now)).toEqual(['p#P2']);
+    expect(l.next).toEqual([]);
+  });
+
+  it('A3: when every unfinished phase of a ready plan waits, Next is the first blocker', () => {
+    const ix = buildIndex(
+      [
+        mapTask({ id: 'pw' }),
+        ...planWithPhases('p', 'pw', ['complete', 'not_started']),
+        mapTask({ id: 'tk', kind: 'ticket', status: 'open', parent_id: 'pw', pathway_id: 'pw' }),
+      ],
+      [dep('tk', 'p#P2')],
+    );
+    expect(nextStop(ix, get(ix, 'pw'))?.id).toBe('tk');
+  });
+
+  it('V3: phaseSummary prefers Approach, strips label and markdown, clips to 240', () => {
+    const body = [
+      '**Implements:** the `derive.ts` pass.',
+      '**Files:** `a.ts`, `b.ts`',
+      '**Approach:** Compute the __lanes__ from **plan** order using `openBlockers`.',
+      '**Tests:** vitest.',
+    ].join('\n\n');
+    const t = mapTask({ id: 'x', kind: 'phase', description: body });
+    expect(phaseSummary(t)).toBe('Compute the lanes from plan order using openBlockers.');
+    const first = mapTask({
+      id: 'y',
+      kind: 'phase',
+      description: '**Implements:** the `derive.ts` pass.\n\nmore',
+    });
+    expect(phaseSummary(first)).toBe('the derive.ts pass.');
+    const long = mapTask({ id: 'z', kind: 'phase', description: 'w'.repeat(500) });
+    expect(phaseSummary(long)).toHaveLength(240);
+    expect(phaseSummary(mapTask({ id: 'e', kind: 'phase' }))).toBe('');
   });
 });

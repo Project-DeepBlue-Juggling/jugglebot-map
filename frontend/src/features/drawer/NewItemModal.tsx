@@ -41,7 +41,7 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (title.trim() === '') return;
     const body: TaskCreateBody = { kind, title: title.trim(), description: line.trim() };
-    if (priority !== '') body.priority = priority;
+    body.priority = priority === '' ? null : priority;
     if (pathway !== '') body.parent_id = pathway;
     try {
       await create.mutateAsync(body);
@@ -71,7 +71,12 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
           <label className={LABEL} htmlFor="new-kind">
             Kind
           </label>
-          <select id="new-kind" className={FIELD} value={kind} onChange={(e) => setKind(e.target.value)}>
+          <select
+            id="new-kind"
+            className={FIELD}
+            value={kind}
+            onChange={(e) => setKind(e.target.value)}
+          >
             {NEW_ITEM_KINDS.map((k) => (
               <option key={k} value={k}>
                 {KIND_LABELS[k] ?? k}
@@ -83,13 +88,24 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
           <label className={LABEL} htmlFor="new-title">
             Title
           </label>
-          <input id="new-title" autoFocus className={FIELD} value={title} onChange={(e) => setTitle(e.target.value)} />
+          <input
+            id="new-title"
+            autoFocus
+            className={FIELD}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
         </div>
         <div>
           <label className={LABEL} htmlFor="new-line">
             One line
           </label>
-          <input id="new-line" className={FIELD} value={line} onChange={(e) => setLine(e.target.value)} />
+          <input
+            id="new-line"
+            className={FIELD}
+            value={line}
+            onChange={(e) => setLine(e.target.value)}
+          />
         </div>
         <div>
           <label className={LABEL} htmlFor="new-priority">
@@ -113,7 +129,12 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
           <label className={LABEL} htmlFor="new-pathway">
             Pathway (optional)
           </label>
-          <select id="new-pathway" className={FIELD} value={pathway} onChange={(e) => setPathway(e.target.value)}>
+          <select
+            id="new-pathway"
+            className={FIELD}
+            value={pathway}
+            onChange={(e) => setPathway(e.target.value)}
+          >
             <option value="">Unattached</option>
             {pathways.map((p) => (
               <option key={p.id} value={p.id}>

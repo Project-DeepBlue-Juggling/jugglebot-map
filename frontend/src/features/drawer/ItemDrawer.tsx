@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { ApiError } from '../../api/client';
 import { useDependencies, usePatchTask, useTask, useTasks, useUsers } from '../../api/hooks';
@@ -16,6 +16,7 @@ import {
   INBOX_KINDS,
   nextStop,
   phasesOf,
+  phaseSummary,
   plansOf,
   type MapIndex,
 } from '../../lib/derive';
@@ -51,8 +52,7 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
   const allTasks = all.data;
 
   const ix = useMemo(
-    () =>
-      allTasks === undefined ? null : buildIndex(allTasks, deps.data ?? [], users.data ?? []),
+    () => (allTasks === undefined ? null : buildIndex(allTasks, deps.data ?? [], users.data ?? [])),
     [allTasks, deps.data, users.data],
   );
 
@@ -64,7 +64,9 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
     >
       <header className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
         <h2 className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          {task === undefined ? 'Loading…' : `${KIND_LABELS[task.kind] ?? task.kind} · ${statusLabel(task.status)}`}
+          {task === undefined
+            ? 'Loading…'
+            : `${KIND_LABELS[task.kind] ?? task.kind} · ${statusLabel(task.status)}`}
         </h2>
         <button
           type="button"
@@ -77,7 +79,9 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {detail.error !== null && (
-          <p className="text-sm text-red-700 dark:text-red-300">{(detail.error as Error).message}</p>
+          <p className="text-sm text-red-700 dark:text-red-300">
+            {(detail.error as Error).message}
+          </p>
         )}
         {task !== undefined && ix !== null && allTasks !== undefined && (
           <>
@@ -94,7 +98,15 @@ export default function ItemDrawer({ taskId, onClose, onOpen }: DrawerProps) {
               <ReadOnlyBody task={task} ix={ix} onOpen={onOpen} />
             )}
             <div className="mt-4">
-              <TaskDependenciesSection task={task} allTasks={allTasks} />
+              {task.editable ? (
+                // The server refuses a phase as a blocker, so phases are not offered.
+                <TaskDependenciesSection
+                  task={task}
+                  allTasks={allTasks.filter((t) => t.kind !== 'phase')}
+                />
+              ) : (
+                <ReadOnlyDependencies task={task} ix={ix} onOpen={onOpen} />
+              )}
             </div>
           </>
         )}
@@ -138,7 +150,9 @@ function ReadOnlyBody({
       {task.description !== '' && (
         <div>
           <span className={LABEL}>Summary</span>
-          <p className="text-sm text-slate-700 dark:text-slate-300">{task.description}</p>
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            {task.kind === 'phase' ? phaseSummary(task) : task.description}
+          </p>
         </div>
       )}
       <div>
@@ -170,16 +184,89 @@ function ReadOnlyBody({
       )}
       <div>
         <span className={LABEL}>Plan file</span>
-        <a
-          href={`/${task.source_path.split('#')[0]}`}
-          className="break-all text-sm text-sky-700 hover:underline dark:text-sky-300"
-        >
-          {task.source_path.split('#')[0]}
-        </a>
+        <span className="break-all text-sm">{task.source_path.split('#')[0]}</span>
       </div>
     </div>
   );
 }
+
+/** Plans and phases: edges are written in the plan file, so show them only. */
+function ReadOnlyDependencies({
+  task,
+  ix,
+  onOpen,
+}: {
+  task: TaskDetail;
+  ix: MapIndex;
+  onOpen: (id: string) => void;
+}) {
+  const rows = (ids: string[]) =>
+    ids.length === 0 ? (
+      <p className="text-xs text-slate-400 dark:text-slate-500">None</p>
+    ) : (
+      <ul className="flex flex-col gap-1">
+        {ids.map((id) => {
+          const t = ix.byId.get(id);
+          return (
+            <li key={id}>
+              {t === undefined ? (
+                <span className="text-sm">{id}</span>
+              ) : (
+                <LinkButton task={t} onOpen={onOpen} />
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  return (
+    <fieldset
+      data-testid="readonly-dependencies"
+      className="flex flex-col gap-3 rounded border border-slate-200 p-3 dark:border-slate-700"
+    >
+      <legend className="px-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+        Dependencies
+      </legend>
+      <div>
+        <span className={LABEL}>Blocked by</span>
+        {rows(task.blocked_by.map((e) => e.blocker_id))}
+      </div>
+      <div>
+        <span className={LABEL}>Blocks</span>
+        {rows(task.blocking.map((e) => e.blocked_id))}
+      </div>
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Dependencies of plans and phases are edited in the plan file
+      </p>
+    </fieldset>
+  );
+}
+
+interface FormState {
+  title: string;
+  text: string;
+  status: string;
+  priority: TaskPriority | '';
+  branch: string;
+  parentId: string;
+  links: string[];
+  owners: string[];
+}
+
+function formOf(task: TaskDetail): FormState {
+  return {
+    title: task.title,
+    text: task.kind === 'pathway' ? task.destination : task.description,
+    status: task.status,
+    priority: task.priority ?? '',
+    branch: task.branch ?? '',
+    parentId: task.parent_id ?? '',
+    links: task.links,
+    owners: task.assignee_ids,
+  };
+}
+
+const sameValue = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
@@ -202,63 +289,113 @@ function EditableBody({
   const toast = useToast();
   const isPathway = task.kind === 'pathway';
   const isInbox = INBOX_KINDS.has(task.kind);
+  const isTicket = task.kind === 'ticket';
+  const hasLinks = isInbox || isTicket;
 
-  const [title, setTitle] = useState(task.title);
-  const [text, setText] = useState(isPathway ? task.destination : task.description);
-  const [status, setStatus] = useState(task.status);
-  const [priority, setPriority] = useState<TaskPriority | ''>(task.priority ?? '');
-  const [branch, setBranch] = useState(task.branch ?? '');
-  const [parentId, setParentId] = useState(task.parent_id ?? '');
-  const [links, setLinks] = useState<string[]>(task.links);
+  // `baseline` is what the form was last in sync with (mount, last successful
+  // save, last clean refetch). The diff is against it, never the live `task`,
+  // so an SSE refetch cannot make Save overwrite someone else's change.
+  const baseline = useRef<FormState>(formOf(task));
+  const [form, setForm] = useState<FormState>(() => formOf(task));
+  const formRef = useRef(form);
+  formRef.current = form;
+  const lastSeen = useRef(task.updated_at);
+  const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+  const { title, text, status, priority, branch, parentId, links, owners } = form;
   const [newLink, setNewLink] = useState('');
-  const [owners, setOwners] = useState<string[]>(task.assignee_ids);
   const [promoting, setPromoting] = useState(false);
   const [promotedTo, setPromotedTo] = useState('');
-  const [conflict, setConflict] = useState<{ c: TaskUpdateConflict; pending: TaskUpdateBody } | null>(
-    null,
-  );
+  const [conflict, setConflict] = useState<{
+    c: TaskUpdateConflict;
+    pending: TaskUpdateBody;
+    snap: FormState;
+  } | null>(null);
+
+  // A refetched task re-seeds every field the user has not touched; dirty
+  // fields keep the user's value and their old baseline.
+  useEffect(() => {
+    if (task.updated_at === lastSeen.current) return;
+    lastSeen.current = task.updated_at;
+    const fresh = formOf(task);
+    const cur = formRef.current;
+    const next = { ...cur } as Record<string, unknown>;
+    const base = { ...baseline.current } as Record<string, unknown>;
+    for (const k of Object.keys(fresh) as Array<keyof FormState>) {
+      if (sameValue(cur[k], baseline.current[k])) {
+        next[k] = fresh[k];
+        base[k] = fresh[k];
+      }
+    }
+    baseline.current = base as unknown as FormState;
+    setForm(next as unknown as FormState);
+  }, [task]);
 
   const pathways = useMemo(() => allTasks.filter((t) => t.kind === 'pathway'), [allTasks]);
 
-  const body = useMemo(() => {
+  const diff = (f: FormState): TaskUpdateBody => {
+    const base = baseline.current;
     const b: TaskUpdateBody = {};
-    if (title !== task.title) b.title = title;
-    if (isPathway) {
-      if (text !== task.destination) b.destination = text;
-      if (branch !== (task.branch ?? '')) b.branch = branch === '' ? null : branch;
-    } else if (text !== task.description) {
-      b.description = text;
+    if (f.title !== base.title) b.title = f.title;
+    if (f.text !== base.text) {
+      if (isPathway) b.destination = f.text;
+      else b.description = f.text;
     }
-    if (status !== task.status) b.status = status;
-    if (priority !== (task.priority ?? '')) b.priority = priority === '' ? null : priority;
-    if (!isPathway && parentId !== (task.parent_id ?? '')) b.parent_id = parentId === '' ? null : parentId;
-    if (isInbox && !sameList(links, task.links)) b.links = links;
-    if (!sameList([...owners].sort(), [...task.assignee_ids].sort())) b.assignee_ids = owners;
+    if (isPathway && f.branch !== base.branch) b.branch = f.branch === '' ? null : f.branch;
+    if (f.status !== base.status) b.status = f.status;
+    if (f.priority !== base.priority) b.priority = f.priority === '' ? null : f.priority;
+    if (!isPathway && f.parentId !== base.parentId)
+      b.parent_id = f.parentId === '' ? null : f.parentId;
+    if (hasLinks && !sameList(f.links, base.links)) b.links = f.links;
+    if (!sameList([...f.owners].sort(), [...base.owners].sort())) b.assignee_ids = f.owners;
     return b;
-  }, [title, text, status, priority, branch, parentId, links, owners, task, isPathway, isInbox]);
+  };
+  const body = diff(form);
   const dirty = Object.keys(body).length > 0;
 
-  const save = async (b: TaskUpdateBody, since: string): Promise<boolean> => {
+  /** PATCH; on success the baseline becomes the snapshot just saved. */
+  const save = async (
+    b: TaskUpdateBody,
+    since: string,
+    snap: FormState,
+  ): Promise<string | null> => {
     try {
-      await patch.mutateAsync({ id: task.id, body: { ...b, if_unchanged_since: since } });
-      return true;
+      const saved = await patch.mutateAsync({
+        id: task.id,
+        body: { ...b, if_unchanged_since: since },
+      });
+      baseline.current = snap;
+      return saved.updated_at;
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
         const c = parseConflict(err.body, b);
         if (c !== null) {
-          setConflict({ c, pending: b });
-          return false;
+          setConflict({ c, pending: b, snap });
+          return null;
         }
       }
       toast.error('Could not save', err instanceof ApiError ? err.message : String(err));
-      return false;
+      return null;
     }
   };
 
   const promote = async () => {
     if (promotedTo.trim() === '') return;
-    if (await save({ status: 'promoted', promoted_to: promotedTo.trim() }, task.updated_at)) {
-      setStatus('promoted');
+    let since = task.updated_at;
+    if (dirty) {
+      const after = await save(body, since, form);
+      if (after === null) return;
+      since = after;
+    }
+    const snap = { ...formRef.current, status: 'promoted' };
+    const promoted = await save(
+      { status: 'promoted', promoted_to: promotedTo.trim() },
+      since,
+      snap,
+    );
+    if (promoted !== null) {
+      lastSeen.current = promoted;
+      setForm(snap);
       setPromoting(false);
     }
   };
@@ -272,7 +409,12 @@ function EditableBody({
         <label className={LABEL} htmlFor="drawer-title">
           Title
         </label>
-        <input id="drawer-title" className={FIELD} value={title} onChange={(e) => setTitle(e.target.value)} />
+        <input
+          id="drawer-title"
+          className={FIELD}
+          value={title}
+          onChange={(e) => set('title', e.target.value)}
+        />
       </div>
       <div>
         <label className={LABEL} htmlFor="drawer-text">
@@ -283,7 +425,7 @@ function EditableBody({
           rows={isPathway ? 4 : 3}
           className={FIELD}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => set('text', e.target.value)}
         />
       </div>
       {isPathway && (
@@ -310,7 +452,12 @@ function EditableBody({
             <label className={LABEL} htmlFor="drawer-branch">
               Branch
             </label>
-            <input id="drawer-branch" className={FIELD} value={branch} onChange={(e) => setBranch(e.target.value)} />
+            <input
+              id="drawer-branch"
+              className={FIELD}
+              value={branch}
+              onChange={(e) => set('branch', e.target.value)}
+            />
           </div>
         </>
       )}
@@ -319,12 +466,20 @@ function EditableBody({
           <label className={LABEL} htmlFor="drawer-status">
             Status
           </label>
-          <select id="drawer-status" className={FIELD} value={status} onChange={(e) => setStatus(e.target.value)}>
-            {(STATUSES_BY_KIND[task.kind] ?? [task.status]).map((s) => (
-              <option key={s} value={s}>
-                {statusLabel(s)}
-              </option>
-            ))}
+          <select
+            id="drawer-status"
+            className={FIELD}
+            value={status}
+            onChange={(e) => set('status', e.target.value)}
+          >
+            {(STATUSES_BY_KIND[task.kind] ?? [task.status])
+              // Promote is its own flow (it needs `promoted_to`), not a plain status.
+              .filter((s) => s !== 'promoted' || task.status === 'promoted')
+              .map((s) => (
+                <option key={s} value={s}>
+                  {statusLabel(s)}
+                </option>
+              ))}
           </select>
         </div>
         <div>
@@ -335,7 +490,7 @@ function EditableBody({
             id="drawer-priority"
             className={FIELD}
             value={priority}
-            onChange={(e) => setPriority(e.target.value as TaskPriority | '')}
+            onChange={(e) => set('priority', e.target.value as TaskPriority | '')}
           >
             <option value="">None</option>
             {PRIORITY_OPTIONS.map((p) => (
@@ -351,8 +506,13 @@ function EditableBody({
           <label className={LABEL} htmlFor="drawer-pathway">
             Pathway
           </label>
-          <select id="drawer-pathway" className={FIELD} value={parentId} onChange={(e) => setParentId(e.target.value)}>
-            <option value="">Unattached</option>
+          <select
+            id="drawer-pathway"
+            className={FIELD}
+            value={parentId}
+            onChange={(e) => set('parentId', e.target.value)}
+          >
+            {!isTicket && <option value="">Unattached</option>}
             {pathways.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.title}
@@ -361,7 +521,7 @@ function EditableBody({
           </select>
         </div>
       )}
-      {isInbox && (
+      {hasLinks && (
         <div>
           <span className={LABEL}>Links</span>
           <ul className="mb-1 flex flex-col gap-1">
@@ -371,7 +531,12 @@ function EditableBody({
                 <button
                   type="button"
                   aria-label={`Remove link ${l}`}
-                  onClick={() => setLinks(links.filter((x) => x !== l))}
+                  onClick={() =>
+                    set(
+                      'links',
+                      links.filter((x) => x !== l),
+                    )
+                  }
                   className="px-1 text-slate-500"
                 >
                   ×
@@ -390,7 +555,7 @@ function EditableBody({
               type="button"
               disabled={newLink.trim() === ''}
               onClick={() => {
-                setLinks([...links, newLink.trim()]);
+                set('links', [...links, newLink.trim()]);
                 setNewLink('');
               }}
               className="rounded border border-slate-300 px-2 text-sm dark:border-slate-600"
@@ -410,7 +575,9 @@ function EditableBody({
                 key={u.id}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setOwners(on ? owners.filter((o) => o !== u.id) : [...owners, u.id])}
+                onClick={() =>
+                  set('owners', on ? owners.filter((o) => o !== u.id) : [...owners, u.id])
+                }
                 className={clsx(
                   'rounded-full border px-2 py-0.5 text-xs',
                   on
@@ -431,7 +598,7 @@ function EditableBody({
         <button
           type="button"
           disabled={!dirty || patch.isPending}
-          onClick={() => void save(body, task.updated_at)}
+          onClick={() => void save(body, task.updated_at, form)}
           className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
         >
           Save
@@ -473,9 +640,9 @@ function EditableBody({
           busy={patch.isPending}
           onCancel={() => setConflict(null)}
           onOverwrite={() => {
-            const { c, pending } = conflict;
-            void save(pending, c.current_updated_at).then((ok) => {
-              if (ok) setConflict(null);
+            const { c, pending, snap } = conflict;
+            void save(pending, c.current_updated_at, snap).then((ok) => {
+              if (ok !== null) setConflict(null);
             });
           }}
         />

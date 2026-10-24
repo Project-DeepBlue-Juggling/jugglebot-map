@@ -29,6 +29,11 @@ function normaliseRoute(input: string): string {
 
 let lastClient: QueryClient | null = null;
 
+/** The QueryClient of the most recent renderApp (to invalidate from a test). */
+export function getLastClient(): QueryClient | null {
+  return lastClient;
+}
+
 /** Resolve once the most recent renderApp client has no fetch in flight. */
 export async function settleQueries(): Promise<void> {
   // One macrotask first: a mutation's onSuccess may not have invalidated yet.

@@ -46,6 +46,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  // The 400 px modal test must not leak its viewport into other files in this worker.
+  (
+    window as unknown as { happyDOM?: { setViewport(v: { width: number; height: number }): void } }
+  ).happyDOM?.setViewport({ width: 1024, height: 768 });
   await settleQueries();
   cleanup();
   server.resetHandlers();
@@ -59,7 +63,9 @@ describe('shared drawer wiring', () => {
     renderApp('/', <FrontRoute />);
     fireEvent.click(await screen.findByRole('button', { name: 'Oval' }));
     const d = await drawer();
-    expect(await within(d).findByTestId('drawer-next')).toHaveTextContent('P2 Phase 2 of oval-plan');
+    expect(await within(d).findByTestId('drawer-next')).toHaveTextContent(
+      'P2 Phase 2 of oval-plan',
+    );
     expect(within(d).getByLabelText('Destination')).toHaveValue('Two balls in one hand.');
     expect(within(d).getByText('oval-plan')).toBeInTheDocument(); // Contains
   });
@@ -70,7 +76,9 @@ describe('shared drawer wiring', () => {
     const d = await drawer();
     expect(await within(d).findByLabelText('Title')).toHaveValue('Wobbly idea');
     fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
+    );
     fireEvent.click(screen.getByRole('button', { name: /Wobbly idea/ }));
     fireEvent.click(await screen.findByRole('button', { name: 'Close drawer' }));
     expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull();
@@ -84,7 +92,9 @@ describe('shared drawer wiring', () => {
     const ro = await within(d).findByTestId('readonly-body');
     expect(within(ro).queryByRole('textbox')).toBeNull();
     expect(within(ro).queryByRole('combobox')).toBeNull();
-    expect(within(ro).getByText('Phase 1 of oval-plan'.replace('Phase 1', 'P1 Phase 1'))).toBeInTheDocument();
+    expect(
+      within(ro).getByText('Phase 1 of oval-plan'.replace('Phase 1', 'P1 Phase 1')),
+    ).toBeInTheDocument();
     expect(within(ro).getByText('plans/active/oval-plan.md')).toBeInTheDocument();
     expect(within(d).queryByRole('button', { name: 'Save' })).toBeNull();
     expect(within(d).getByText('Dependencies')).toBeInTheDocument();
@@ -137,7 +147,11 @@ describe('shared drawer wiring', () => {
 
 describe('five-field new-item modal', () => {
   it('shows and accepts all five fields at 400 px, single column', async () => {
-    window.innerWidth = 400;
+    (
+      window as unknown as {
+        happyDOM?: { setViewport(v: { width: number; height: number }): void };
+      }
+    ).happyDOM?.setViewport({ width: 400, height: 800 });
     renderApp('/', <FrontRoute />);
     await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
     const form = await screen.findByTestId('new-item-form');
@@ -178,7 +192,138 @@ describe('five-field new-item modal', () => {
     });
   });
 
+  it('A7: priority None is sent as an explicit null', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    await userEvent.type(within(form).getByLabelText('Title'), 'Plain');
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(mapTask({ id: 'new2', kind: 'idea' }));
+      }),
+    );
+    await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ priority: null });
+  });
+
   it('is exported as a standalone component', () => {
     expect(typeof NewItemModal).toBe('function');
+  });
+});
+
+describe('P4 audit fixes (drawer)', () => {
+  const openIdea = async () => {
+    renderApp('/now', <NowRoute />);
+    fireEvent.click(await screen.findByRole('button', { name: /Wobbly idea/ }));
+    return drawer();
+  };
+
+  it('A4: a refetched title is re-seeded, not overwritten by Save; a dirty field survives', async () => {
+    const d = await openIdea();
+    const desc = await within(d).findByLabelText('Description');
+    await userEvent.clear(desc);
+    await userEvent.type(desc, 'Mine');
+    // Someone else renames the item; the app refetches (SSE invalidate).
+    state.tasks = state.tasks.map((t) =>
+      t.id === 'idea1'
+        ? { ...t, title: 'Renamed elsewhere', updated_at: '2026-06-01T00:00:00Z' }
+        : t,
+    );
+    const qc = (await import('../../test/renderApp')).getLastClient();
+    await qc?.invalidateQueries();
+    await waitFor(() => expect(within(d).getByLabelText('Title')).toHaveValue('Renamed elsewhere'));
+    expect(within(d).getByLabelText('Description')).toHaveValue('Mine');
+    await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(patchBodies).toHaveLength(1));
+    expect(patchBodies[0]).toEqual({
+      description: 'Mine',
+      if_unchanged_since: '2026-06-01T00:00:00Z',
+    });
+  });
+
+  it('A7: drawer priority None PATCHes null', async () => {
+    const d = await openIdea();
+    await userEvent.selectOptions(await within(d).findByLabelText('Priority'), '');
+    await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(patchBodies).toHaveLength(1));
+    expect(patchBodies[0]).toMatchObject({ priority: null });
+  });
+
+  it('N3: promoted is not a status option; Promote saves dirty edits first', async () => {
+    const d = await openIdea();
+    const status = await within(d).findByLabelText('Status');
+    expect(within(status).queryByRole('option', { name: /Promoted/ })).toBeNull();
+    const title = within(d).getByLabelText('Title');
+    await userEvent.clear(title);
+    await userEvent.type(title, 'Edited');
+    await userEvent.click(within(d).getByRole('button', { name: 'Promote' }));
+    await userEvent.type(within(d).getByLabelText('Promoted to'), 'plan.md');
+    await userEvent.click(within(d).getByRole('button', { name: 'Confirm promote' }));
+    await waitFor(() => expect(patchBodies).toHaveLength(2));
+    expect(patchBodies[0]).toMatchObject({ title: 'Edited' });
+    expect(patchBodies[1]).toMatchObject({ status: 'promoted', promoted_to: 'plan.md' });
+    expect(patchBodies[1]).toHaveProperty('if_unchanged_since');
+  });
+
+  it('N2: a ticket has the links editor and no Unattached option', async () => {
+    state.tasks.push(
+      mapTask({
+        id: 'tk',
+        kind: 'ticket',
+        status: 'open',
+        title: 'Do it',
+        parent_id: 'oval',
+        pathway_id: 'oval',
+      }),
+    );
+    renderApp('/now', <NowRoute />);
+    fireEvent.click(await screen.findByRole('button', { name: /Do it/ }));
+    const d = await drawer();
+    expect(await within(d).findByLabelText('Add link')).toBeInTheDocument();
+    const pw = within(d).getByLabelText('Pathway');
+    expect(within(pw).queryByRole('option', { name: 'Unattached' })).toBeNull();
+  });
+
+  it('A5/A6: a plan drawer lists its dependencies read-only and shows the file as text', async () => {
+    state.tasks.push(
+      mapTask({
+        id: 'tk2',
+        kind: 'ticket',
+        status: 'open',
+        title: 'Blocker ticket',
+        parent_id: 'oval',
+        pathway_id: 'oval',
+      }),
+    );
+    server.use(
+      http.get('http://localhost:8000/api/v1/projects/:projectId/tasks/oval-plan', () =>
+        HttpResponse.json({
+          ...state.tasks.find((t) => t.id === 'oval-plan'),
+          blocking: [],
+          blocked_by: [
+            {
+              id: 'e1',
+              blocker_id: 'tk2',
+              blocked_id: 'oval-plan',
+              created_at: '2026-05-01T00:00:00Z',
+              created_by: 'owner',
+            },
+          ],
+        }),
+      ),
+    );
+    renderApp('/', <FrontRoute />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Oval' }));
+    const d = await drawer();
+    fireEvent.click(await within(d).findByRole('button', { name: 'oval-plan' }));
+    const deps = await within(d).findByTestId('readonly-dependencies');
+    expect(within(deps).getByText('Blocker ticket')).toBeInTheDocument();
+    expect(within(deps).getByText(/edited in the plan file/)).toBeInTheDocument();
+    expect(within(deps).queryByRole('combobox')).toBeNull();
+    expect(within(deps).queryByRole('button', { name: /^Remove/ })).toBeNull();
+    expect(within(d).getByText('plans/active/oval-plan.md').closest('a')).toBeNull();
   });
 });
