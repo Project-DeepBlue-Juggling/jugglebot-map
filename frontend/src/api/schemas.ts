@@ -252,6 +252,11 @@ export interface TaskUpdateBody {
   // ADR 0058: set/change/clear the reviewer. Omit = unchanged; explicit
   // null = clear — the same null-vs-omitted semantics as start_date.
   reviewer_id?: string | null;
+  // Map fields the server's store writes through to the item file.
+  destination?: string;
+  branch?: string | null;
+  links?: string[];
+  promoted_to?: string | null;
   if_unchanged_since?: string;
 }
 

@@ -4,6 +4,7 @@ import { ApiError } from '../api/client';
 import { qk } from '../api/queryKeys';
 import { useApi } from '../api/useApi';
 import { useAuth } from '../auth/useAuth';
+import { DrawerProvider } from '../features/drawer/DrawerProvider';
 import { SearchProvider } from '../search/SearchProvider';
 import { CompletionReminderProvider } from '../tasks/CompletionReminderProvider';
 import { DropCascadeProvider } from '../tasks/DropCascadeProvider';
@@ -41,7 +42,9 @@ export default function ActiveProjectShell() {
       <CompletionReminderProvider>
         <DropCascadeProvider>
           <SearchProvider>
-            <Outlet />
+            <DrawerProvider>
+              <Outlet />
+            </DrawerProvider>
           </SearchProvider>
         </DropCascadeProvider>
       </CompletionReminderProvider>

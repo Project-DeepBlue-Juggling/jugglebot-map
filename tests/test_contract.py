@@ -263,6 +263,25 @@ def test_promoted_to_only_on_inbox_kinds(client):
     assert r.status_code == 422
 
 
+@pytest.mark.parametrize("kind,slug", [("idea", "shiny-thing"), ("bug", "wobbly-leg"),
+                                       ("feature", "new-feature")])
+def test_promoted_round_trip_on_each_inbox_kind(client, repo, kind, slug):
+    """PATCH status=promoted + promoted_to writes both to the item file; a re-read has both."""
+    if kind == "feature":
+        r = client.post(turl(client), json={"kind": "feature", "title": "New feature"})
+        assert r.status_code in (200, 201), r.text
+    t = tasks(client)[slug]
+    r = client.patch(turl(client, t["id"]),
+                     json={"status": "promoted", "promoted_to": "plan-example.md",
+                           "if_unchanged_since": t["updated_at"]})
+    assert r.status_code == 200, r.text
+    assert (r.json()["status"], r.json()["promoted_to"]) == ("promoted", "plan-example.md")
+    reread = tasks(client)[slug]
+    assert (reread["status"], reread["promoted_to"]) == ("promoted", "plan-example.md")
+    text = read(repo, "map/%s-%s.md" % (kind, slug))
+    assert "status: promoted" in text and "promoted_to: plan-example.md" in text
+
+
 # ------------------------------------------------------ startup, health ---
 
 def test_startup_refused_without_config(repo, capsys):

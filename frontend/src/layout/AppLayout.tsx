@@ -7,7 +7,9 @@ import { HealthBanner } from './HealthBanner';
 import { useCurrentUser, usePatchSelf, useProjects } from '../api/hooks';
 import type { DarkMode } from '../api/schemas';
 import { useAuth } from '../auth/useAuth';
-import { hasModifier, isShortcutTarget } from '../ui/keyboard';
+import NewItemModal from '../features/drawer/NewItemModal';
+import { ActiveProjectProvider } from '../projects/ActiveProjectContext';
+import { hasModifier, isShortcutTarget, modalIsOpen } from '../ui/keyboard';
 import { KeyboardShortcutsDialog } from '../ui/KeyboardShortcutsDialog';
 import { PalettePicker } from '../ui/PalettePicker';
 import { useToast } from '../ui/useToast';
@@ -43,12 +45,17 @@ export default function AppLayout() {
 
   // Plain `s` toggles the keyboard cheat-sheet.
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // "+ New" button and plain `n` open the five-field new-item modal.
+  const [newOpen, setNewOpen] = useState(false);
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!isShortcutTarget() || hasModifier(e)) return;
       if (e.key === 's' || e.key === 'S') {
         e.preventDefault();
         setShortcutsOpen((v) => !v);
+      } else if ((e.key === 'n' || e.key === 'N') && !modalIsOpen()) {
+        e.preventDefault();
+        setNewOpen(true);
       }
     };
     document.addEventListener('keydown', handler);
@@ -84,6 +91,16 @@ export default function AppLayout() {
           <div className="mb-6 flex shrink-0 items-center justify-between px-2">
             <div className="text-lg font-semibold">Jugglebot map</div>
           </div>
+          {projectId !== null && (
+            <button
+              type="button"
+              onClick={() => setNewOpen(true)}
+              title="New item (n)"
+              className="mb-3 shrink-0 rounded bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300"
+            >
+              + New
+            </button>
+          )}
           <nav aria-label="Primary" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
             {projectId !== null && (
               <>
@@ -147,6 +164,11 @@ export default function AppLayout() {
             <Outlet />
           </div>
         </main>
+        {newOpen && projectId !== null && (
+          <ActiveProjectProvider projectId={projectId}>
+            <NewItemModal onClose={() => setNewOpen(false)} />
+          </ActiveProjectProvider>
+        )}
         <KeyboardShortcutsDialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
       </div>
     </div>
