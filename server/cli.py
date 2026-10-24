@@ -12,6 +12,7 @@ from server.gitwriter import DEFAULT_DEBOUNCE_MS
 from server.watcher import DEFAULT_WATCH_MS
 
 DEFAULT_PORT = 8765
+SHUTDOWN_GRACE_S = 3
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -55,7 +56,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     print("jugglebot-map: serving %s on %s" % (cfg.repo_root, url), flush=True)
     if not args.no_open:
         threading.Timer(1.0, webbrowser.open, args=(url,)).start()
-    uvicorn.run(app, host=args.host, port=args.port, log_level="info")
+    # An open /events stream never closes on its own, so without a graceful-shutdown
+    # timeout uvicorn waits on it until systemd's 90 s SIGKILL; browsers reconnect.
+    uvicorn.run(app, host=args.host, port=args.port, log_level="info",
+                timeout_graceful_shutdown=SHUTDOWN_GRACE_S)
     return 0
 
 
