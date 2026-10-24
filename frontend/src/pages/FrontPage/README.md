@@ -8,4 +8,4 @@
 - Hover: wrap a page in `<HoverProvider openBlockerIds={openBlockerIdsOf(view)}>`; any element can opt in with `useItemHover(id)` (`features/hover`).
 - Colours: `theme/palette.ts` (`KIND_HUES`, `pathwayHues`, `STATE_STYLES` by `taskState`, `STATUSES_BY_KIND`, `statusLabel`).
 - The drawer unit only needs `onOpen`: the shell holds the open task id and renders the shared drawer (`features/drawer`); nothing here renders on open.
-- No-scroll contract: `FRONT_LAYOUT` heights are inline styles; `frontPageHeight()` stays <= 860; inbox cards are a fixed `FRONT_LAYOUT.card` high and the band shows one whole row plus a peek of the next. Tests pin the CSS contract only; the real check is `scripts/screenshot.sh`.
+- No-scroll contract: `FRONT_LAYOUT` heights are inline styles; `frontPageHeight()` (fixed parts plus one card) stays <= 860; inbox cards are a fixed `FRONT_LAYOUT.card` high; the tile grid keeps its fixed height and the wall band is `flex-1 min-h-0 overflow-y-auto`, filling whatever viewport height is left. Tests pin the CSS contract only; the real check is `scripts/screenshot.sh`.

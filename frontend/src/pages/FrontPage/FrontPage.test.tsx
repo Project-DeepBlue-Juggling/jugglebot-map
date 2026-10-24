@@ -183,22 +183,25 @@ describe('Front page CSS contract (no-scroll rule)', () => {
     tiles.forEach((t) => expect(t.style.height).toBe(`${tileH}px`));
     const wall = screen.getByTestId('inbox-wall');
     expect(wall).toHaveClass('overflow-y-auto');
-    const wallH = parseInt(wall.style.height, 10);
-    // Sum of the inline heights read from the DOM (two tile rows, the band)
-    // plus the layout's own mast, heading, padding and gaps.
+    // The band has no fixed height: it takes the rest of the viewport.
+    expect(wall).toHaveClass('flex-1', 'min-h-0');
+    expect(wall.style.height).toBe('');
+    expect(screen.getByTestId('front-page')).toHaveClass('h-full', 'overflow-hidden');
+    expect(grid.className).toContain('shrink-0');
+    // Sum of the inline heights read from the DOM (two tile rows) plus the
+    // layout's own mast, heading, padding, gaps and one minimum card.
     const L = FRONT_LAYOUT;
-    const total = 2 * L.pad + L.mast + 3 * L.gap + 2 * tileH + L.wallHead + wallH;
+    const total = 2 * L.pad + L.mast + 3 * L.gap + 2 * tileH + L.wallHead + L.card;
     expect(total).toBeLessThanOrEqual(900 - 40); // 40 px allowance: health banner
     expect(total).toBe(frontPageHeight());
   });
 
-  it('gives every inbox card the same fixed height, inside a band that fits one row', () => {
+  it('gives every inbox card the same fixed height, inside a band that scrolls', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
     const wall = screen.getByTestId('inbox-wall');
     const cards = Array.from(wall.children) as HTMLElement[];
     expect(cards.length).toBeGreaterThan(0);
     cards.forEach((c) => expect(c.style.height).toBe(`${FRONT_LAYOUT.card}px`));
-    expect(FRONT_LAYOUT.wall).toBeGreaterThanOrEqual(FRONT_LAYOUT.card);
   });
 });

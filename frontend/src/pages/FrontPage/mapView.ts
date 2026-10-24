@@ -41,8 +41,10 @@ export function openBlockerIdsOf(view: MapView): (id: string) => string[] {
 
 /**
  * The Front page's fixed heights in px (inline styles, so the no-scroll test
- * can sum them): mast + two tile rows + gap + wall heading + wall band +
- * vertical padding stays under 900 with room for the health banner.
+ * can sum them): mast + two tile rows + gaps + wall heading + vertical
+ * padding. The inbox wall band is `flex-1 min-h-0 overflow-y-auto`: it takes
+ * whatever viewport height is left (never less than one card, which is what
+ * `frontPageHeight()` budgets) and scrolls inside itself.
  */
 export const FRONT_LAYOUT = {
   pad: 12,
@@ -50,14 +52,13 @@ export const FRONT_LAYOUT = {
   tile: 276,
   gap: 12,
   wallHead: 26,
-  /** One inbox card (fixed) and the wall band: one whole row plus a peek of the next. */
+  /** One inbox card (fixed height). The wall band has no fixed height: it takes the rest of the viewport. */
   card: 148,
-  wall: 168,
 } as const;
 
 export function frontPageHeight(): number {
   const L = FRONT_LAYOUT;
-  return 2 * L.pad + L.mast + L.gap + 2 * L.tile + L.gap + L.gap + L.wallHead + L.wall;
+  return 2 * L.pad + L.mast + L.gap + 2 * L.tile + L.gap + L.gap + L.wallHead + L.card;
 }
 
 /** The state a pill shows: an active pathway reads as in progress. */

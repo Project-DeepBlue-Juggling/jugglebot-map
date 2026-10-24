@@ -106,15 +106,15 @@ describe('Now / Next / Later page', () => {
     const header = screen.getByRole('button', { name: 'Lane' });
     const cards = [...document.querySelectorAll('[data-item-id="x"]')];
     expect(cards.length).toBeGreaterThan(0);
-    fireEvent.mouseOver(cards[0]);
+    fireEvent.pointerEnter(cards[0]);
     for (const c of document.querySelectorAll('[data-item-id="x"]')) {
       expect(c).toHaveClass('is-hovered');
     }
     for (const c of document.querySelectorAll('[data-item-id="blk"]')) {
       expect(c).toHaveClass('is-blocker-of-hovered');
     }
-    fireEvent.mouseOut(cards[0]);
-    fireEvent.mouseOver(header);
+    fireEvent.pointerLeave(cards[0]);
+    fireEvent.pointerEnter(header);
     expect(header).toHaveClass('is-hovered');
     expect(header).toHaveAttribute('data-item-id', 'pw');
   });

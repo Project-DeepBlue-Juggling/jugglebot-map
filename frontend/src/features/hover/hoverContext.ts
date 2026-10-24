@@ -1,11 +1,10 @@
 import { createContext } from 'react';
 
 export interface HoverValue {
-  /** The hovered item's id, or null. */
-  hoveredId: string | null;
-  /** Ids of the hovered item's open blockers (outlined red). */
-  blockerIds: ReadonlySet<string>;
-  setHovered: (id: string | null) => void;
+  /** Pointer entered an element rendering item `id`. */
+  enter: (id: string) => void;
+  /** Pointer left an element rendering item `id`. */
+  leave: (id: string) => void;
 }
 
 export const HoverCtx = createContext<HoverValue | null>(null);

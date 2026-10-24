@@ -1,91 +1,21 @@
 import { Fragment, useEffect } from 'react';
+import { SHORTCUT_ROWS, type ShortcutRow } from './shortcutRows';
 
 /**
- * Cheat-sheet modal for the keyboard shortcuts defined in ADR 0019.
- * Opened by `s` or by clicking the "?" button in the sidebar. Esc /
- * click-outside / × all close it. Pure presentation: the bindings
- * themselves are wired into ListPage / CanvasView / TaskDetailPanel /
- * AppLayout / AvailabilityPage — the dialog just lists what those
- * bindings do.
+ * Cheat-sheet modal listing exactly the key bindings that exist in this app.
+ * Opened by `s` or the sidebar button; Esc / click-outside / x close it.
  *
- * **Undo is two different mechanisms and the list has to say so**
- * (ADR 0067 §3, §3a). Inside a project, Ctrl+Z is
- * `POST /projects/{id}/undo` — server-side, durable across a reload, and
- * with **no redo at all** (`useUndo` returns early on Shift). On the
- * Team Calendar it is a client-side stack of captured inverses, per tab,
- * lost on reload, and it *does* have redo on Ctrl+Shift+Z. They are
- * therefore separate sections rather than one row: the two keystrokes
- * look identical and behave differently, and a cheat sheet that flattened
- * them would teach the wrong expectation about which survives a refresh.
- * The Team Calendar is workspace-level and mounts no project, so only one
- * of the two is ever listening.
+ * Every row below is wired somewhere (`SHORTCUT_ROWS`, in shortcutRows.ts, drives the
+ * AppLayout test that presses each listed key and sees its handler fire):
+ * `s` and `n` in layout/AppLayout, Esc in DrawerProvider / NewItemModal /
+ * this dialog / the profile popover, Enter on a focused card or tag in
+ * pages/FrontPage/bits (Openable). Add a binding and a row together.
  */
 
 interface Props {
   open: boolean;
   onClose: () => void;
 }
-
-interface Row {
-  keys: string[];
-  description: string;
-}
-
-const GLOBAL_ROWS: Row[] = [
-  { keys: ['s'], description: 'Show this dialog' },
-  {
-    keys: ['Ctrl', 'z'],
-    description: 'Undo the last edit in this project — kept on the server, and no redo',
-  },
-  { keys: ['Enter'], description: "Edit the open task (focus the detail panel's Title field)" },
-  {
-    keys: ['Ctrl', 'Enter'],
-    description:
-      'Save your edits and return to navigating — or, in the New task form, create the task',
-  },
-  { keys: ['Esc'], description: 'Close the frontmost dialog or panel' },
-];
-
-const LIST_ROWS: Row[] = [
-  { keys: ['N'], description: 'New task' },
-  { keys: ['/'], description: 'Focus the assignee filter' },
-];
-
-const CANVAS_ROWS: Row[] = [
-  { keys: ['N'], description: 'New task (at viewport centre)' },
-  { keys: ['/'], description: 'Focus the highlight filter' },
-  {
-    keys: ['↑', '↓', '←', '→'],
-    description: 'Move selection to the nearest task in that direction',
-  },
-  {
-    keys: ['Shift', 'Drag'],
-    description: 'Select a group of tasks (drag a box over empty canvas)',
-  },
-  { keys: ['Drag'], description: 'Pan the canvas (drag empty space; or hold Space and drag)' },
-  { keys: ['Scroll'], description: 'Zoom the canvas around the cursor' },
-];
-
-const TIMELINE_ROWS: Row[] = [
-  { keys: ['↑', '↓'], description: 'Move selection to the row immediately above / below' },
-  {
-    keys: ['←', '→'],
-    description: 'Move selection within the row (or pan when no bar is focused)',
-  },
-  { keys: ['Shift', '←', '→'], description: 'Nudge the focused bar back / forward by one day' },
-  { keys: ['Enter'], description: 'Open the focused bar in the detail panel' },
-  { keys: ['Scroll'], description: 'Scroll the page / lanes vertically' },
-  { keys: ['Shift', 'Scroll'], description: 'Pan the chart horizontally' },
-  { keys: ['Ctrl', 'Scroll'], description: 'Zoom the time axis around the cursor' },
-];
-
-const TEAM_CALENDAR_ROWS: Row[] = [
-  {
-    keys: ['Ctrl', 'z'],
-    description: 'Undo your last change to your own entries — this tab only, lost on reload',
-  },
-  { keys: ['Ctrl', 'Shift', 'z'], description: 'Redo the change you have just undone' },
-];
 
 export function KeyboardShortcutsDialog({ open, onClose }: Props) {
   useEffect(() => {
@@ -127,18 +57,14 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
           </button>
         </header>
         <div className="overflow-auto px-5 pb-5">
-          <Section title="Global" rows={GLOBAL_ROWS} />
-          <Section title="List view" rows={LIST_ROWS} />
-          <Section title="Canvas view" rows={CANVAS_ROWS} />
-          <Section title="Timeline view" rows={TIMELINE_ROWS} />
-          <Section title="Team Calendar" rows={TEAM_CALENDAR_ROWS} />
+          <Section title="Keys" rows={SHORTCUT_ROWS} />
         </div>
       </div>
     </div>
   );
 }
 
-function Section({ title, rows }: { title: string; rows: Row[] }) {
+function Section({ title, rows }: { title: string; rows: ShortcutRow[] }) {
   return (
     <section className="mb-3 last:mb-0">
       <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">

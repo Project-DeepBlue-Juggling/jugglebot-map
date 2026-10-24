@@ -2,13 +2,13 @@ import { wallItems } from '../../lib/derive';
 import { InboxCard } from './InboxCard';
 import { FRONT_LAYOUT, type MapView } from './mapView';
 
-/** Every open idea / feature / bug, a fixed-height band that scrolls inside itself. */
+/** Every open idea / feature / bug, a band that fills the rest of the window and scrolls inside itself. */
 export function InboxWall({ view }: { view: MapView }) {
   const items = wallItems(view.ix);
   return (
-    <section aria-label="Inbox wall" className="flex shrink-0 flex-col">
+    <section aria-label="Inbox wall" className="flex min-h-0 flex-1 flex-col">
       <h2
-        className="flex items-baseline gap-2 text-sm font-semibold"
+        className="flex shrink-0 items-baseline gap-2 text-sm font-semibold"
         style={{ height: FRONT_LAYOUT.wallHead }}
       >
         Inbox wall
@@ -18,8 +18,8 @@ export function InboxWall({ view }: { view: MapView }) {
       </h2>
       <div
         data-testid="inbox-wall"
-        className="grid grid-cols-4 content-start gap-2 overflow-y-auto pr-1"
-        style={{ height: FRONT_LAYOUT.wall }}
+        className="grid min-h-0 flex-1 grid-cols-4 content-start gap-2 overflow-y-auto pr-1"
+        style={{ gridAutoRows: FRONT_LAYOUT.card }}
       >
         {items.map((t) => (
           <InboxCard key={t.id} task={t} view={view} />
