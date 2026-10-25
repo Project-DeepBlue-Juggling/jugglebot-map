@@ -145,12 +145,14 @@ export function useTasks() {
   });
 }
 
-export function useGlossary() {
+/** `enabled: false` defers the fetch (the header search loads it on first focus). */
+export function useGlossary({ enabled = true }: { enabled?: boolean } = {}) {
   const api = useApi();
   const projectId = useActiveProjectId();
   return useQuery({
     queryKey: qk.glossary(projectId),
     queryFn: () => api.getGlossary(projectId),
+    enabled,
   });
 }
 

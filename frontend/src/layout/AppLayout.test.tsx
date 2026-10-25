@@ -42,7 +42,13 @@ describe('AppLayout', () => {
     state.tasks = [mapTask({ id: 'idea1', kind: 'idea', title: 'Wobbly idea', status: 'inbox' })];
     renderApp('/', <FrontRoute />);
     await screen.findByRole('navigation', { name: 'Primary' });
-    expect(SHORTCUT_ROWS.map((r) => r.keys[0])).toEqual(['n', 's', 'Enter', 'e', 'Esc']);
+    expect(SHORTCUT_ROWS.map((r) => r.keys[0])).toEqual(['n', '/', 's', 'Enter', 'e', 'Esc']);
+
+    // / focuses the header search.
+    fireEvent.keyDown(document.body, { key: '/' });
+    expect(screen.getByRole('combobox', { name: /search items/i })).toHaveFocus();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    expect(screen.getByRole('combobox', { name: /search items/i })).not.toHaveFocus();
 
     // s opens the cheat-sheet; Esc closes it.
     fireEvent.keyDown(document.body, { key: 's' });

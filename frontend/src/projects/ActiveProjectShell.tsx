@@ -4,6 +4,7 @@ import { ApiError } from '../api/client';
 import { qk } from '../api/queryKeys';
 import { useApi } from '../api/useApi';
 import { useAuth } from '../auth/useAuth';
+import { SearchBar } from '../features/search/SearchBar';
 import { DrawerProvider } from '../features/drawer/DrawerProvider';
 import { ActiveProjectProvider } from './ActiveProjectContext';
 
@@ -37,7 +38,12 @@ export default function ActiveProjectShell() {
   return (
     <ActiveProjectProvider>
       <DrawerProvider>
-        <Outlet />
+        <div className="flex h-full flex-col overflow-hidden">
+          <SearchBar />
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Outlet />
+          </div>
+        </div>
       </DrawerProvider>
     </ActiveProjectProvider>
   );

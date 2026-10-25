@@ -6,6 +6,7 @@ export interface ShortcutRow {
 
 export const SHORTCUT_ROWS: ShortcutRow[] = [
   { keys: ['n'], description: 'New item (idea, feature or bug)' },
+  { keys: ['/'], description: 'Search items, plans and glossary terms' },
   { keys: ['s'], description: 'Show or hide this dialog' },
   { keys: ['Enter'], description: 'Open the focused card, tile or tag in the drawer' },
   { keys: ['e'], description: "Edit the open item's description" },
