@@ -23,12 +23,12 @@ afterEach(() => {
 });
 
 describe('AppLayout', () => {
-  it('links to the three pages', async () => {
+  it('links to the four pages', async () => {
     renderApp('/', <FrontPage />);
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
     const links = await screen.findAllByRole('link');
     expect(nav).toBeInTheDocument();
-    expect(links.map((l) => l.textContent)).toEqual(['Front page', 'Now / Next / Later', 'Dictionary']);
+    expect(links.map((l) => l.textContent)).toEqual(['Front page', 'Now / Next / Later', 'Done', 'Dictionary']);
   });
 
   it('does not show a signed-in block (single-user map)', async () => {

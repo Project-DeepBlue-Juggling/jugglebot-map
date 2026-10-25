@@ -6,7 +6,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { StaticAuthClient } from './auth/StaticAuthClient';
 import type { AuthClient } from './auth/types';
 import AppLayout from './layout/AppLayout';
-import { DictionaryRoute, FrontRoute, NowRoute } from './features/drawer/routes';
+import { DictionaryRoute, DoneRoute, FrontRoute, NowRoute } from './features/drawer/routes';
 import ActiveProjectShell from './projects/ActiveProjectShell';
 import RootRedirect from './projects/RootRedirect';
 import { ThemeProvider } from './ui/ThemeProvider';
@@ -44,6 +44,7 @@ export default function App({ authClient: injectedAuthClient }: AppProps = {}) {
                     <Route path="/projects/:projectId" element={<ActiveProjectShell />}>
                       <Route index element={<FrontRoute />} />
                       <Route path="now" element={<NowRoute />} />
+                      <Route path="done" element={<DoneRoute />} />
                       <Route path="dictionary" element={<DictionaryRoute />} />
                     </Route>
                     <Route path="/" element={<RootRedirect />} />

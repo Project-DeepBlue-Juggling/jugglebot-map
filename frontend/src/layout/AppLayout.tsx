@@ -72,6 +72,9 @@ export default function AppLayout() {
                 <NavLink to={`/projects/${projectId}/now`} className={navClass}>
                   Now / Next / Later
                 </NavLink>
+                <NavLink to={`/projects/${projectId}/done`} className={navClass}>
+                  Done
+                </NavLink>
                 <NavLink to={`/projects/${projectId}/dictionary`} className={navClass}>
                   Dictionary
                 </NavLink>

@@ -1,4 +1,5 @@
 import FrontPage from '../../pages/FrontPage';
+import DonePage from '../../pages/Done';
 import DictionaryPage from '../../pages/Dictionary';
 import NowNextLaterPage from '../../pages/NowNextLaterPage';
 import { useOpenItem } from './drawerContext';
@@ -14,4 +15,8 @@ export function NowRoute() {
 
 export function DictionaryRoute() {
   return <DictionaryPage />;
+}
+
+export function DoneRoute() {
+  return <DonePage onOpen={useOpenItem()} />;
 }
