@@ -7,7 +7,7 @@ import { isDone } from './derive';
  */
 
 const MET_RE = /\bmet(?:\s+on)?\s+(\d{4}-\d{2}-\d{2})\b/i;
-const PROGRESS_HEAD_RE = /^##\s+Progress\s*$/im;
+const PROGRESS_HEAD_RE = /^##\s+Progress\s*$/i;
 const PROGRESS_LINE_RE = /^\s*(?:[-*]\s+)?(\d{4}-\d{2}-\d{2})\s*[:\-–—]/;
 
 /**
@@ -24,16 +24,29 @@ export function completionDate(task: Task): string {
   return task.updated_at.slice(0, 10);
 }
 
+/** A real calendar date: `2026-02-30` is not (the server skips it too). */
+function isCalendarDate(ymd: string): boolean {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === ymd && ymd >= '0001-01-01';
+}
+
+/**
+ * The dated lines of every `## Progress` section (heading matched
+ * case-insensitively; a line is `YYYY-MM-DD` after an optional bullet and
+ * before a `:`/dash; impossible dates are skipped). Mirrors the server's
+ * `_progress_dates` (mapkit/items.py); the shared staleness fixture pins both.
+ */
 export function progressDates(body: string): string[] {
-  const head = PROGRESS_HEAD_RE.exec(body);
-  if (head === null) return [];
-  const rest = body.slice(head.index + head[0].length);
-  const next = rest.search(/^##\s/m);
-  const section = next === -1 ? rest : rest.slice(0, next);
   const out: string[] = [];
-  for (const line of section.split('\n')) {
+  let inProgress = false;
+  for (const line of body.split('\n')) {
+    if (/^##\s/.test(line)) {
+      inProgress = PROGRESS_HEAD_RE.test(line);
+      continue;
+    }
+    if (!inProgress) continue;
     const m = PROGRESS_LINE_RE.exec(line);
-    if (m !== null) out.push(m[1]);
+    if (m !== null && isCalendarDate(m[1])) out.push(m[1]);
   }
   return out;
 }

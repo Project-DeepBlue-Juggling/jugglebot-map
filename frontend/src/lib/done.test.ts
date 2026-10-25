@@ -36,6 +36,16 @@ describe('completionDate', () => {
     expect(completionDate(t)).toBe('2026-10-25');
   });
 
+  it('shares the staleness parse rule: every section, any heading case, separator required, real dates', () => {
+    const t = mapTask({
+      id: 'a',
+      description:
+        '## progress\n\n- 2026-10-02: began\n2026-10-09 no separator\n2026-02-30: impossible\n\n## Progress\n\n2026-10-11 - second section\n',
+      updated_at: upd,
+    });
+    expect(completionDate(t)).toBe('2026-10-11');
+  });
+
   it('else falls back to the updated date', () => {
     expect(completionDate(mapTask({ id: 'a', updated_at: upd }))).toBe('2026-10-20');
     expect(

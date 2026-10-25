@@ -2,14 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { mapTask } from '../test/mapFixtures';
 import { isStale, staleAge, staleClock } from './stale';
 
-// The shared fixture: the Python side encodes the same ten rows.
+// The shared fixture: the Python side encodes the same fourteen rows.
 const TODAY = new Date(2026, 9, 25, 12);
 
-function row(status: string, created: string, progress: string[], updated: string) {
+// `progress` is a list of dates (written under one "## Progress") or, for
+// rows 11-14, the raw body text.
+function row(status: string, created: string, progress: string[] | string, updated: string) {
   const body =
-    progress.length === 0
-      ? ''
-      : `## Progress\n\n${progress.map((d) => `${d} - note`).join('\n')}\n`;
+    typeof progress === 'string'
+      ? progress
+      : progress.length === 0
+        ? ''
+        : `## Progress\n\n${progress.map((d) => `${d} - note`).join('\n')}\n`;
   return mapTask({
     id: 'x',
     kind: 'feature',
@@ -62,5 +66,37 @@ describe('staleness fixture', () => {
     const t = row('inbox', '2026-09-25', [], '2026-09-25');
     expect(staleAge(t, TODAY)).toBe(30);
     expect(isStale(t, TODAY)).toBe(false);
+  });
+  // Rows 11-14 pin the Progress parse rule shared with mapkit/items.py.
+  it('row 11: a date with no separator is not a Progress line, 54 d from created, stale', () => {
+    const t = row('inbox', '2026-09-01', '## Progress\n\n2026-10-20 filed again\n', '2026-09-01');
+    expect(staleAge(t, TODAY)).toBe(54);
+    expect(isStale(t, TODAY)).toBe(true);
+  });
+  it('row 12: a lower-case "## progress" heading counts, 5 d, not stale', () => {
+    const t = row('inbox', '2026-09-01', '## progress\n\n2026-10-20: note\n', '2026-09-01');
+    expect(staleAge(t, TODAY)).toBe(5);
+    expect(isStale(t, TODAY)).toBe(false);
+  });
+  it('row 13: every Progress section counts, newest in the second, 5 d, not stale', () => {
+    const t = row(
+      'inbox',
+      '2026-08-01',
+      '## Progress\n\n2026-09-01: a\n\n## Notes\n\nx\n\n## Progress\n\n2026-10-20: b\n',
+      '2026-08-01',
+    );
+    expect(staleAge(t, TODAY)).toBe(5);
+    expect(isStale(t, TODAY)).toBe(false);
+  });
+  it('row 14: an impossible date newer than a valid one is skipped, 283 d, stale', () => {
+    const t = row(
+      'inbox',
+      '2026-01-01',
+      '## Progress\n\n2026-01-15: y\n2026-02-30: x\n',
+      '2026-01-01',
+    );
+    expect(staleClock(t)).toBe('2026-01-15');
+    expect(staleAge(t, TODAY)).toBe(283);
+    expect(isStale(t, TODAY)).toBe(true);
   });
 });
