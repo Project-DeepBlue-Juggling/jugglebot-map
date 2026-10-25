@@ -2,7 +2,7 @@
 // (G: Plan tracks. A pathway is a block; each open plan inside it is
 // its own track of 14 px chips (26 px pitch) with its Now/Next title and the Later one-liners
 // inline. The inbox is a full-height right rail (Bugs, Features, Ideas), each item once.)
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Task } from '../../../api/schemas';
 import { DrawerSlot } from '../../../features/drawer/DrawerSlot';
@@ -14,6 +14,7 @@ import { buildMapView, openBlockerIdsOf, type MapView } from '../../FrontPage/ma
 import type { NowNextLaterViewProps } from '../NowNextLaterView';
 import {
   activePathways,
+  arrivedPathways,
   attachedInboxSorted,
   INBOX_ORDER,
   inboxByKind,
@@ -26,7 +27,7 @@ import {
   type PlanTrack,
   type Station,
 } from './round2.ts';
-import { ArrivedShelf, KindGlyph } from './round2.tsx';
+import { KindGlyph } from './round2.tsx';
 
 const S = TOKENS.status;
 const PITCH = 26;
@@ -34,7 +35,6 @@ const NAME_W = 160;
 const LATER_H = 16;
 const LINE_H = 18;
 const KEY_HEAD = 24;
-const LIST_W = 330;
 const KIND_PLURAL = { bug: 'Bugs', feature: 'Features', idea: 'Ideas' } as const;
 
 /** The id of the item open in the drawer (null when closed). */
@@ -238,6 +238,43 @@ function ChipTrack({ stations, hue, view, dashed }: { stations: readonly Station
   );
 }
 
+/** The hollow-circle Later line text, used by the Later lines under tracks and by the Key. */
+function LaterMark({ text, title, style }: { text: string; title?: string; style?: CSSProperties | undefined }) {
+  return (
+    <span className="truncate" title={title} style={style}>
+      {'\u25cb'} {text}
+    </span>
+  );
+}
+
+/** One grey pill of the Arrived shelf; the shelf and the Key both draw it. */
+function ArrivedPill({ name, label }: { name: string; label: string }) {
+  return (
+    <span className="flex h-5 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[11px]" style={{ backgroundColor: TOKENS.raised, color: S.complete }}>
+      <span aria-hidden>{'\u2713'}</span>
+      <span>{name}</span>
+      {label !== '' && <span style={{ color: TOKENS.textLo }}>{'\u00b7'} {label}</span>}
+    </span>
+  );
+}
+
+function Shelf({ view }: { view: MapView }) {
+  const arrived = arrivedPathways(view);
+  if (arrived.length === 0) return null;
+  return (
+    <div data-testid="arrived" className="flex h-6 shrink-0 items-center gap-2 overflow-hidden">
+      <span className="text-[10px] font-semibold uppercase" style={{ color: TOKENS.textLo }}>
+        Arrived
+      </span>
+      {arrived.map((a) => (
+        <Openable key={a.pathway.id} id={a.pathway.id} view={view} label={a.pathway.title} as="span">
+          <ArrivedPill name={a.pathway.title} label={a.label} />
+        </Openable>
+      ))}
+    </div>
+  );
+}
+
 function LaterLine({ x, view, compact }: { x: Station; view: MapView; compact: boolean }) {
   const sel = useOpenId() === x.task.id;
   return (
@@ -249,9 +286,7 @@ function LaterLine({ x, view, compact }: { x: Station; view: MapView; compact: b
       className="flex items-center truncate text-[11px]"
       style={{ height: LATER_H, paddingLeft: compact ? 0 : NAME_W + 8, color: TOKENS.textLo }}
     >
-      <span className="truncate" title={displayTitle(x.task)} style={sel ? SEL : undefined}>
-        {'\u25cb'} {displayTitle(x.task)}
-      </span>
+      <LaterMark text={displayTitle(x.task)} title={displayTitle(x.task)} style={sel ? SEL : undefined} />
     </Openable>
   );
 }
@@ -317,8 +352,8 @@ function ItemLine({ t, view }: { t: Task; view: MapView }) {
       view={view}
       label={t.title}
       as="div"
-      className="flex items-center gap-1.5 rounded px-1 text-[13px]"
-      style={{ height: LINE_H, ...(sel ? SEL : {}) }}
+      className="flex items-center gap-1.5 rounded px-1 text-[12px]"
+      style={{ height: LINE_H, color: TOKENS.textMed, ...(sel ? SEL : {}) }}
     >
       <KindGlyph kind={t.kind} className="text-[11px]" />
       <span className="min-w-0 flex-1 truncate" title={t.title}>
@@ -370,7 +405,10 @@ function Block({
           />
         )}
       </div>
-      <div className={listBelow ? 'flex flex-col gap-px' : 'flex gap-3'}>
+      <div
+        className={listBelow ? 'flex flex-col gap-px' : 'grid items-start'}
+        style={listBelow ? undefined : { gridTemplateColumns: 'fit-content(600px) minmax(320px, 1fr)', columnGap: 24 }}
+      >
         <div className="flex min-w-0 flex-1 flex-col gap-px">
           {shown.map((g) => (
             <TrackLine key={g.plan.id} name={planCardName(g.plan)} track={g} hue={hue} view={view} dashed={dashed} laterLines={level.laterLines} compact={compact} />
@@ -388,7 +426,7 @@ function Block({
           )}
         </div>
         {att.length > 0 && (
-          <div data-testid="pw-items" className="flex shrink-0 flex-col" style={listBelow ? undefined : { width: LIST_W }}>
+          <div data-testid="pw-items" className="flex shrink-0 flex-col" style={undefined}>
             {att.map((t) => (
               <ItemLine key={t.id} t={t} view={view} />
             ))}
@@ -460,7 +498,7 @@ const KEY_STORE = 'nnl-key-open';
 function KeyEntry({ mark, term, text }: { mark: React.ReactNode; term: string; text: string }) {
   return (
     <div className="flex min-h-[18px] items-start gap-1.5 text-[11px] leading-[18px]" style={{ color: TOKENS.textMed }}>
-      <span className="flex w-[34px] shrink-0 items-center justify-center" style={{ height: 18 }}>
+      <span className="flex shrink-0 items-center justify-center" style={{ height: 18, minWidth: 34 }}>
         {mark}
       </span>
       <span className="min-w-0">
@@ -481,7 +519,7 @@ function KeyGroup({ label, grow, children }: { label: string; grow: number; chil
   );
 }
 
-function KeyBody({ wide, view }: { wide: boolean; view: MapView }) {
+function KeyBody({ wide, view, caps }: { wide: boolean; view: MapView; caps: { tickets: [number, number]; plans: [number, number] } }) {
   const hue = TOKENS.pathwayHues[0];
   const st = (state: Station['state'], code: string, isTicket = false) => (
     <ChipMark state={state} code={code} isTicket={isTicket} hue={hue} />
@@ -490,20 +528,18 @@ function KeyBody({ wide, view }: { wide: boolean; view: MapView }) {
   return (
     <div className={`flex gap-x-4 pb-1.5 ${wide ? '' : 'flex-wrap'}`}>
           <KeyGroup label="Stages (chips on the tracks)" grow={1.5}>
-            <KeyEntry mark={st('done', 'P1')} term="done" text="finished" />
-            <KeyEntry mark={st('now', 'P2')} term="now" text="in progress" />
-            <KeyEntry mark={st('next', 'P3')} term="next" text="the one stage to pick up next, across all Pathways" />
-            <KeyEntry mark={st('later', 'P4')} term="later" text="queued (also listed as lines under the track)" />
+            <KeyEntry mark={st('done', 'P1')} term="done" text="finished; consecutive done chips are joined by a line" />
+            <KeyEntry mark={st('now', 'P2')} term="now" text="in progress; its name follows the chips in white" />
+            <KeyEntry mark={st('next', 'P3')} term="next" text="the one stage to pick up next, across all Pathways; its name follows the chips in amber" />
+            <KeyEntry mark={st('later', 'P4')} term="later" text="queued" />
+            <KeyEntry mark={<span className="flex w-full justify-center text-[11px]" style={{ color: TOKENS.textLo }}>{'\u25cb'}</span>} term="later stage" text="queued, one line each under the track" />
             <KeyEntry mark={st('blocked', 'P5')} term="blocked" text="waiting on another item" />
             <KeyEntry mark={st('later', 'T', true)} term="T" text="a ticket (square chip)" />
           </KeyGroup>
           <KeyGroup label="Plans and tallies" grow={1.4}>
             <KeyEntry mark={st('later', 'BSS')} term="BSS" text="a plan without phases (its initials)" />
-            <KeyEntry
-              mark={<CapsuleChip units={3} doneTickets={0} compact title="" />}
-              term={'\u2713 3 plans \u00b7 14 T'}
-              text="finished plans and tickets, not drawn"
-            />
+            <KeyEntry mark={<CapsuleChip units={caps.tickets[0]} doneTickets={caps.tickets[1]} compact={false} title="" />} term="finished tickets" text="done tickets, not drawn" />
+            <KeyEntry mark={<CapsuleChip units={caps.plans[0]} doneTickets={caps.plans[1]} compact={false} title="" />} term="finished plans" text="done plans and tickets, not drawn" />
             <KeyEntry mark={<span style={{ color: TOKENS.textLo }}>{'\u2016'}</span>} term="parked" text="deliberately not now" />
             <KeyEntry mark={<span style={{ color: TOKENS.textLo }}>+2</span>} term="queued plans" text="plans not drawn at this size" />
             <KeyEntry mark={<span style={{ color: S.next }}>{'\u2197'}</span>} term="outside" text="the next stop is in another Pathway" />
@@ -515,7 +551,7 @@ function KeyBody({ wide, view }: { wide: boolean; view: MapView }) {
               term="stages"
               text="finished of all planned (2/7 = two of seven)"
             />
-            <KeyEntry mark={<span className="text-[10px]" style={{ color: TOKENS.textLo }}>ARR</span>} term="Arrived" text="shelf at the bottom: completed Pathways" />
+            <KeyEntry mark={<ArrivedPill name="Pathway" label="date" />} term="Arrived" text="shelf at the bottom: completed Pathways" />
             <KeyEntry
               mark={
                 <span className="flex gap-0.5">
@@ -527,32 +563,66 @@ function KeyBody({ wide, view }: { wide: boolean; view: MapView }) {
               term="bug, feature, idea"
               text="listed in their Pathway; unattached ones in the right-hand column"
             />
-            <KeyEntry mark={<span style={{ color: TOKENS.textLo }}>{'\u261d'}</span>} term="hover" text="lights up the same item elsewhere; click opens it" />
+            <KeyEntry mark={<span className="is-hovered rounded px-1 text-[10px]" style={{ color: TOKENS.textMed }}>P2</span>} term="hover" text="lights up the same item elsewhere; click opens it" />
           </KeyGroup>
         </div>
   );
 }
 
-function Key({ open, onToggle, room, wide, view }: { open: boolean; onToggle: () => void; room: boolean; wide: boolean; view: MapView }) {
-  const shown = open && room;
+type Caps = { tickets: [number, number]; plans: [number, number] };
+
+/** The Key: inline when it fits under the blocks; otherwise an upward overlay opened from its header (Esc or header click closes). */
+function Key({
+  open,
+  overlay,
+  onToggle,
+  fits,
+  wide,
+  view,
+  maxH,
+  caps,
+}: {
+  open: boolean;
+  overlay: boolean;
+  onToggle: () => void;
+  fits: boolean;
+  wide: boolean;
+  view: MapView;
+  maxH: number;
+  caps: Caps;
+}) {
+  const inline = fits && open;
+  const floating = !fits && overlay;
+  useEffect(() => {
+    if (!floating) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onToggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [floating, onToggle]);
   return (
-    <section data-testid="key" className="shrink-0 overflow-hidden rounded px-2" style={{ backgroundColor: TOKENS.surface }}>
+    <section data-testid="key" className="relative shrink-0 rounded px-2" style={{ backgroundColor: TOKENS.surface }}>
       <button
         type="button"
         onClick={onToggle}
-        aria-expanded={shown}
+        aria-expanded={inline || floating}
         className="flex h-6 w-full items-center gap-1.5 text-left text-[11px] font-semibold uppercase"
         style={{ color: TOKENS.textMed }}
       >
-        <span aria-hidden>{shown ? '\u25be' : '\u25b8'}</span>
+        <span aria-hidden>{inline || floating ? '\u25be' : '\u25b8'}</span>
         Key
-        {open && !room && (
-          <span className="font-normal normal-case" style={{ color: TOKENS.textLo }}>
-            (no room to expand)
-          </span>
-        )}
       </button>
-      {shown && <KeyBody wide={wide} view={view} />}
+      {inline && <KeyBody wide={wide} view={view} caps={caps} />}
+      {floating && (
+        <div
+          data-testid="key-overlay"
+          className="absolute bottom-6 left-0 right-0 z-30 overflow-y-auto rounded px-2 pt-1"
+          style={{ backgroundColor: TOKENS.raised, border: `1px solid ${TOKENS.border}`, maxHeight: maxH }}
+        >
+          <KeyBody wide={wide} view={view} caps={caps} />
+        </div>
+      )}
     </section>
   );
 }
@@ -561,8 +631,8 @@ export function VariantH({ tasks, deps, users, onOpen }: NowNextLaterViewProps) 
   const view = useMemo(() => buildMapView(tasks, deps, users, onOpen), [tasks, deps, users, onOpen]);
   const blockerIds = useMemo(() => openBlockerIdsOf(view), [view]);
   const drawerOpen = useDrawer()?.openId != null;
-  const compact = drawerOpen;
   const [areaRef, areaW, areaH] = useSize<HTMLDivElement>();
+  const compact = drawerOpen || (areaW > 0 && areaW < 760);
   const [measRef, , keyBody] = useSize<HTMLDivElement>();
   const [keyOpen, setKeyOpen] = useState<boolean>(() => {
     try {
@@ -571,6 +641,7 @@ export function VariantH({ tasks, deps, users, onOpen }: NowNextLaterViewProps) 
       return true;
     }
   });
+  const [overlay, setOverlay] = useState(false);
   const toggleKey = () =>
     setKeyOpen((o) => {
       try {
@@ -581,6 +652,15 @@ export function VariantH({ tasks, deps, users, onOpen }: NowNextLaterViewProps) 
       return !o;
     });
   const active = activePathways(view);
+  const caps = useMemo((): Caps => {
+    const all = active.map((pw) => journeyByPlan(view.ix, pw).doneCapsule);
+    const t = all.find((c) => c.units === 0 && c.doneTickets > 0);
+    const p = all.find((c) => c.units > 0);
+    return {
+      tickets: t ? [0, t.doneTickets] : [0, 17],
+      plans: p ? [p.units, p.doneTickets] : [3, 14],
+    };
+  }, [view, active]);
   const listBelow = drawerOpen || (areaW > 0 && areaW < 800);
   const js = useMemo(() => active.map((pw) => journeyByPlan(view.ix, pw)), [view, active]);
   const nItems = useMemo(() => active.map((pw) => attachedInboxSorted(view.ix, pw).length), [view, active]);
@@ -616,16 +696,25 @@ export function VariantH({ tasks, deps, users, onOpen }: NowNextLaterViewProps) 
           </header>
           <div ref={areaRef} data-testid="blocks" className="relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
             <div ref={measRef} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 w-full">
-              <KeyBody wide={areaW >= 860} view={view} />
+              <KeyBody wide={areaW >= 860 && !drawerOpen} view={view} caps={caps} />
             </div>
             {active.map((pw, i) => (
               <Block key={pw.id} view={view} pw={pw} j={js[i]} level={lv[i][idx[i]]} compact={compact} listBelow={listBelow} />
             ))}
             <div className="mt-auto">
-              <Key open={keyOpen} onToggle={toggleKey} room={free >= keyBody} wide={areaW >= 860} view={view} />
+              <Key
+                open={keyOpen}
+                overlay={overlay}
+                onToggle={() => (free >= keyBody ? toggleKey() : setOverlay((o) => !o))}
+                fits={free >= keyBody}
+                wide={areaW >= 860 && !drawerOpen}
+                view={view}
+                maxH={Math.max(areaH - 40, 100)}
+                caps={caps}
+              />
             </div>
           </div>
-          <ArrivedShelf view={view} />
+          <Shelf view={view} />
         </div>
         <DrawerSlot />
         <Rail view={view} narrow={drawerOpen} />
