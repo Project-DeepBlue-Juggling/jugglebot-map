@@ -108,7 +108,11 @@ class GitWriter:
                  debounce_ms: int = DEFAULT_DEBOUNCE_MS, lock: Optional[Any] = None,
                  on_repair: Optional[Callable[[], None]] = None) -> None:
         self.repo_root = repo_root
-        self._on_repair = on_repair  # the store's invalidate: renumbered tiles refetch
+        self._on_repair = on_repair  # the store's invalidate: renumbered / now-pushed tiles refetch
+        # Stems of the Items this clone created and has not pushed: their short ID is
+        # provisional (a rebase may renumber it), so the UI shows it as "unsent".
+        self._unpushed: "set[str]" = set()
+        self._sending: "set[str]" = set()
         self.banner = banner
         self.items_rel = items_rel
         self._store_lock = lock if lock is not None else threading.RLock()
@@ -165,21 +169,32 @@ class GitWriter:
             # A previous process died mid-rebase: abort it so the tree is the local commit again.
             self._git("rebase", "--abort", check=False)
         self.enabled = True
+        with self._plock:
+            self._unpushed = set(self._own_unpushed())  # left by a previous process
         return True
 
     def stop(self) -> None:
         self._debounce.close()
 
     # --- intake ---------------------------------------------------------------
-    def record(self, path: str, title: str) -> None:
-        """An API edit touched ``path`` (absolute); commit it ``debounce_ms`` after the last one."""
+    def record(self, path: str, title: str, created: bool = False) -> None:
+        """An API edit touched ``path`` (absolute); commit it ``debounce_ms`` after the last one.
+
+        ``created``: the edit filed a new Item, which stays "unsent" until a push lands."""
         if not self.enabled:
             return
         rel = os.path.relpath(path, self.repo_root).replace(os.sep, "/")
         with self._plock:
+            if created:
+                self._unpushed.add(os.path.basename(rel)[:-3])
             self._pending.pop(rel, None)
             self._pending[rel] = title or rel
         self._debounce.trigger()
+
+    def unpushed(self) -> "frozenset[str]":
+        """Stems of own Items not yet on ``origin/main`` (see :meth:`record`)."""
+        with self._plock:
+            return frozenset(self._unpushed)
 
     def idle(self) -> bool:
         with self._plock:
@@ -198,6 +213,7 @@ class GitWriter:
                     with self._plock:
                         titles = list(OrderedDict.fromkeys(self._pending.values()))
                         self._pending.clear()
+                        self._sending = set(self._unpushed)
                     try:
                         self._commit(titles)
                     except GitError:
@@ -220,6 +236,13 @@ class GitWriter:
             return True
 
     def _ok(self) -> None:
+        with self._plock:
+            # Only what this flush committed is on origin/main now; an Item filed
+            # while the push ran stays unsent until the next flush.
+            had = bool(self._unpushed & self._sending)
+            self._unpushed -= self._sending
+        if had and self._on_repair is not None:
+            self._on_repair()  # tiles drop their "unsent" marker
         self.successes += 1
         self.last_error = None
         self.banner.clear()

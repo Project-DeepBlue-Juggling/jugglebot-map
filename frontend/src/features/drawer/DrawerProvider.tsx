@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTasks } from '../../api/hooks';
+import { itemParam, resolveItemParam } from '../../lib/shortId';
 import { modalIsOpen } from '../../ui/keyboard';
 import { DrawerCtx, type DrawerValue } from './drawerContext';
 import ItemDrawer from './ItemDrawer';
@@ -14,7 +16,9 @@ interface DrawerState {
 }
 
 /**
- * The open item is URL state: `?item=<id>` on the current page. Opening pushes
+ * The open item is URL state: `?item=<ref>` on the current page, where an Item
+ * is written by its short ID (`?item=JB-12`) and a plan or phase by its uuid; a
+ * pasted `?item=jb12`, `?item=12` or uuid resolves to the same drawer. Opening pushes
  * a history entry (so Back closes it, and in-drawer links walk back through the
  * items); closing goes back over every entry the drawer pushed, or, for a pasted
  * `?item=` URL where none were pushed, replaces the URL without the parameter.
@@ -26,7 +30,10 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [slot, setSlot] = useState<HTMLElement | null>(null);
-  const openId = new URLSearchParams(location.search).get('item') || null;
+  const tasks = useTasks().data;
+  const param = new URLSearchParams(location.search).get('item') || null;
+  // Always the task uuid: callers compare it with `task.id`.
+  const openId = param === null ? null : resolveItemParam(tasks, param);
   const depth = (location.state as DrawerState | null)?.drawerDepth ?? 0;
   // The element that opened the drawer: focus returns to it on close.
   const opener = useRef<Element | null>(null);
@@ -46,14 +53,14 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
       if (openId === null) opener.current = document.activeElement;
       const go = () => {
         const params = new URLSearchParams(location.search);
-        params.set('item', id);
+        params.set('item', itemParam(tasks, id));
         const state: DrawerState = { drawerDepth: openId === null ? 1 : depth + 1 };
         navigate({ pathname: location.pathname, search: `?${params.toString()}` }, { state });
       };
       if (id === openId) go();
       else afterSave(go);
     },
-    [location.pathname, location.search, openId, depth, navigate],
+    [location.pathname, location.search, openId, depth, navigate, tasks],
   );
 
   const close = useCallback(() => {

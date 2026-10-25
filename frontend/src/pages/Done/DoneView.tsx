@@ -3,6 +3,7 @@ import type { Task } from '../../api/schemas';
 import { arrivedPathways, closedItems, closedMonths, groupClosed, monthOf } from '../../lib/done';
 import { kindHue, statusLabel } from '../../theme/palette';
 import { NNL } from '../../theme/nnl';
+import ShortId from '../../ui/ShortId';
 
 const SHOW_DROPPED_KEY = 'jugglebot-map-done-show-dropped';
 const KIND_CHIPS = ['bug', 'feature', 'idea', 'ticket'] as const;
@@ -210,6 +211,7 @@ export function DoneView({ tasks, onOpen }: DoneViewProps) {
                     >
                       {kindHue(task.kind).label}
                     </span>
+                    <ShortId task={task} className="pt-px" />
                     <button
                       type="button"
                       onClick={() => onOpen(task.id)}

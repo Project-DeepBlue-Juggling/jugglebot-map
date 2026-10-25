@@ -175,3 +175,27 @@ describe('searchMap', () => {
     expect((performance.now() - t0) / 4).toBeLessThan(100);
   });
 });
+
+describe('short IDs', () => {
+  const tasks = [
+    mapTask({ id: 'a', kind: 'bug', title: 'Leg wobble', short_id: 'JB-12' }),
+    mapTask({ id: 'b', kind: 'bug', title: 'JB-12 mentioned in a title', short_id: 'JB-30' }),
+    mapTask({ id: 'c', kind: 'feature', title: 'Other', short_id: 'JB-120' }),
+    mapTask({ id: 'd', kind: 'idea', title: 'Closed one', status: 'complete', short_id: 'JB-7' }),
+  ];
+
+  it('an exact ID ranks first, its group leads, and JB-120 is not a match for JB-12', () => {
+    for (const q of ['JB-12', 'jb12', 'jb-12']) {
+      const groups = searchMap(tasks, undefined, q);
+      expect(groups[0]?.key).toBe('bug');
+      expect(groups[0]?.hits[0]).toMatchObject({ id: 'a', tier: -1, shortId: 'JB-12' });
+      expect(groups.some((g) => g.hits.some((h) => h.id === 'c'))).toBe(false);
+    }
+  });
+
+  it('a closed Item named by its ID still comes first', () => {
+    const groups = searchMap(tasks, undefined, 'JB-7');
+    expect(groups[0]?.key).toBe('idea');
+    expect(groups[0]?.hits[0]).toMatchObject({ id: 'd', tier: -1, closed: true });
+  });
+});

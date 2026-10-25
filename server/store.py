@@ -149,6 +149,7 @@ class Index:
     nodes: Dict[str, Node] = field(default_factory=dict)        # task id -> Node
     by_ref: Dict[str, Node] = field(default_factory=dict)
     by_short: Dict[int, List[Node]] = field(default_factory=dict)  # JB-<n> number -> Item nodes
+    unpushed: frozenset = frozenset()  # stems the git writer has not pushed (refreshed per read)
     errors: List[Dict[str, str]] = field(default_factory=list)
 
     # --- resolution -----------------------------------------------------
@@ -252,7 +253,7 @@ class Index:
             "promoted_to": None, "rank": None, "ticket_type": None,
             "source_path": os.path.relpath(node.path, repo_root).replace(os.sep, "/"),
             "editable": node.kind not in READ_ONLY_KINDS, "pathway_id": _pid(pathway),
-            "kind": node.kind, "short_id": None,
+            "kind": node.kind, "short_id": None, "unpushed": False,
         }
         if node.item is not None:
             base.update(self._item_fields(node))
@@ -289,7 +290,7 @@ class Index:
             "branch": m.get("branch"), "links": [str(x) for x in (m.get("links") or [])],
             "filed_by": m.get("filed_by"), "promoted_to": m.get("promoted_to"),
             "rank": rank, "ticket_type": m.get("type") if item.kind == "ticket" else None,
-            "short_id": item.short_id,
+            "short_id": item.short_id, "unpushed": node.ref in self.unpushed,
         }
 
     def _plan_fields(self, node: Node) -> Dict[str, Any]:
@@ -371,6 +372,7 @@ class Store:
             if self._ix is None or sig != self._sig:
                 self._ix = self._build()
                 self._sig = sig
+            self._ix.unpushed = self.writer.unpushed() if self.writer is not None else frozenset()
             return self._ix
 
     def invalidate(self, publish: bool = True) -> None:
@@ -528,7 +530,7 @@ class Store:
         if self.read_only:
             raise ApiError(403, {"detail": self.read_only})
 
-    def _commit(self, path: str, title: str) -> None:
+    def _commit(self, path: str, title: str, created: bool = False) -> None:
         """After a write: one coalesced ``invalidate`` and a debounced git commit."""
         with self._lock:
             self._ix = None
@@ -537,7 +539,7 @@ class Store:
         elif self._on_change is not None:
             self._on_change()
         if self.writer is not None:
-            self.writer.record(path, title)
+            self.writer.record(path, title, created=created)
 
     # --- tasks: create / update / delete -----------------------------------
     def create(self, body: Dict[str, Any], user: str = "harrison") -> Dict[str, Any]:
@@ -573,7 +575,7 @@ class Store:
             meta, new_body = self._apply(ix, None, kind, meta, new_body, body)
             path = os.path.join(self.cfg.items_dir, "%s-%s.md" % (kind, slug))
             self._write(path, meta, new_body)
-            self._commit(path, meta["title"])
+            self._commit(path, meta["title"], created=True)
             return self.task(uid(slug))
 
     def update(self, task_id: str, body: Dict[str, Any], token: Any = None) -> Dict[str, Any]:

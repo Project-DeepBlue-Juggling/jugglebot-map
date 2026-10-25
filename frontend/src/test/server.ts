@@ -65,6 +65,8 @@ function makeTask(overrides: Partial<Task>): Task {
     source_path: 'map/task.md',
     editable: true,
     pathway_id: null,
+    short_id: null,
+    unpushed: false,
     status: 'not_started',
     priority: null,
     is_section: false,

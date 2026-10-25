@@ -132,6 +132,10 @@ export const Task = z.object({
   source_path: z.string(),
   editable: z.boolean(),
   pathway_id: z.string().nullable(),
+  // Short Item ID `JB-<n>` (null for plans, phases and an Item without one) and
+  // whether the app has pushed the Item yet (an unpushed ID may still be renumbered).
+  short_id: z.string().nullable(),
+  unpushed: z.boolean(),
 });
 export type Task = z.infer<typeof Task>;
 

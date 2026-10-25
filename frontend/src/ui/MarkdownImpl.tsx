@@ -1,12 +1,15 @@
-import type { ReactNode } from 'react';
+import { useContext, useMemo, type ReactNode } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { SHORT_ID_IN_TEXT } from '../lib/shortId';
+import { ITEM_HREF_PREFIX, ItemLinkCtx } from './itemLinks';
 
 /* A minimal mdast node shape: enough for the one plugin below without a
    unist dependency. */
 interface MdNode {
   type: string;
   value?: string;
+  url?: string;
   children?: MdNode[];
 }
 
@@ -46,6 +49,57 @@ function remarkLiteralHtml() {
   return (tree: MdNode) => walk(tree);
 }
 
+/**
+ * `JB-<n>` mentions of KNOWN Items become links (exact, case-sensitive,
+ * word-bounded; an unknown ID stays text). Text inside a link or a code span is
+ * left alone: inline code is its own node type, and links are not descended.
+ */
+function remarkItemIds(ids: ReadonlyMap<string, string>) {
+  const split = (value: string): MdNode[] => {
+    const out: MdNode[] = [];
+    let last = 0;
+    for (const m of value.matchAll(SHORT_ID_IN_TEXT)) {
+      const at = m.index ?? 0;
+      if (!ids.has(m[0])) continue;
+      if (at > last) out.push({ type: 'text', value: value.slice(last, at) });
+      out.push({
+        type: 'link',
+        url: ITEM_HREF_PREFIX + m[0],
+        children: [{ type: 'text', value: m[0] }],
+      });
+      last = at + m[0].length;
+    }
+    if (out.length === 0) return [{ type: 'text', value }];
+    if (last < value.length) out.push({ type: 'text', value: value.slice(last) });
+    return out;
+  };
+  const walk = (node: MdNode) => {
+    if (node.children === undefined || node.type === 'link') return;
+    node.children = node.children.flatMap((child) => {
+      if (child.type === 'text' && child.value !== undefined) return split(child.value);
+      walk(child);
+      return [child];
+    });
+  };
+  return () => (tree: MdNode) => walk(tree);
+}
+
+/** A linkified `JB-<n>`: opens that Item in the drawer. */
+function ItemRef({ shortId, children }: { shortId: string; children: ReactNode }) {
+  const links = useContext(ItemLinkCtx);
+  const id = links?.ids.get(shortId);
+  if (links === null || id === undefined) return <>{children}</>;
+  return (
+    <button
+      type="button"
+      onClick={() => links.open(id)}
+      className="font-mono text-[12.5px] text-dr-link underline-offset-2 hover:underline"
+    >
+      {children}
+    </button>
+  );
+}
+
 const isWebUrl = (href: string | undefined): href is string =>
   href !== undefined && /^https?:\/\//i.test(href);
 
@@ -62,7 +116,9 @@ const components: Components = {
   em: ({ children }) => <em className="italic">{children}</em>,
   del: ({ children }) => <del className="opacity-70">{children}</del>,
   a: ({ href, children }) =>
-    isWebUrl(href) ? (
+    href?.startsWith(ITEM_HREF_PREFIX) === true ? (
+      <ItemRef shortId={href.slice(ITEM_HREF_PREFIX.length)}>{children}</ItemRef>
+    ) : isWebUrl(href) ? (
       <a
         href={href}
         target="_blank"
@@ -138,9 +194,17 @@ const components: Components = {
 
 /** The rendering half; `Markdown.tsx` lazy-loads it to keep it off the first paint. */
 export default function MarkdownImpl({ source }: { source: string }): ReactNode {
+  const links = useContext(ItemLinkCtx);
+  const plugins = useMemo(
+    () =>
+      links === null || links.ids.size === 0
+        ? [remarkGfm, remarkLiteralHtml]
+        : [remarkGfm, remarkLiteralHtml, remarkItemIds(links.ids)],
+    [links],
+  );
   return (
     <div className="dr-md text-[14px] leading-[1.6] text-dr-body [overflow-wrap:anywhere]">
-      <ReactMarkdown remarkPlugins={[remarkGfm, remarkLiteralHtml]} components={components}>
+      <ReactMarkdown remarkPlugins={plugins} components={components}>
         {source}
       </ReactMarkdown>
     </div>

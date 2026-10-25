@@ -23,7 +23,7 @@ PROTOTYPE_TASK_FIELDS = {
 }
 MAP_TASK_FIELDS = {
     "slug", "destination", "branch", "links", "filed_by", "promoted_to", "rank",
-    "ticket_type", "source_path", "editable", "pathway_id", "short_id",
+    "ticket_type", "source_path", "editable", "pathway_id", "short_id", "unpushed",
 }
 
 

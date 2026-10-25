@@ -9,6 +9,7 @@ import { isStale, staleAge, staleClock } from '../../lib/stale';
 import { CapsuleChip, HueBar, KindGlyph, StaleMark } from './marks';
 import { SELECTED, useOpenId } from './selection';
 import { PlanTrack } from './PlanTrack';
+import ShortId from '../../ui/ShortId';
 
 const S = NNL.status;
 
@@ -42,6 +43,7 @@ function ItemLine({ t, view }: { t: Task; view: MapView }) {
       <span className="min-w-0 flex-1 truncate" title={t.title}>
         {clipTitle(t.title)}
       </span>
+      <ShortId task={t} />
       {isStale(t, view.now) && <StaleMark days={staleAge(t, view.now)} since={staleClock(t)} />}
     </Openable>
   );

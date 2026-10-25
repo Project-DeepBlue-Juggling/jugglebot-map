@@ -7,6 +7,7 @@ import { FRONT_LAYOUT, type MapView } from './mapView';
 import { NextBox } from './NextBox';
 import { SegmentedBar } from './SegmentedBar';
 import { WhatRemains } from './WhatRemains';
+import ShortId from '../../ui/ShortId';
 
 /** A pathway's branch chip: the pathway's own branch, else the first non-main plan branch. */
 function pathwayBranch(pathway: Task, plans: Task[]): string | null {
@@ -77,7 +78,7 @@ export function PathwayTile({ pathway, view }: { pathway: Task; view: MapView })
             label={t.title}
             className={`max-w-[9rem] shrink-0 truncate rounded px-1 text-[10px] ${kindHue(t.kind).chip}`}
           >
-            <b>{kindHue(t.kind).label}</b> {t.title}
+            <b>{kindHue(t.kind).label}</b> <ShortId task={t} /> {t.title}
           </Openable>
         ))}
       </div>

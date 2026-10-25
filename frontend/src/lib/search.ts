@@ -1,5 +1,6 @@
 import type { Glossary, Task } from '../api/schemas';
 import { isDone } from './derive';
+import { parseShortId } from './shortId';
 
 /**
  * Header search: pure matching over the already-loaded items, plans and
@@ -30,8 +31,8 @@ export const SEARCH_GROUPS: readonly { key: SearchGroupKey; label: string }[] = 
 
 export const GROUP_CAP = 8;
 
-/** Lower is better: title prefix, title word, title substring, body. */
-export type MatchTier = 0 | 1 | 2 | 3;
+/** Lower is better: exact short ID, title prefix, title word, title substring, body. */
+export type MatchTier = -1 | 0 | 1 | 2 | 3;
 
 export interface SearchHit {
   group: SearchGroupKey;
@@ -41,6 +42,8 @@ export interface SearchHit {
   /** The item's status; null for a glossary term. */
   status: string | null;
   closed: boolean;
+  /** The Item's short ID (`JB-12`); null for plans, phases and glossary terms. */
+  shortId: string | null;
   /** The Avoid word that matched, when the hit is a redirect to the preferred term. */
   avoid: string | null;
   tier: MatchTier;
@@ -73,13 +76,22 @@ function hasAll(text: string, tokens: readonly string[]): boolean {
 }
 
 function compare(a: SearchHit, b: SearchHit): number {
+  // An exact ID match leads even when it is closed: the user typed its name.
+  if ((a.tier === -1) !== (b.tier === -1)) return a.tier === -1 ? -1 : 1;
   if (a.closed !== b.closed) return a.closed ? 1 : -1;
   if (a.tier !== b.tier) return a.tier - b.tier;
   return a.title.localeCompare(b.title);
 }
 
-function taskHit(task: Task, q: string, tokens: readonly string[]): SearchHit | null {
-  let tier: MatchTier | null = tierOf(task.title, q);
+function taskHit(
+  task: Task,
+  q: string,
+  tokens: readonly string[],
+  idQuery: number | null,
+): SearchHit | null {
+  // `JB-12` / `jb12` names exactly one Item; it never matches `JB-120` by prefix.
+  let tier: MatchTier | null =
+    idQuery !== null && task.short_id === `JB-${idQuery}` ? -1 : tierOf(task.title, q);
   if (tier === null && task.slug.toLowerCase().includes(q)) tier = 1;
   if (tier === null && hasAll(`${task.description}\n${task.destination}`.toLowerCase(), tokens)) {
     tier = 3;
@@ -91,6 +103,7 @@ function taskHit(task: Task, q: string, tokens: readonly string[]): SearchHit | 
     title: task.title,
     status: task.status,
     closed: isDone(task),
+    shortId: task.short_id,
     avoid: null,
     tier,
   };
@@ -114,10 +127,11 @@ export function searchMap(
   const q = query.trim().toLowerCase();
   if (q === '') return [];
   const tokens = q.split(/\s+/);
+  const idQuery = parseShortId(q);
   const hits: SearchHit[] = [];
   for (const task of tasks) {
     if (!ITEM_GROUPS.has(task.kind)) continue;
-    const hit = taskHit(task, q, tokens);
+    const hit = taskHit(task, q, tokens, idQuery);
     if (hit !== null) hits.push(hit);
   }
   for (const cluster of glossary?.clusters ?? []) {
@@ -139,6 +153,7 @@ export function searchMap(
         title: term.term,
         status: null,
         closed: false,
+        shortId: null,
         avoid,
         tier,
       });
@@ -148,7 +163,9 @@ export function searchMap(
   for (const { key, label } of SEARCH_GROUPS) {
     const mine = hits.filter((h) => h.group === key).sort(compare);
     if (mine.length === 0) continue;
-    out.push({
+    // The group holding an exact ID match is shown first.
+    const at = mine[0]?.tier === -1 ? 0 : out.length;
+    out.splice(at, 0, {
       key,
       label,
       hits: mine.slice(0, GROUP_CAP),

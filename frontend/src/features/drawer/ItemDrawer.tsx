@@ -32,6 +32,9 @@ import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
 import { useDrawer } from './drawerContext';
 import { MarkdownField, Title } from './fields';
+import ShortId from '../../ui/ShortId';
+import { ItemLinkCtx, type ItemLinks } from '../../ui/itemLinks';
+import { shortIdIndex } from '../../lib/shortId';
 import { HistorySection } from './HistorySection';
 
 interface DrawerProps {
@@ -71,6 +74,11 @@ export default function ItemDrawer({ taskId, onClose, onOpen, docked = false }: 
   const ix = useMemo(
     () => (allTasks === undefined ? null : buildIndex(allTasks, deps.data ?? [], users.data ?? [])),
     [allTasks, deps.data, users.data],
+  );
+  // `JB-<n>` mentions in the bodies below open that Item here.
+  const itemLinks = useMemo<ItemLinks>(
+    () => ({ ids: shortIdIndex(allTasks), open: onOpen }),
+    [allTasks, onOpen],
   );
 
   const depsNode =
@@ -136,6 +144,7 @@ export default function ItemDrawer({ taskId, onClose, onOpen, docked = false }: 
             <>
               <KindGlyph task={task} hue={hue} />
               <span className="shrink-0">{KIND_LABELS[task.kind] ?? task.kind}</span>
+              <ShortId task={task} />
               {task.kind === 'phase' && ix !== null && task.parent_id !== null && (
                 <PhaseCrumb task={task} ix={ix} onOpen={onOpen} />
               )}
@@ -151,31 +160,33 @@ export default function ItemDrawer({ taskId, onClose, onOpen, docked = false }: 
           ×
         </button>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {detail.error !== null && (
-          <p className="px-5 pt-4 text-sm text-red-700 dark:text-red-300">
-            {(detail.error as Error).message}
-          </p>
-        )}
-        {task !== undefined && ix !== null && allTasks !== undefined && (
-          <>
-            {task.editable ? (
-              <EditableBody
-                key={task.id}
-                task={task}
-                ix={ix}
-                allTasks={allTasks}
-                users={users.data ?? []}
-                onOpen={onOpen}
-                hue={hue}
-                deps={depsNode}
-              />
-            ) : (
-              <ReadOnlyBody task={task} ix={ix} onOpen={onOpen} deps={depsNode} />
-            )}
-          </>
-        )}
-      </div>
+      <ItemLinkCtx.Provider value={itemLinks}>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {detail.error !== null && (
+            <p className="px-5 pt-4 text-sm text-red-700 dark:text-red-300">
+              {(detail.error as Error).message}
+            </p>
+          )}
+          {task !== undefined && ix !== null && allTasks !== undefined && (
+            <>
+              {task.editable ? (
+                <EditableBody
+                  key={task.id}
+                  task={task}
+                  ix={ix}
+                  allTasks={allTasks}
+                  users={users.data ?? []}
+                  onOpen={onOpen}
+                  hue={hue}
+                  deps={depsNode}
+                />
+              ) : (
+                <ReadOnlyBody task={task} ix={ix} onOpen={onOpen} deps={depsNode} />
+              )}
+            </>
+          )}
+        </div>
+      </ItemLinkCtx.Provider>
     </aside>
   );
 }

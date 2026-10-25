@@ -7,6 +7,7 @@ import { useSize } from './useSize';
 import { isStale, staleAge, staleClock } from '../../lib/stale';
 import { KindGlyph, StaleMark } from './marks';
 import { SELECTED, useOpenId } from './selection';
+import ShortId from '../../ui/ShortId';
 
 const RAIL_GAP = 8;
 const KIND_PLURAL: Record<InboxKind, string> = { bug: 'Bugs', feature: 'Features', idea: 'Ideas' };
@@ -66,6 +67,7 @@ export function InboxRail({ view, items }: { view: MapView; items: Record<InboxK
                   <span className="line-clamp-2 min-w-0 flex-1" title={t.title}>
                     {t.title}
                   </span>
+                  <ShortId task={t} className="ml-1" />
                   {isStale(t, view.now) && (
                     <StaleMark days={staleAge(t, view.now)} since={staleClock(t)} />
                   )}

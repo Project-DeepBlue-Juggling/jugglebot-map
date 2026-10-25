@@ -4,6 +4,7 @@ import { kindHue, statusLabel, TICKET_HUE } from '../../theme/palette';
 import { Openable, Owners, PriorityTag } from './bits';
 import { DepTags } from './DepTags';
 import { FRONT_LAYOUT, linkLabel, type MapView } from './mapView';
+import ShortId from '../../ui/ShortId';
 
 function LinkChips({ links }: { links: readonly string[] }) {
   if (links.length === 0) return null;
@@ -61,6 +62,7 @@ function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
         <span className={`rounded px-1 font-semibold ${labelClass}`}>{label}</span>
         <span>{statusLabel(task.status)}</span>
         <PriorityTag priority={task.priority} />
+        <ShortId task={task} />
         <span className="ml-auto" title={`Filed ${task.created_at}`}>
           {formatAge(task.created_at, view.now)}
         </span>

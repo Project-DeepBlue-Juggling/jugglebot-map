@@ -199,3 +199,36 @@ def test_a_rejected_push_then_the_next_flush_repairs_and_pushes(id_remote):
             assert {ts["stuck-one"]["short_id"], ts["later"]["short_id"]} == {"JB-7", "JB-8"}
     finally:
         _chmod_tree(bare, writable=True)
+
+
+def test_a_new_item_is_unpushed_until_its_push_lands(id_remote):
+    repo, bare, _ = id_remote
+    app, c = make_client(repo, git=True, debounce_ms=800, watch_ms=50)
+    with c:
+        w = app.state.writer
+        pid = c.get(API + "/projects").json()[0]["id"]
+        made = c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "Fresh"})
+        assert made.json()["unpushed"] is True and made.json()["short_id"] == "JB-6"
+        _, ts = tasks(c)
+        assert ts["fresh"]["unpushed"] is True
+        assert ts["wobbly-leg"]["unpushed"] is False  # edits of pushed Items never are
+        assert wait_for(lambda: w.attempts >= 1 and w.idle())
+        assert w.successes == 1, w.last_error
+        _, ts = tasks(c)
+        assert ts["fresh"]["unpushed"] is False
+    assert "JB-6" in remote_ids(bare)
+
+
+def test_unpushed_survives_a_restart_from_the_git_state(id_remote):
+    repo, _, _ = id_remote
+    from mapkit.items import write_item
+    write_item(os.path.join(repo, "map", "bug-left-over.md"),
+               {"id": "JB-6", "kind": "bug", "title": "Left over", "status": "inbox",
+                "created": "2026-10-26", "updated": "2026-10-26T00:00:00Z", "filed_by": "harrison"},
+               "x\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "--quiet", "-m", "map: Left over")  # committed by a previous run, never pushed
+    app, c = make_client(repo, git=True, debounce_ms=60000, watch=False)
+    with c:
+        _, ts = tasks(c)
+        assert ts["left-over"]["unpushed"] is True and ts["wobbly-leg"]["unpushed"] is False

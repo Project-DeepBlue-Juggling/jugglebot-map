@@ -38,6 +38,8 @@ export function mapTask(overrides: Partial<Task> & { id: string }): Task {
     source_path: `map/${overrides.id}.md`,
     editable: true,
     pathway_id: null,
+    short_id: null,
+    unpushed: false,
     ...overrides,
   };
 }

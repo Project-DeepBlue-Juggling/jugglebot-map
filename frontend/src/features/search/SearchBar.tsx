@@ -198,6 +198,11 @@ export function SearchBar() {
                       hit.closed && 'opacity-50',
                     )}
                   >
+                    {hit.shortId !== null && (
+                      <span className="shrink-0 font-mono text-[11px] opacity-70">
+                        {hit.shortId}
+                      </span>
+                    )}
                     <span className="min-w-0 truncate">{hit.title}</span>
                     {hit.avoid !== null && (
                       <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">
