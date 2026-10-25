@@ -18,6 +18,12 @@ Environment=GIT_TERMINAL_PROMPT=0
 Restart=on-failure
 RestartSec=3
 # This Jetson runs the robot: keep the map server behind the control loops.
+# Keep ROS2 first. Nice=10 is the protection that is actually enforced here:
+# this Jetson runs systemd 245 on a hybrid cgroup-v1 tree, so a --user manager
+# has no delegated cpu/memory controllers and the four lines below are accepted
+# but not applied (measured 2026-10-25: the process sits in the shared
+# /user.slice cpu cgroup). They take effect if the box moves to cgroup v2.
+# Idle cost measured the same day: 0.3 % of one core, about 60 MB RSS.
 Nice=10
 CPUWeight=20
 IOWeight=20
