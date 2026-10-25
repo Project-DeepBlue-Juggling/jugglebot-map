@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import type { Task } from '../../api/schemas';
 import { taskState } from '../../lib/derive';
+import { staleClock } from '../../lib/stale';
 import { STATE_STYLES, statusLabel } from '../../theme/palette';
 import { useItemHover } from '../../features/hover';
 import { pillState, type MapView } from './mapView';
@@ -133,5 +134,26 @@ export function Openable({
     >
       {children}
     </Tag>
+  );
+}
+
+/** Muted amber, shared by the badge, the NNL ring and the Key. */
+export const STALE_HEX = '#b8892f';
+
+/**
+ * "stale · N d": an open item (or, on a Pathway tile, the count of its open
+ * items) with no progress past its status's threshold. Tooltip names the clock.
+ */
+export function StaleBadge({ days, count, item }: { days?: number; count?: number; item: Task }) {
+  const text = count !== undefined ? `${count} stale` : `stale · ${days ?? 0} d`;
+  return (
+    <span
+      data-testid="stale-badge"
+      title={`no progress since ${staleClock(item)}`}
+      className="shrink-0 whitespace-nowrap rounded border px-1 text-[10px]"
+      style={{ color: STALE_HEX, borderColor: `${STALE_HEX}66` }}
+    >
+      {text}
+    </span>
   );
 }

@@ -1,10 +1,12 @@
-import type { z } from 'zod';
+import { z } from 'zod';
 import type { AuthClient } from '../auth/types';
 import {
   CurrentUser,
   DependencyEdge,
   DependencyEdgeList,
   Glossary,
+  ItemHistory,
+  NightlyStatus,
   Project,
   ProjectList,
   ProjectMembershipList,
@@ -110,6 +112,19 @@ export function createApiClient(auth: AuthClient) {
       request(`/projects/${projectId}/tasks/${taskId}`, jsonInit('PATCH', body), Task),
     deleteTask: (projectId: string, taskId: string) =>
       request<undefined>(`/projects/${projectId}/tasks/${taskId}`, jsonInit('DELETE'), null),
+
+    /** Commits and documents that touched one item (git-derived; lazy in the drawer). */
+    getItemHistory: (projectId: string, taskId: string) =>
+      request(
+        `/projects/${projectId}/tasks/${encodeURIComponent(taskId)}/history`,
+        jsonInit('GET'),
+        ItemHistory,
+      ),
+
+    // -- Nightly status (workspace-level, read-only)
+    getNightly: () => request('/nightly', jsonInit('GET'), NightlyStatus),
+    /** The latest nightly report as Markdown text; 404 (ApiError) when there is none. */
+    getNightlyLatest: () => request('/nightly/latest', jsonInit('GET'), z.string()),
 
     // -- Glossary (read-only)
     getGlossary: (projectId: string) =>

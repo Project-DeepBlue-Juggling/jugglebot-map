@@ -1,22 +1,26 @@
 import type { Task } from '../../api/schemas';
 import { displayTitle, planCardName } from '../../lib/derive';
-import {
-  pathwayHue,
-  pathwayHueReused,
-  progressLabel,
-  type Journey,
-} from '../../lib/journey';
+import { pathwayHue, pathwayHueReused, progressLabel, type Journey } from '../../lib/journey';
 import { NNL } from '../../theme/nnl';
 import { Openable } from '../FrontPage/bits';
 import type { MapView } from '../FrontPage/mapView';
 import { clipTitle, COLUMN_GAP, LINE_H, type Level } from './layout';
-import { CapsuleChip, HueBar, KindGlyph } from './marks';
+import { isStale, staleAge, staleClock } from '../../lib/stale';
+import { CapsuleChip, HueBar, KindGlyph, StaleMark } from './marks';
 import { SELECTED, useOpenId } from './selection';
 import { PlanTrack } from './PlanTrack';
 
 const S = NNL.status;
 
-function NoteLine({ color, title, children }: { color: string; title?: string; children: React.ReactNode }) {
+function NoteLine({
+  color,
+  title,
+  children,
+}: {
+  color: string;
+  title?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="h-[18px] truncate pl-1 text-[11px]" style={{ color }} title={title}>
       {children}
@@ -38,6 +42,7 @@ function ItemLine({ t, view }: { t: Task; view: MapView }) {
       <span className="min-w-0 flex-1 truncate" title={t.title}>
         {clipTitle(t.title)}
       </span>
+      {isStale(t, view.now) && <StaleMark days={staleAge(t, view.now)} since={staleClock(t)} />}
     </Openable>
   );
 }
@@ -75,7 +80,8 @@ export function PathwayBlock({
   const shown = journey.plans.slice(0, level.tracks);
   const queued = journey.plans.slice(level.tracks);
   const cap = journey.doneCapsule;
-  const empty = journey.plans.length === 0 && journey.tickets.length === 0 && journey.parked.length === 0;
+  const empty =
+    journey.plans.length === 0 && journey.tickets.length === 0 && journey.parked.length === 0;
   return (
     <section
       aria-label={pathway.title}
@@ -85,7 +91,13 @@ export function PathwayBlock({
     >
       <div className="flex h-5 shrink-0 items-center gap-2 overflow-hidden whitespace-nowrap">
         <HueBar hue={hue} />
-        <Openable id={pathway.id} view={view} label={pathway.title} as="span" className="min-w-0 truncate text-[13px] font-bold">
+        <Openable
+          id={pathway.id}
+          view={view}
+          label={pathway.title}
+          as="span"
+          className="min-w-0 truncate text-[13px] font-bold"
+        >
           {pathway.title}
         </Openable>
         <span title={pl.title} className="shrink-0 text-[11px]" style={{ color: NNL.textMed }}>
@@ -102,7 +114,11 @@ export function PathwayBlock({
       </div>
       <div
         className={listBelow ? 'flex flex-col gap-px' : 'grid items-start'}
-        style={listBelow ? undefined : { gridTemplateColumns: `${trackColW}px minmax(0, 1fr)`, columnGap: COLUMN_GAP }}
+        style={
+          listBelow
+            ? undefined
+            : { gridTemplateColumns: `${trackColW}px minmax(0, 1fr)`, columnGap: COLUMN_GAP }
+        }
       >
         <div className="flex min-w-0 flex-1 flex-col gap-px">
           {shown.map((g) => (

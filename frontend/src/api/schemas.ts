@@ -296,3 +296,43 @@ export type GlossaryCluster = z.infer<typeof GlossaryCluster>;
 
 export const Glossary = z.object({ clusters: z.array(GlossaryCluster) });
 export type Glossary = z.infer<typeof Glossary>;
+
+// -- Item history (server/history.py) and nightly status (server/nightly.py) --
+
+export const HistoryCommit = z.object({
+  sha: z.string(),
+  short: z.string(),
+  date: z.string(),
+  subject: z.string(),
+  logbook_entry: z.string().nullable(),
+});
+export type HistoryCommit = z.infer<typeof HistoryCommit>;
+
+export const HistoryDocument = z.object({
+  kind: z.enum(['logbook', 'plan', 'other']),
+  path: z.string(),
+  title: z.string(),
+  exists: z.boolean(),
+  url: z.string().nullable(),
+});
+export type HistoryDocument = z.infer<typeof HistoryDocument>;
+
+/** `head: ""` with empty lists = the item is not committed (untracked). */
+export const ItemHistory = z.object({
+  head: z.string(),
+  commits: z.array(HistoryCommit),
+  documents: z.array(HistoryDocument),
+});
+export type ItemHistory = z.infer<typeof ItemHistory>;
+
+export const NightlyState = z.enum(['GREEN', 'RED', 'DEFERRED', 'STALE', 'NEVER']);
+export type NightlyState = z.infer<typeof NightlyState>;
+
+export const NightlyStatus = z.object({
+  state: NightlyState,
+  line: z.string(),
+  date: z.string().nullable(),
+  age_days: z.number().nullable(),
+  configured: z.boolean(),
+});
+export type NightlyStatus = z.infer<typeof NightlyStatus>;

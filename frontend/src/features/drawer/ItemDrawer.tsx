@@ -32,6 +32,7 @@ import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
 import { useDrawer } from './drawerContext';
 import { MarkdownField, Title } from './fields';
+import { HistorySection } from './HistorySection';
 
 interface DrawerProps {
   taskId: string;
@@ -357,6 +358,7 @@ function ReadOnlyBody({
         />
       )}
       {deps}
+      <HistorySection taskId={task.id} />
       <Meta task={task} />
     </div>
   );
@@ -861,6 +863,7 @@ function EditableBody({
           emptyText={isPathway ? 'Add notes…' : 'Add a description…'}
         />
         {deps}
+        <HistorySection taskId={task.id} />
         <Meta task={task} />
         {conflict !== null && (
           <ConflictDialog

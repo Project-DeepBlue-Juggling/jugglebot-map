@@ -7,6 +7,7 @@ import { NNL, INBOX_ORDER } from '../../theme/nnl';
 import { buildMapView, openBlockerIdsOf } from '../FrontPage/mapView';
 import { InboxRail } from './InboxRail';
 import { Key, KeyBody } from './Key';
+import { isStale } from '../../lib/stale';
 import { keyDrawn } from './keyMarks';
 import { fitBlocks, KEY_HEAD, levelsOf, listBeside, trackColumnWidth } from './layout';
 import { PathwayBlock } from './PathwayBlock';
@@ -18,6 +19,8 @@ export interface NowNextLaterViewProps {
   deps: readonly DependencyEdge[];
   users: readonly User[];
   onOpen: (taskId: string) => void;
+  /** The render-time clock (tests inject it) for the stale rings. */
+  now?: Date;
 }
 
 const KEY_STORE = 'nnl-key-open';
@@ -47,8 +50,11 @@ function writeKeyOpen(open: boolean): void {
  * Pathway is not drawn. Layout switches on the measured width of the main column
  * (the element that shrinks when the drawer takes room), never on the drawer.
  */
-export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterViewProps) {
-  const view = useMemo(() => buildMapView(tasks, deps, users, onOpen), [tasks, deps, users, onOpen]);
+export function NowNextLaterView({ tasks, deps, users, onOpen, now }: NowNextLaterViewProps) {
+  const view = useMemo(
+    () => buildMapView(tasks, deps, users, onOpen, now),
+    [tasks, deps, users, onOpen, now],
+  );
   const blockerIds = useMemo(() => openBlockerIdsOf(view), [view]);
   const openId = useOpenId();
   const [colRef, colW] = useSize<HTMLDivElement>(openId);
@@ -64,7 +70,10 @@ export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterVie
   const trackColW = useMemo(() => trackColumnWidth(journeys), [journeys]);
   const listBelow = !listBeside(colW, trackColW);
   const levels = useMemo(
-    () => journeys.map((j, i) => levelsOf(j, compact, partition.attached.get(active[i].id)?.length ?? 0, listBelow)),
+    () =>
+      journeys.map((j, i) =>
+        levelsOf(j, compact, partition.attached.get(active[i].id)?.length ?? 0, listBelow),
+      ),
     [journeys, active, partition, compact, listBelow],
   );
   const { idx, free } = useMemo(() => {
@@ -79,6 +88,9 @@ export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterVie
         chosen,
         active.some((pw) => (partition.attached.get(pw.id)?.length ?? 0) > 0) ||
           INBOX_ORDER.some((k) => partition.unattached[k].length > 0),
+        [...partition.attached.values(), ...INBOX_ORDER.map((k) => partition.unattached[k])].some(
+          (list) => list.some((t) => isStale(t, view.now)),
+        ),
       ),
     // `chosen` is derived from levels + idx
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,10 +113,20 @@ export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterVie
       >
         <div ref={colRef} data-testid="lanes" className="flex min-w-0 flex-1 flex-col gap-1">
           <header className="flex h-9 shrink-0 items-baseline justify-between">
-            <h1 className="shrink-0 whitespace-nowrap pr-3 text-lg font-semibold">Now / Next / Later</h1>
+            <h1 className="shrink-0 whitespace-nowrap pr-3 text-lg font-semibold">
+              Now / Next / Later
+            </h1>
           </header>
-          <div ref={areaRef} data-testid="blocks" className="relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden">
-            <div ref={measRef} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 w-full">
+          <div
+            ref={areaRef}
+            data-testid="blocks"
+            className="relative flex min-h-0 flex-1 flex-col gap-1.5 overflow-hidden"
+          >
+            <div
+              ref={measRef}
+              aria-hidden
+              className="pointer-events-none invisible absolute left-0 top-0 w-full"
+            >
               <KeyBody drawn={drawn} />
             </div>
             {active.map((pw, i) => (

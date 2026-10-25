@@ -200,13 +200,23 @@ export function createState(): TestState {
               avoid: ['leg 6', 'seventh leg'],
               anchor: 'term-hand',
             },
-            { term: 'Cup', definition: 'The ball-holding end of the Hand.', avoid: [], anchor: 'term-cup' },
+            {
+              term: 'Cup',
+              definition: 'The ball-holding end of the Hand.',
+              avoid: [],
+              anchor: 'term-cup',
+            },
           ],
         },
         {
           name: 'Safety',
           terms: [
-            { term: 'Guard', definition: 'A check that stops motion.', avoid: ['limiter'], anchor: 'term-guard' },
+            {
+              term: 'Guard',
+              definition: 'A check that stops motion.',
+              avoid: ['limiter'],
+              anchor: 'term-guard',
+            },
           ],
         },
       ],
@@ -232,6 +242,19 @@ export function makeServer(state: TestState) {
         status: 'ok',
         errors: [],
         banner: { level: null, message: '', since: null },
+      }),
+    ),
+    // History and nightly default to "nothing to show"; a test overrides with server.use.
+    http.get('http://localhost:8000/api/v1/projects/:projectId/tasks/:id/history', () =>
+      HttpResponse.json({ head: '', commits: [], documents: [] }),
+    ),
+    http.get('http://localhost:8000/api/v1/nightly', () =>
+      HttpResponse.json({
+        state: 'NEVER',
+        line: '',
+        date: null,
+        age_days: null,
+        configured: false,
       }),
     ),
     http.get('http://localhost:8000/api/v1/users', () => HttpResponse.json(state.users)),

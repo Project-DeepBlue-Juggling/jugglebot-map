@@ -24,7 +24,7 @@ export function completionDate(task: Task): string {
   return task.updated_at.slice(0, 10);
 }
 
-function progressDates(body: string): string[] {
+export function progressDates(body: string): string[] {
   const head = PROGRESS_HEAD_RE.exec(body);
   if (head === null) return [];
   const rest = body.slice(head.index + head[0].length);

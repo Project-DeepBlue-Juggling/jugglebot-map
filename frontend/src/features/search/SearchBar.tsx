@@ -6,6 +6,7 @@ import { searchMap, type SearchHit } from '../../lib/search';
 import { hasModifier, isShortcutTarget, modalIsOpen } from '../../ui/keyboard';
 import { useActiveProjectId } from '../../projects/useActiveProject';
 import { useOpenItem } from '../drawer/drawerContext';
+import { NightlyChip } from '../nightly/NightlyChip';
 
 const DEBOUNCE_MS = 100;
 
@@ -218,6 +219,7 @@ export function SearchBar() {
           ))}
         </div>
       )}
+      <NightlyChip />
     </div>
   );
 }

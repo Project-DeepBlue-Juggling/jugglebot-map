@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { NNL } from '../../theme/nnl';
 import { KEY_HEAD } from './layout';
 import type { KeyDrawn } from './keyMarks';
-import { ChipMark, KindGlyph } from './marks';
+import { ChipMark, KindGlyph, StaleMark } from './marks';
 
 /** One Key entry, one line: the mark (drawn by the function the page uses), a bold term, a few words. */
 function KeyEntry({ mark, term, text }: { mark: React.ReactNode; term: string; text: string }) {
@@ -24,9 +24,11 @@ function KeyEntry({ mark, term, text }: { mark: React.ReactNode; term: string; t
 /** The Key's entries: the five stage states always, every other mark only while it is drawn. */
 export function KeyBody({ drawn }: { drawn: KeyDrawn }) {
   const hue = NNL.pathwayHues[0];
-  const chip = (state: 'done' | 'now' | 'next' | 'later' | 'blocked', code: string, isTicket = false) => (
-    <ChipMark state={state} code={code} isTicket={isTicket} hue={hue} />
-  );
+  const chip = (
+    state: 'done' | 'now' | 'next' | 'later' | 'blocked',
+    code: string,
+    isTicket = false,
+  ) => <ChipMark state={state} code={code} isTicket={isTicket} hue={hue} />;
   const dim = { color: NNL.textLo };
   return (
     <div
@@ -39,12 +41,23 @@ export function KeyBody({ drawn }: { drawn: KeyDrawn }) {
       <KeyEntry mark={chip('next', 'P3')} term="next" text="pick up next" />
       <KeyEntry mark={chip('later', 'P4')} term="later" text="queued; ○ lines" />
       <KeyEntry mark={chip('later', 'T', true)} term="T" text="a ticket" />
-      {drawn.blocked && <KeyEntry mark={chip('blocked', 'P5')} term="blocked" text="waits on another" />}
-      {drawn.parked && <KeyEntry mark={<span style={dim}>{'‖'}</span>} term="parked" text="not now" />}
-      {drawn.queued && <KeyEntry mark={<span style={dim}>+n</span>} term="queued" text="plans not drawn" />}
-      {drawn.outside && (
-        <KeyEntry mark={<span style={{ color: NNL.status.next }}>{'↗'}</span>} term="outside" text="next is elsewhere" />
+      {drawn.blocked && (
+        <KeyEntry mark={chip('blocked', 'P5')} term="blocked" text="waits on another" />
       )}
+      {drawn.parked && (
+        <KeyEntry mark={<span style={dim}>{'‖'}</span>} term="parked" text="not now" />
+      )}
+      {drawn.queued && (
+        <KeyEntry mark={<span style={dim}>+n</span>} term="queued" text="plans not drawn" />
+      )}
+      {drawn.outside && (
+        <KeyEntry
+          mark={<span style={{ color: NNL.status.next }}>{'↗'}</span>}
+          term="outside"
+          text="next is elsewhere"
+        />
+      )}
+      {drawn.stale && <KeyEntry mark={<StaleMark />} term="stale" text="no progress for weeks" />}
       {drawn.items && (
         <KeyEntry
           mark={
@@ -89,7 +102,11 @@ export function Key({
     return () => window.removeEventListener('keydown', onKey);
   }, [floating, onToggle]);
   return (
-    <section data-testid="key" className="relative shrink-0 rounded px-2" style={{ backgroundColor: NNL.surface }}>
+    <section
+      data-testid="key"
+      className="relative shrink-0 rounded px-2"
+      style={{ backgroundColor: NNL.surface }}
+    >
       <button
         type="button"
         onClick={onToggle}
@@ -105,7 +122,11 @@ export function Key({
         <div
           data-testid="key-overlay"
           className="absolute bottom-6 left-0 right-0 z-30 overflow-y-auto rounded px-2 pt-1"
-          style={{ backgroundColor: NNL.raised, border: `1px solid ${NNL.border}`, maxHeight: maxH }}
+          style={{
+            backgroundColor: NNL.raised,
+            border: `1px solid ${NNL.border}`,
+            maxHeight: maxH,
+          }}
         >
           <KeyBody drawn={drawn} />
         </div>

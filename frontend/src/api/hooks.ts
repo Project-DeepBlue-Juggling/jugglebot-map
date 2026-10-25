@@ -156,6 +156,41 @@ export function useGlossary({ enabled = true }: { enabled?: boolean } = {}) {
   });
 }
 
+/** Git history of one item; fetched only while the drawer shows it. */
+export function useItemHistory(taskId: string | null) {
+  const api = useApi();
+  const projectId = useActiveProjectId();
+  return useQuery({
+    queryKey: qk.history(projectId, taskId ?? 'none'),
+    queryFn: () => {
+      if (taskId === null) throw new Error('useItemHistory called with null id');
+      return api.getItemHistory(projectId, taskId);
+    },
+    enabled: taskId !== null,
+  });
+}
+
+/** The nightly run's status, polled once a minute (it changes once a day). */
+export function useNightly() {
+  const api = useApi();
+  return useQuery({
+    queryKey: qk.nightly,
+    queryFn: () => api.getNightly(),
+    refetchInterval: 60_000,
+  });
+}
+
+/** The latest nightly report (Markdown); only fetched while the modal is open. */
+export function useNightlyReport(enabled: boolean) {
+  const api = useApi();
+  return useQuery({
+    queryKey: qk.nightlyLatest,
+    queryFn: () => api.getNightlyLatest(),
+    enabled,
+    retry: false,
+  });
+}
+
 export function useDependencies() {
   const api = useApi();
   const projectId = useActiveProjectId();

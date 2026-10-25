@@ -11,13 +11,15 @@ export interface FrontPageViewProps {
   deps: readonly DependencyEdge[];
   users: readonly User[];
   onOpen: (taskId: string) => void;
+  /** The render-time clock (tests inject it); stale badges read it through the view. */
+  now?: Date;
 }
 
 /** The Front page from data: masthead, the 3-column tile grid of open Pathways (a complete one is not drawn), the inbox wall. */
-export function FrontPageView({ tasks, deps, users, onOpen }: FrontPageViewProps) {
+export function FrontPageView({ tasks, deps, users, onOpen, now }: FrontPageViewProps) {
   const view = useMemo(
-    () => buildMapView(tasks, deps, users, onOpen),
-    [tasks, deps, users, onOpen],
+    () => buildMapView(tasks, deps, users, onOpen, now),
+    [tasks, deps, users, onOpen, now],
   );
   const blockerIds = useMemo(() => openBlockerIdsOf(view), [view]);
   const open = view.pathways.filter((pw) => !isDone(pw));

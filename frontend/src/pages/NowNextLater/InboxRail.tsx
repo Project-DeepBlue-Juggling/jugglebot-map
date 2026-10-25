@@ -4,7 +4,8 @@ import { Openable } from '../FrontPage/bits';
 import type { MapView } from '../FrontPage/mapView';
 import { KEY_HEAD, railCaps, railItemHeight } from './layout';
 import { useSize } from './useSize';
-import { KindGlyph } from './marks';
+import { isStale, staleAge, staleClock } from '../../lib/stale';
+import { KindGlyph, StaleMark } from './marks';
 import { SELECTED, useOpenId } from './selection';
 
 const RAIL_GAP = 8;
@@ -15,7 +16,9 @@ export function InboxRail({ view, items }: { view: MapView; items: Record<InboxK
   const openId = useOpenId();
   const [ref, , height] = useSize<HTMLElement>(openId);
   const needs = INBOX_ORDER.map((k) =>
-    items[k].length === 0 ? KEY_HEAD : KEY_HEAD + 4 + items[k].reduce((n, t) => n + railItemHeight(t.title), 0),
+    items[k].length === 0
+      ? KEY_HEAD
+      : KEY_HEAD + 4 + items[k].reduce((n, t) => n + railItemHeight(t.title), 0),
   );
   const caps = height === 0 ? needs : railCaps(needs, height - 2 * RAIL_GAP);
   return (
@@ -63,6 +66,9 @@ export function InboxRail({ view, items }: { view: MapView; items: Record<InboxK
                   <span className="line-clamp-2 min-w-0 flex-1" title={t.title}>
                     {t.title}
                   </span>
+                  {isStale(t, view.now) && (
+                    <StaleMark days={staleAge(t, view.now)} since={staleClock(t)} />
+                  )}
                 </Openable>
               ))}
             </div>

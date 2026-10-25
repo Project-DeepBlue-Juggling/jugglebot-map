@@ -8,6 +8,8 @@ export interface KeyDrawn {
   queued: boolean;
   outside: boolean;
   items: boolean;
+  /** At least one drawn item carries the stale ring. */
+  stale: boolean;
 }
 
 /** Scans the blocks as laid out (`levels[i]` is block i's chosen layout) for the marks the Key may explain. */
@@ -15,6 +17,7 @@ export function keyDrawn(
   journeys: readonly Journey[],
   levels: readonly Level[],
   items: boolean,
+  stale = false,
 ): KeyDrawn {
   const out: KeyDrawn = {
     blocked: false,
@@ -22,6 +25,7 @@ export function keyDrawn(
     queued: false,
     outside: false,
     items,
+    stale,
   };
   journeys.forEach((j, i) => {
     const lv = levels[i];

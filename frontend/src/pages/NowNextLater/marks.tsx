@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import type { CSSProperties } from 'react';
 import type { Station } from '../../lib/journey';
 import { NNL, tint } from '../../theme/nnl';
+import { STALE_HEX } from '../FrontPage/bits';
 import { SELECTED } from './selection';
 
 const S = NNL.status;
@@ -50,13 +51,21 @@ export function ChipMark({
     style = { ...base, backgroundColor: S.blocked, color: '#fff' };
     text = '✕';
   } else {
-    style = { ...base, border: `1.5px solid ${S.later}`, color: NNL.textLo, backgroundColor: NNL.canvas };
+    style = {
+      ...base,
+      border: `1.5px solid ${S.later}`,
+      color: NNL.textLo,
+      backgroundColor: NNL.canvas,
+    };
   }
   if (selected) style = { ...style, ...SELECTED };
   return (
     <span className="relative flex items-center justify-center">
       {halo && (
-        <span className="absolute animate-pulse rounded-full" style={{ inset: -3, backgroundColor: tint(hue, 30) }} />
+        <span
+          className="absolute animate-pulse rounded-full"
+          style={{ inset: -3, backgroundColor: tint(hue, 30) }}
+        />
       )}
       <span title={title} className="relative flex items-center justify-center" style={style}>
         {text}
@@ -70,7 +79,12 @@ export function KindGlyph({ kind, className }: { kind: string; className?: strin
   const k = (NNL.kind as Record<string, { hex: string; glyph: string; label: string }>)[kind];
   if (k === undefined) return null;
   return (
-    <span aria-label={k.label} title={k.label} className={clsx('shrink-0', className)} style={{ color: k.hex }}>
+    <span
+      aria-label={k.label}
+      title={k.label}
+      className={clsx('shrink-0', className)}
+      style={{ color: k.hex }}
+    >
       {k.glyph}
     </span>
   );
@@ -92,9 +106,14 @@ export function CapsuleChip({
     <span
       title={title}
       className="shrink-0 whitespace-nowrap rounded-full px-1.5 text-[10px]"
-      style={{ backgroundColor: NNL.raised, color: NNL.textMed, border: `1px solid ${NNL.borderStrong}` }}
+      style={{
+        backgroundColor: NNL.raised,
+        color: NNL.textMed,
+        border: `1px solid ${NNL.borderStrong}`,
+      }}
     >
-      {'✓'} {units > 0 ? `${units}${compact ? '' : ` plan${units > 1 ? 's' : ''}`}` : `${doneTickets} T`}
+      {'✓'}{' '}
+      {units > 0 ? `${units}${compact ? '' : ` plan${units > 1 ? 's' : ''}`}` : `${doneTickets} T`}
       {units > 0 && doneTickets > 0 && !compact ? ` · ${doneTickets} T` : ''}
     </span>
   );
@@ -106,10 +125,32 @@ export function HueBar({ hue }: { hue: string }) {
 }
 
 /** The hollow-circle text of a Later one-liner (the tracks and the Key both draw it). */
-export function LaterMark({ text, title, style }: { text: string; title?: string; style?: CSSProperties | undefined }) {
+export function LaterMark({
+  text,
+  title,
+  style,
+}: {
+  text: string;
+  title?: string;
+  style?: CSSProperties | undefined;
+}) {
   return (
     <span className="truncate" title={title} style={style}>
       {'○'} {text}
     </span>
+  );
+}
+
+/** Muted amber hollow ring after an item that has had no progress past its threshold (the Key draws the same). */
+export function StaleMark({ days, since }: { days?: number; since?: string }) {
+  return (
+    <span
+      data-testid="stale-mark"
+      role="img"
+      aria-label={days === undefined ? 'stale' : `stale, ${days} days`}
+      title={since === undefined ? 'stale' : `stale · ${days} d: no progress since ${since}`}
+      className="inline-block shrink-0 rounded-full"
+      style={{ width: 8, height: 8, border: `1.5px solid ${STALE_HEX}` }}
+    />
   );
 }

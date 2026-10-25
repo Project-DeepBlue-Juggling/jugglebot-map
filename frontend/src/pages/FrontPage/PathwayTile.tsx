@@ -1,7 +1,8 @@
 import type { Task } from '../../api/schemas';
 import { attachedInbox, isDone, nextStop, plansOf, progress, ticketsOf } from '../../lib/derive';
+import { isStale, staleAge } from '../../lib/stale';
 import { kindHue } from '../../theme/palette';
-import { BranchChip, Openable, Owners, PriorityTag, StatusPill } from './bits';
+import { BranchChip, Openable, Owners, PriorityTag, StaleBadge, StatusPill } from './bits';
 import { FRONT_LAYOUT, type MapView } from './mapView';
 import { NextBox } from './NextBox';
 import { SegmentedBar } from './SegmentedBar';
@@ -20,6 +21,11 @@ export function PathwayTile({ pathway, view }: { pathway: Task; view: MapView })
   const next = nextStop(view.ix, pathway);
   const tickets = ticketsOf(view.ix, pathway).filter((t) => !isDone(t)).length;
   const inbox = attachedInbox(view.ix, pathway).filter((t) => !isDone(t));
+  const staleItems = inbox.filter((t) => isStale(t, view.now));
+  const oldest = staleItems.reduce<Task | null>(
+    (a, t) => (a === null || staleAge(t, view.now) > staleAge(a, view.now) ? t : a),
+    null,
+  );
   const hue = view.hues.get(pathway.id) ?? '#64748b';
   return (
     <Openable
@@ -35,6 +41,7 @@ export function PathwayTile({ pathway, view }: { pathway: Task; view: MapView })
         <StatusPill task={pathway} />
         <PriorityTag priority={pathway.priority} />
         <BranchChip branch={pathwayBranch(pathway, plans)} />
+        {oldest !== null && <StaleBadge count={staleItems.length} item={oldest} />}
       </div>
       <h2 className="truncate text-base font-semibold leading-tight">{pathway.title}</h2>
       <p
