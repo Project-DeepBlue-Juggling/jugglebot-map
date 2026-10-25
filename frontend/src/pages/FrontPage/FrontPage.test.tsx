@@ -20,6 +20,18 @@ function tile(title: string): HTMLElement {
 }
 
 describe('PathwayTile', () => {
+  it('draws a tile per open Pathway and none for a complete or dropped one', () => {
+    page([
+      mapTask({ id: 'a', title: 'Open one' }),
+      mapTask({ id: 'z', title: 'Finished one', status: 'complete' }),
+      mapTask({ id: 'd', title: 'Dropped one', status: 'dropped' }),
+    ]);
+    expect(tile('Open one')).toBeInTheDocument();
+    expect(screen.queryByText('Finished one')).toBeNull();
+    expect(screen.queryByText('Dropped one')).toBeNull();
+    expect(screen.getByText(/1 pathways/)).toBeInTheDocument();
+  });
+
   it('shows the next phase with its plan, and x of y stops done', () => {
     page([
       mapTask({ id: 'pw', title: 'Oval', destination: 'Two balls in one hand.' }),
