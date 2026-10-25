@@ -145,6 +145,15 @@ export function useTasks() {
   });
 }
 
+export function useGlossary() {
+  const api = useApi();
+  const projectId = useActiveProjectId();
+  return useQuery({
+    queryKey: qk.glossary(projectId),
+    queryFn: () => api.getGlossary(projectId),
+  });
+}
+
 export function useDependencies() {
   const api = useApi();
   const projectId = useActiveProjectId();

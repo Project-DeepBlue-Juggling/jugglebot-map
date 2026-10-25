@@ -149,6 +149,8 @@ export interface TestState {
   memberships: ProjectMembership[];
   tasks: Task[];
   dependencies: DependencyEdge[];
+  /** Served raw by `GET /glossary` (a test may seed a malformed payload). */
+  glossary: unknown;
   nextTaskSerial: number;
   nextDepSerial: number;
 }
@@ -187,6 +189,28 @@ export function createState(): TestState {
       }),
     ],
     dependencies: [],
+    glossary: {
+      clusters: [
+        {
+          name: 'The machine',
+          terms: [
+            {
+              term: 'Hand',
+              definition: 'The seventh actuated axis: a **linear stroke** on the Platform.',
+              avoid: ['leg 6', 'seventh leg'],
+              anchor: 'term-hand',
+            },
+            { term: 'Cup', definition: 'The ball-holding end of the Hand.', avoid: [], anchor: 'term-cup' },
+          ],
+        },
+        {
+          name: 'Safety',
+          terms: [
+            { term: 'Guard', definition: 'A check that stops motion.', avoid: ['limiter'], anchor: 'term-guard' },
+          ],
+        },
+      ],
+    },
     nextTaskSerial: 4,
     nextDepSerial: 1,
   };
@@ -268,6 +292,10 @@ export function makeServer(state: TestState) {
     ),
 
     // -- Tasks (scoped) -------------------------------------------------
+    http.get('http://localhost:8000/api/v1/projects/:projectId/glossary', () =>
+      HttpResponse.json(state.glossary as Record<string, unknown>),
+    ),
+
     http.get('http://localhost:8000/api/v1/projects/:projectId/tasks', () =>
       HttpResponse.json(state.tasks),
     ),

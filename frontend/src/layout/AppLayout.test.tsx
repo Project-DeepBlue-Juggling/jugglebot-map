@@ -23,12 +23,12 @@ afterEach(() => {
 });
 
 describe('AppLayout', () => {
-  it('links only to the two placeholder pages', async () => {
+  it('links to the three pages', async () => {
     renderApp('/', <FrontPage />);
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
     const links = await screen.findAllByRole('link');
     expect(nav).toBeInTheDocument();
-    expect(links.map((l) => l.textContent)).toEqual(['Front page', 'Now / Next / Later']);
+    expect(links.map((l) => l.textContent)).toEqual(['Front page', 'Now / Next / Later', 'Dictionary']);
   });
 
   it('shows the fixed signed-in user', async () => {

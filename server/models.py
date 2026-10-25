@@ -141,3 +141,19 @@ class Health(_Strict):
     status: str
     errors: List[HealthError]
     banner: HealthBanner
+
+
+class GlossaryTerm(_Strict):
+    term: str
+    definition: str
+    avoid: List[str]
+    anchor: str
+
+
+class GlossaryCluster(_Strict):
+    name: str
+    terms: List[GlossaryTerm]
+
+
+class Glossary(_Strict):
+    clusters: List[GlossaryCluster]

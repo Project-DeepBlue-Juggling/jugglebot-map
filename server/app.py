@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Union
 
@@ -21,7 +22,7 @@ from server.config import MapConfig, setup
 from server.events import Broker
 from server.gitwriter import DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
 from server.watcher import DEFAULT_WATCH_MS, Watcher
-from server.models import (Count, Dependency, Health, Membership, Project, Task,
+from server.models import (Count, Dependency, Glossary, Health, Membership, Project, Task,
                            TaskDetail, User)
 
 log = logging.getLogger("jugglebot_map")
@@ -29,6 +30,33 @@ log = logging.getLogger("jugglebot_map")
 BUILD_HINT = "Frontend not built: run `npm run build` in frontend/ (then restart the server)."
 DEFAULT_DIST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "frontend", "dist")
+
+
+def _term_slug(term: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", term.lower()).strip("-") or "term"
+
+
+def _glossary(repo_root: str) -> Dict[str, Any]:
+    """``GLOSSARY.md`` through mapkit's parser, clusters and terms in file order."""
+    from mapkit.gen_glossary import load_glossary  # importable once setup() has run
+    from server.store import ApiError
+    try:
+        entries = load_glossary(repo_root)
+    except FileNotFoundError:
+        raise ApiError(404, {"detail": "GLOSSARY.md not found"})
+    clusters: List[Dict[str, Any]] = []
+    by_name: Dict[str, Dict[str, Any]] = {}
+    seen: Dict[str, int] = {}
+    for e in entries:
+        if e.cluster not in by_name:
+            by_name[e.cluster] = {"name": e.cluster, "terms": []}
+            clusters.append(by_name[e.cluster])
+        slug = _term_slug(e.term)
+        seen[slug] = seen.get(slug, 0) + 1
+        anchor = "term-" + slug + ("" if seen[slug] == 1 else "-%d" % seen[slug])
+        by_name[e.cluster]["terms"].append({"term": e.term, "definition": e.definition,
+                                            "avoid": list(e.avoid), "anchor": anchor})
+    return {"clusters": clusters}
 
 
 def _token(request: Request, body: Optional[Dict[str, Any]] = None) -> Any:
@@ -198,6 +226,12 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         _project(project_id)
         store.delete_dependency(dep_id)
         return Response(status_code=204)
+
+    # --- glossary (read-only: GLOSSARY.md changes only through the glossary skills) ---
+    @r.get(P + "/glossary", response_model=Glossary)
+    def get_glossary(project_id: str) -> Any:
+        _project(project_id)
+        return _glossary(cfg.repo_root)
 
     # --- quiet stubs (prototype parity) ----------------------------------------
     @r.get("/users/me/tasks")

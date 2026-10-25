@@ -4,6 +4,7 @@ import {
   CurrentUser,
   DependencyEdge,
   DependencyEdgeList,
+  Glossary,
   Project,
   ProjectList,
   ProjectMembershipList,
@@ -109,6 +110,10 @@ export function createApiClient(auth: AuthClient) {
       request(`/projects/${projectId}/tasks/${taskId}`, jsonInit('PATCH', body), Task),
     deleteTask: (projectId: string, taskId: string) =>
       request<undefined>(`/projects/${projectId}/tasks/${taskId}`, jsonInit('DELETE'), null),
+
+    // -- Glossary (read-only)
+    getGlossary: (projectId: string) =>
+      request(`/projects/${projectId}/glossary`, jsonInit('GET'), Glossary),
 
     // -- Dependencies (scoped per ADR 0020)
     getDependencies: (projectId: string) =>

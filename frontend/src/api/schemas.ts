@@ -277,3 +277,22 @@ export const Health = z.object({
   }),
 });
 export type Health = z.infer<typeof Health>;
+
+// -- Glossary (read-only: GLOSSARY.md, parsed by mapkit) -----------------------
+
+export const GlossaryTerm = z.object({
+  term: z.string(),
+  definition: z.string(),
+  avoid: z.array(z.string()),
+  anchor: z.string(),
+});
+export type GlossaryTerm = z.infer<typeof GlossaryTerm>;
+
+export const GlossaryCluster = z.object({
+  name: z.string(),
+  terms: z.array(GlossaryTerm),
+});
+export type GlossaryCluster = z.infer<typeof GlossaryCluster>;
+
+export const Glossary = z.object({ clusters: z.array(GlossaryCluster) });
+export type Glossary = z.infer<typeof Glossary>;

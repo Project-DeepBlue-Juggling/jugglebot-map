@@ -18,5 +18,6 @@ export const qk = {
     detail: (projectId: string, taskId: string) =>
       ['projects', projectId, 'tasks', taskId] as const,
   },
+  glossary: (projectId: string) => ['projects', projectId, 'glossary'] as const,
   dependencies: (projectId: string) => ['projects', projectId, 'dependencies'] as const,
 } as const;
