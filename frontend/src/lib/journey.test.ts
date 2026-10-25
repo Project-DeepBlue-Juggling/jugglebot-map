@@ -3,7 +3,6 @@ import { dep, mapTask, planWithPhases } from '../test/mapFixtures';
 import { buildIndex } from './derive';
 import {
   activePathways,
-  arrivedPathways,
   donePrefix,
   inboxPartition,
   journeyByPlan,
@@ -83,7 +82,7 @@ describe('journeyByPlan', () => {
 });
 
 describe('pathways', () => {
-  it('keeps complete Pathways out of the active list and on the arrived shelf, newest first', () => {
+  it('keeps complete and dropped Pathways out of the active list', () => {
     const pws = [
       mapTask({ id: 'a' }),
       mapTask({ id: 'old', status: 'complete', destination: 'met 2026-09-01' }),
@@ -91,10 +90,6 @@ describe('pathways', () => {
       mapTask({ id: 'gone', status: 'dropped' }),
     ];
     expect(activePathways(pws).map((p) => p.id)).toEqual(['a']);
-    expect(arrivedPathways(pws).map((a) => [a.pathway.id, a.label])).toEqual([
-      ['new', 'Oct 13'],
-      ['old', 'Sep 1'],
-    ]);
   });
 
   it('cycles hues by active index and greys a pathway that is not active', () => {

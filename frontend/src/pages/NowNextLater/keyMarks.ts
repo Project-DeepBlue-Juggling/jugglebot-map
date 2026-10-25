@@ -7,7 +7,6 @@ export interface KeyDrawn {
   parked: boolean;
   queued: boolean;
   outside: boolean;
-  arrived: boolean;
   items: boolean;
 }
 
@@ -15,7 +14,6 @@ export interface KeyDrawn {
 export function keyDrawn(
   journeys: readonly Journey[],
   levels: readonly Level[],
-  arrived: boolean,
   items: boolean,
 ): KeyDrawn {
   const out: KeyDrawn = {
@@ -23,7 +21,6 @@ export function keyDrawn(
     parked: false,
     queued: false,
     outside: false,
-    arrived,
     items,
   };
   journeys.forEach((j, i) => {

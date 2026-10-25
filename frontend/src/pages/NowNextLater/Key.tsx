@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { NNL } from '../../theme/nnl';
 import { KEY_HEAD } from './layout';
 import type { KeyDrawn } from './keyMarks';
-import { ArrivedPill, ChipMark, KindGlyph } from './marks';
+import { ChipMark, KindGlyph } from './marks';
 
 /** One Key entry, one line: the mark (drawn by the function the page uses), a bold term, a few words. */
 function KeyEntry({ mark, term, text }: { mark: React.ReactNode; term: string; text: string }) {
@@ -58,7 +58,6 @@ export function KeyBody({ drawn }: { drawn: KeyDrawn }) {
           text="per Pathway"
         />
       )}
-      {drawn.arrived && <KeyEntry mark={<ArrivedPill name="Name" label="date" />} term="Arrived" text="complete" />}
     </div>
   );
 }

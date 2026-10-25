@@ -14,44 +14,9 @@ import {
   type MapIndex,
 } from './derive';
 
-/** A Pathway is arrived when it is complete (a dropped one is hidden, not arrived). */
-export function isArrived(pathway: Task): boolean {
-  return isDone(pathway) && pathway.status !== 'dropped';
-}
-
 /** Pathways still being walked, in the given order (drops complete and dropped). */
 export function activePathways(pathways: readonly Task[]): Task[] {
   return pathways.filter((p) => !isDone(p));
-}
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** `2026-10-13` -> `Oct 13`; empty for anything else. */
-function shortDate(iso: string): string {
-  const m = /(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  if (m === null) return '';
-  return `${MONTHS[Number(m[2]) - 1] ?? ''} ${Number(m[3])}`;
-}
-
-export interface Arrived {
-  pathway: Task;
-  /** ISO date `YYYY-MM-DD`: "met <date>" in the destination, else any date there, else updated_at. */
-  date: string;
-  /** `Oct 13`. */
-  label: string;
-}
-
-/** Complete Pathways, most recently arrived first, each with its completion date. */
-export function arrivedPathways(pathways: readonly Task[]): Arrived[] {
-  const out: Arrived[] = [];
-  for (const p of pathways) {
-    if (!isArrived(p)) continue;
-    const text = `${p.destination}\n${p.description}`;
-    const m = /met\s+(\d{4}-\d{2}-\d{2})/.exec(text) ?? /(\d{4}-\d{2}-\d{2})/.exec(text);
-    const date = m !== null ? m[1] : p.updated_at.slice(0, 10);
-    out.push({ pathway: p, date, label: shortDate(date) });
-  }
-  return out.sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /** Pathway hue by index among the ACTIVE Pathways (cycling past 8); a complete one is grey. */
@@ -216,7 +181,7 @@ const kindRank = (k: string) => {
 export interface InboxPartition {
   /** Open inbox items per ACTIVE Pathway id (the Pathway's one-liners). */
   attached: ReadonlyMap<string, Task[]>;
-  /** Everything else (no Pathway, a missing one, or an arrived one), per kind, for the rail. */
+  /** Everything else (no Pathway, a missing one, or a complete one), per kind, for the rail. */
   unattached: Record<InboxKind, Task[]>;
 }
 

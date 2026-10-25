@@ -20,7 +20,7 @@ function drawerValue(openId: string | null): DrawerValue {
 }
 
 describe('Now / Next / Later page', () => {
-  it('draws a block per active Pathway and an arrived one only on the shelf', () => {
+  it('draws a block per active Pathway and nothing for a complete one', () => {
     page([
       mapTask({ id: 'a', title: 'Active one' }),
       mapTask({ id: 'b', title: 'Active two' }),
@@ -29,9 +29,8 @@ describe('Now / Next / Later page', () => {
     expect(screen.getAllByTestId('pathway-block')).toHaveLength(2);
     expect(block('Active one')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Finished one' })).toBeNull();
-    const shelf = within(screen.getByTestId('arrived'));
-    expect(shelf.getByText('Finished one')).toBeInTheDocument();
-    expect(shelf.getByText(/Oct 13/)).toBeInTheDocument();
+    expect(screen.queryByText('Finished one')).toBeNull();
+    expect(screen.queryByText(/Arrived/)).toBeNull();
   });
 
   it('lists an attached bug inside its Pathway block and an unattached one only in the rail', () => {
@@ -46,7 +45,7 @@ describe('Now / Next / Later page', () => {
     const rail = within(screen.getByTestId('rail'));
     expect(rail.queryByText('Attached bug')).toBeNull();
     expect(within(screen.getByTestId('rail-bug')).getByText('Loose bug')).toBeInTheDocument();
-    // An item of an arrived Pathway has no block to live in: it goes to the rail.
+    // An item of a complete Pathway has no block to live in: it goes to the rail.
     expect(within(screen.getByTestId('rail-idea')).getByText('Arrived idea')).toBeInTheDocument();
     expect(screen.getAllByText('Loose bug')).toHaveLength(1);
     expect(screen.getAllByText('Attached bug')).toHaveLength(1);
@@ -138,20 +137,19 @@ describe('Key', () => {
     page(mixed(false));
     expect(keyText()).not.toContain('blocked');
     expect(keyText()).not.toContain('parked');
-    expect(keyText()).not.toContain('Arrived');
     document.body.innerHTML = '';
     page(mixed(true));
     expect(keyText()).toContain('blocked');
   });
 
-  it('lists Arrived and parked only while drawn and never the capsule or phase-less entries', () => {
+  it('lists parked only while drawn and never Arrived, the capsule or phase-less entries', () => {
     page([
       ...mixed(false),
       mapTask({ id: 'fin', title: 'Fin', status: 'complete' }),
       ...planWithPhases('pk', 'pw', ['not_started'], { status: 'parked' }),
       ...planWithPhases('dn', 'pw', ['complete'], { status: 'complete' }),
     ]);
-    expect(keyText()).toContain('Arrived');
+    expect(keyText()).not.toContain('Arrived');
     expect(keyText()).toContain('parked');
     expect(keyText()).not.toContain('not drawn');
     expect(keyText()).not.toContain('without phases');

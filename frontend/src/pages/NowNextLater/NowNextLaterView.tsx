@@ -2,10 +2,9 @@ import { useMemo, useState } from 'react';
 import type { DependencyEdge, Task, User } from '../../api/schemas';
 import { DrawerSlot } from '../../features/drawer/DrawerSlot';
 import { HoverProvider } from '../../features/hover';
-import { activePathways, arrivedPathways, inboxPartition, journeyByPlan } from '../../lib/journey';
+import { activePathways, inboxPartition, journeyByPlan } from '../../lib/journey';
 import { NNL, INBOX_ORDER } from '../../theme/nnl';
 import { buildMapView, openBlockerIdsOf } from '../FrontPage/mapView';
-import { ArrivedShelf } from './ArrivedShelf';
 import { InboxRail } from './InboxRail';
 import { Key, KeyBody } from './Key';
 import { keyDrawn } from './keyMarks';
@@ -44,8 +43,8 @@ function writeKeyOpen(open: boolean): void {
 /**
  * The Now / Next / Later page: one block per active Pathway (a track per open
  * plan, its Later stages and its own inbox items), the Pathways' unattached
- * inbox items in a right rail, a Key of the marks drawn, and a shelf of
- * arrived Pathways. Layout switches on the measured width of the main column
+ * inbox items in a right rail, and a Key of the marks drawn; a complete
+ * Pathway is not drawn. Layout switches on the measured width of the main column
  * (the element that shrinks when the drawer takes room), never on the drawer.
  */
 export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterViewProps) {
@@ -78,7 +77,6 @@ export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterVie
       keyDrawn(
         journeys,
         chosen,
-        arrivedPathways(view.pathways).length > 0,
         active.some((pw) => (partition.attached.get(pw.id)?.length ?? 0) > 0) ||
           INBOX_ORDER.some((k) => partition.unattached[k].length > 0),
       ),
@@ -134,7 +132,6 @@ export function NowNextLaterView({ tasks, deps, users, onOpen }: NowNextLaterVie
               />
             </div>
           </div>
-          <ArrivedShelf view={view} pathways={view.pathways} />
         </div>
         <DrawerSlot />
         <InboxRail view={view} items={partition.unattached} />

@@ -113,17 +113,3 @@ export function LaterMark({ text, title, style }: { text: string; title?: string
     </span>
   );
 }
-
-/** One grey pill: a complete Pathway with its date. */
-export function ArrivedPill({ name, label }: { name: string; label: string }) {
-  return (
-    <span
-      className="flex h-5 items-center gap-1 whitespace-nowrap rounded-full px-2 text-[11px]"
-      style={{ backgroundColor: NNL.raised, color: S.complete }}
-    >
-      <span aria-hidden>{'✓'}</span>
-      <span>{name}</span>
-      {label !== '' && <span style={{ color: NNL.textLo }}>{'·'} {label}</span>}
-    </span>
-  );
-}
