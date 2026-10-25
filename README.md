@@ -21,6 +21,17 @@ remote: dev mode); `--debounce-ms` (default 5000) and `--watch-ms` (default 300)
 invalidate windows. The server refuses to start (exit 2) when the checkout has no `map/config.yaml`, and it
 imports the checkout's own `mapkit` parser by putting the checkout root on `sys.path` (no install step).
 
+Three optional environment variables:
+
+- `MAP_NIGHTLY_DIR` - the live checkout's `temp/reports/nightly`. Unset means the header chip reads NEVER
+  and `GET /api/v1/nightly` says `configured: false`. The server only reads `status` and `latest.md` there
+  (on a 60 s timer, never inside a request) and never writes.
+- `MAP_WEB_BASE` - the URL prefix the History section links repo documents under, e.g.
+  `https://github.com/org/repo/blob/main`. Unset, it is derived from the `origin` remote (https or
+  `git@` form); with no remote the links are null.
+- `MAP_CORS_ORIGINS` - comma-separated browser origins allowed to call the API cross-origin (the Jugglebot
+  GUI files items this way). Unset means no CORS headers at all.
+
 ## Build the frontend
 
 ```bash

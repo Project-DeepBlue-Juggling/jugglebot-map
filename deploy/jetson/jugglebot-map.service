@@ -15,6 +15,10 @@ WorkingDirectory=/home/jetson/map-live/jugglebot-map
 ExecStart=/home/jetson/map-live/jugglebot-map/.venv/bin/jugglebot-map --repo /home/jetson/map-live/Jugglebot --host 0.0.0.0 --port 8765 --no-open
 Environment=PYTHONUNBUFFERED=1
 Environment=GIT_TERMINAL_PROMPT=0
+# The 04:00 nightly's status files, read-only (the server never writes there).
+Environment=MAP_NIGHTLY_DIR=/home/jetson/Desktop/Jugglebot/temp/reports/nightly
+# Browsers on the Jugglebot GUI's origin may file items here.
+Environment=MAP_CORS_ORIGINS=http://192.168.20.34:8081,http://jetson.local:8081,http://localhost:8081
 Restart=on-failure
 RestartSec=3
 # This Jetson runs the robot: keep the map server behind the control loops.

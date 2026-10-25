@@ -15,11 +15,14 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from server.config import MapConfig, setup
 from server.events import Broker
+from server.history import HistoryCache
+from server.nightly import NightlyCache
 from server.gitwriter import DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
 from server.watcher import DEFAULT_WATCH_MS, Watcher
 from server.models import (Count, Dependency, Glossary, Health, Membership, Project, Task,
@@ -106,12 +109,15 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             store.writer = writer
         else:
             store.read_only = banner.get()["message"]
+    history = HistoryCache(cfg.repo_root)
+    nightly = NightlyCache()
     watcher = Watcher(store, broker.publish, watch_ms=watch_ms) if watch else None
     dist = dist_dir if dist_dir is not None else DEFAULT_DIST
     have_dist = os.path.isfile(os.path.join(dist, "index.html"))
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> Any:
+        nightly.start()
         if watcher is not None:
             try:
                 watcher.start()
@@ -121,6 +127,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         try:
             yield
         finally:
+            nightly.stop()
             store.watcher = None
             if watcher is not None:
                 watcher.stop()
@@ -129,12 +136,21 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
                 writer.flush()  # do not strand an edit inside the debounce window
 
     app = FastAPI(title="jugglebot-map", version="0.1.0", lifespan=lifespan)
+    # The Jugglebot GUI (another origin) files items from the browser. Auth is the
+    # same as everywhere: no credentials, only the optional X-Dev-User header, which
+    # is why it is an allowed header. Default (env unset) = no CORS at all.
+    origins = [o.strip() for o in (os.environ.get("MAP_CORS_ORIGINS") or "").split(",") if o.strip()]
+    if origins:
+        app.add_middleware(CORSMiddleware, allow_origins=origins,
+                           allow_methods=["GET", "POST", "PATCH", "OPTIONS"], allow_headers=["*"])
     app.state.store = store
     app.state.broker = broker
     app.state.config = cfg
     app.state.banner = banner
     app.state.writer = writer
     app.state.watcher = watcher
+    app.state.nightly = nightly
+    app.state.history = history
 
     @app.exception_handler(ApiError)
     async def _api_error(_request: Request, exc: ApiError) -> JSONResponse:
@@ -197,6 +213,16 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         _project(project_id)
         return store.task_detail(task_id)
 
+    @r.get(P + "/tasks/{task_id}/history")
+    def task_history(project_id: str, task_id: str) -> Any:
+        _project(project_id)
+        with store._lock:
+            ix = store.index()
+            node = store._node(ix, task_id)  # 404s an unknown id: nothing request-supplied reaches git
+            path = node.path
+            links = [str(x) for x in ((node.item.meta.get("links") or []) if node.item else [])]
+        return history.get(task_id, path, links)
+
     @r.patch(P + "/tasks/{task_id}", response_model=Task)
     async def patch_task(project_id: str, task_id: str, request: Request) -> Any:
         _project(project_id)
@@ -257,6 +283,18 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     @r.get(P + "/tasks/{task_id}/comments")
     def comments(project_id: str, task_id: str) -> Any:
         return []
+
+    # --- nightly status (cached; a request never touches the disk) -------------
+    @r.get("/nightly")
+    def nightly_status() -> Any:
+        return nightly.status()
+
+    @r.get("/nightly/latest")
+    def nightly_latest() -> Any:
+        text = nightly.latest()
+        if text is None:
+            raise ApiError(404, {"detail": "no latest.md"})
+        return PlainTextResponse(text, media_type="text/markdown")
 
     # --- health and events ----------------------------------------------------
     @r.get("/health", response_model=Health)
