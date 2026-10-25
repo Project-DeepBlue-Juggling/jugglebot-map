@@ -33,13 +33,20 @@ export function Title({ value, editable, onChange, display }: TitleProps) {
   const start = useRef(value);
   const ref = useRef<HTMLTextAreaElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  // Set when Enter/Esc ends editing, so focus returns inside the drawer and
+  // its shortcuts (Ctrl+Enter save) keep working; a blur leaves focus alone.
+  const refocus = useRef(false);
   useAutoGrow(ref, value);
   // Announce the title when an item opens.
   useEffect(() => {
     heading.current?.focus({ preventScroll: true });
   }, []);
   useEffect(() => {
-    if (!editing) return;
+    if (!editing) {
+      if (refocus.current) heading.current?.focus({ preventScroll: true });
+      refocus.current = false;
+      return;
+    }
     const el = ref.current;
     if (el === null) return;
     el.focus();
@@ -60,10 +67,12 @@ export function Title({ value, editable, onChange, display }: TitleProps) {
     const key = (e: KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
+        refocus.current = true;
         setEditing(false);
       } else if (e.key === 'Escape') {
         e.stopPropagation();
         onChange(start.current);
+        refocus.current = true;
         setEditing(false);
       }
     };
@@ -136,9 +145,16 @@ export function MarkdownField({
 }: FieldProps) {
   const [tab, setTab] = useState<'write' | 'preview'>('write');
   const ref = useRef<HTMLTextAreaElement>(null);
+  const section = useRef<HTMLElement>(null);
+  // Set when Esc or Done ends editing, so focus stays inside the drawer.
+  const refocus = useRef(false);
   useAutoGrow(ref, value);
   useEffect(() => {
-    if (!editing) return;
+    if (!editing) {
+      if (refocus.current) section.current?.focus({ preventScroll: true });
+      refocus.current = false;
+      return;
+    }
     setTab('write');
     const el = ref.current;
     if (el === null) return;
@@ -146,11 +162,18 @@ export function MarkdownField({
     el.setSelectionRange(el.value.length, el.value.length);
   }, [editing]);
   const setEditing = (v: boolean) => onEditingChange?.(v);
+  const finish = () => {
+    refocus.current = true;
+    setEditing(false);
+  };
   const empty = value.trim() === '';
 
   return (
     <section
+      ref={section}
+      tabIndex={-1}
       className={clsx(
+        'outline-none',
         callout === undefined
           ? 'mt-4 border-t border-dr-border pt-3'
           : 'mt-4 rounded-r border-l-[3px] bg-dr-code p-3',
@@ -172,7 +195,7 @@ export function MarkdownField({
         {editable && editing && (
           <button
             type="button"
-            onClick={() => setEditing(false)}
+            onClick={finish}
             className="rounded border border-dr-strong px-2 py-0.5 text-xs text-dr-hi"
           >
             Done
@@ -184,7 +207,7 @@ export function MarkdownField({
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.stopPropagation();
-              setEditing(false);
+              finish();
             }
           }}
         >

@@ -149,6 +149,7 @@ describe('editing the title', () => {
     await userEvent.type(within(d).getByLabelText('Title'), 'XYZ');
     await userEvent.keyboard('{Escape}');
     expect(within(d).queryByLabelText('Title')).toBeNull();
+    expect(d.contains(document.activeElement)).toBe(true);
     expect(within(d).getByRole('heading', { level: 2 }).textContent).toBe(LONG_TITLE);
     expect(screen.getByRole('complementary', { name: 'Item drawer' })).toBeInTheDocument();
     expect(patchBodies).toHaveLength(0);
@@ -185,10 +186,9 @@ describe('editing the body', () => {
     expect(within(d).queryByLabelText('Description')).toBeNull();
     await waitFor(() => expect(d.querySelector('.dr-md')?.textContent).toContain('More.'));
     expect(within(d).getByText('Unsaved changes')).toBeInTheDocument();
-    fireEvent.keyDown(within(d).getByTestId('editable-body'), {
-      key: 'Enter',
-      ctrlKey: true,
-    });
+    // Done keeps focus inside the drawer, so a real Ctrl+Enter reaches its handler.
+    expect(d.contains(document.activeElement)).toBe(true);
+    await userEvent.keyboard('{Control>}{Enter}{/Control}');
     expect(await within(d).findByText('Saving…')).toBeInTheDocument();
     expect(await within(d).findByText('Saved')).toBeInTheDocument();
     expect(patchBodies).toHaveLength(1);
