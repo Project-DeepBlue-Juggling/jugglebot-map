@@ -2,7 +2,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mapTask, planWithPhases } from '../../test/mapFixtures';
-import { renderApp, settleQueries } from '../../test/renderApp';
+import { getLastClient, renderApp, settleQueries } from '../../test/renderApp';
 import { createState, makeServer, type TestState } from '../../test/server';
 import { DoneRoute, FrontRoute, NowRoute } from './routes';
 
@@ -91,6 +91,54 @@ describe('short IDs in the app', () => {
     expect(loc()).toMatch(/^\?item=oval-plan/); // a plan or phase: the uuid, never a JB form
   });
 
+  it('an unpushed Item is linked by uuid, so a renumber never swaps the drawer; JB-n once pushed', async () => {
+    renderApp(
+      '/now',
+      <>
+        <Probe />
+        <NowRoute />
+      </>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: /Fresh bug/ }));
+    const d = await drawer();
+    expect(loc()).toBe('?item=bug1'); // JB-13 is provisional
+    // The writer's rebase brings another clone's JB-13 in and renumbers ours to JB-14.
+    const bug1 = state.tasks.find((t) => t.id === 'bug1');
+    if (bug1 === undefined) throw new Error('fixture lost bug1');
+    const refetch = () => getLastClient()?.invalidateQueries();
+    bug1.short_id = 'JB-14';
+    state.tasks.push(
+      mapTask({
+        id: 'phone1',
+        kind: 'bug',
+        title: 'Phone bug',
+        status: 'inbox',
+        short_id: 'JB-13',
+      }),
+    );
+    await refetch();
+    await waitFor(() => expect(within(d).getByTestId('short-id').textContent).toBe('JB-14unsent'));
+    expect(within(d).getByRole('heading', { name: /Fresh bug/ })).toBeTruthy();
+    expect(loc()).toBe('?item=bug1');
+    // The push lands: the URL takes the settled short ID.
+    bug1.unpushed = false;
+    await refetch();
+    await waitFor(() => expect(loc()).toBe('?item=JB-14'));
+    expect(within(await drawer()).getByTestId('short-id').textContent).toBe('JB-14');
+  });
+
+  it('a pasted ?item=JB-n of an unpushed Item is pinned to its uuid', async () => {
+    renderApp(
+      '/now?item=JB-13',
+      <>
+        <Probe />
+        <NowRoute />
+      </>,
+    );
+    await drawer();
+    await waitFor(() => expect(loc()).toBe('?item=bug1'));
+  });
+
   // Cause of the old skip: the drawer mounts as an overlay then moves into the page slot, so the first `aside` was detached (no app defect).
   it('a JB-n mention in a drawer body renders as a link; an unknown one stays text', async () => {
     renderApp(
@@ -108,7 +156,7 @@ describe('short IDs in the app', () => {
     const link = await within(d).findByRole('button', { name: 'JB-13' }, { timeout: 8000 });
     expect(within(d).queryByRole('button', { name: 'JB-99' })).toBeNull();
     fireEvent.click(link);
-    await waitFor(() => expect(loc()).toBe('?item=JB-13'));
+    await waitFor(() => expect(loc()).toBe('?item=bug1')); // JB-13 is unpushed: its uuid
   }, 15000);
 
   it('the Front page inbox, the Now / Next / Later rail and the Done rows show the ID', async () => {

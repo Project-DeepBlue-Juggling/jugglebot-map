@@ -28,9 +28,14 @@ export function resolveItemParam(tasks: readonly Task[] | undefined, param: stri
   return hit === undefined ? param : hit.id;
 }
 
-/** The `?item=` value to write for a task: its short ID when it has one, else its uuid. */
+/**
+ * The `?item=` value to write for a task: its short ID once pushed, else its uuid.
+ * An unpushed Item's short ID is provisional: the git writer may renumber it after
+ * its rebase, and a `?item=JB-63` left in the URL would then name another Item.
+ */
 export function itemParam(tasks: readonly Task[] | undefined, id: string): string {
-  return tasks?.find((t) => t.id === id)?.short_id ?? id;
+  const t = tasks?.find((x) => x.id === id);
+  return t === undefined || t.unpushed ? id : (t.short_id ?? id);
 }
 
 /** `JB-<n>` -> uuid, for linkifying prose to known Items only. */

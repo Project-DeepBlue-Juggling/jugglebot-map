@@ -38,6 +38,7 @@ from mapkit.items import (INBOX_KINDS, KINDS, Item, ItemError, item_uuid,
                           load_item, write_item)
 from mapkit.plans import Plan, PlanError, load_plan
 
+from server import idrepair
 from server.config import MapConfig
 
 T0 = "2026-10-23T00:00:00Z"
@@ -150,6 +151,7 @@ class Index:
     by_ref: Dict[str, Node] = field(default_factory=dict)
     by_short: Dict[int, List[Node]] = field(default_factory=dict)  # JB-<n> number -> Item nodes
     unpushed: frozenset = frozenset()  # stems the git writer has not pushed (refreshed per read)
+    unloadable: List[Any] = field(default_factory=list)  # skipped map files; their id: still counts
     errors: List[Dict[str, str]] = field(default_factory=list)
 
     # --- resolution -----------------------------------------------------
@@ -408,6 +410,7 @@ class Store:
                     item = load_item(path)
                 except (ItemError, OSError, UnicodeDecodeError) as exc:
                     self._err(ix, path, str(exc))
+                    ix.unloadable.append(idrepair.unloadable(path))
                     continue
                 before = len(ix.nodes)
                 self._add(ix, Node(id=item.uuid, kind=item.kind, ref=stem(item), path=path, item=item))
@@ -642,11 +645,13 @@ class Store:
     def _next_id(self, ix: Index) -> str:
         """The next ``JB-<n>``: 1 + max over the index and, with a git writer,
         ``origin/main`` (``mapkit.ids.allocate``). Under ``--no-git`` nothing
-        shells out. A collision with an Item filed elsewhere since the last pull
-        is repaired by the git writer after its rebase."""
+        shells out. A file the index skipped still counts through its ``id:``
+        line. A collision with an Item filed elsewhere since the last pull is
+        repaired by the git writer after its rebase."""
         if self.writer is None:
-            return ids.format_id(max(ix.by_short or [0]) + 1)
-        return ids.allocate(self.repo_root, items=list(ix.items.values()))
+            skipped = [ids.canonical(u.meta.get("id")) for u in ix.unloadable]
+            return ids.format_id(max(list(ix.by_short) + [n for n in skipped if n] + [0]) + 1)
+        return ids.allocate(self.repo_root, items=list(ix.items.values()) + ix.unloadable)
 
     @staticmethod
     def _refuse_id_change(node: Node, body: Dict[str, Any]) -> None:

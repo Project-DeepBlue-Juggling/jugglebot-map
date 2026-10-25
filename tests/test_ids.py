@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from tests.conftest import make_repo
-from tests.test_p5_writer_watcher import git, git_env, make_client, remote_log, tasks, wait_for  # noqa: F401
+from tests.test_p5_writer_watcher import git, git_env, make_client, patch, remote_log, tasks, wait_for  # noqa: F401
 
 API = "/api/v1"
 IDS = {"pathway-alpha": "JB-1", "pathway-beta": "JB-2", "bug-wobbly-leg": "JB-3",
@@ -232,3 +232,104 @@ def test_unpushed_survives_a_restart_from_the_git_state(id_remote):
     with c:
         _, ts = tasks(c)
         assert ts["left-over"]["unpushed"] is True and ts["wobbly-leg"]["unpushed"] is False
+
+
+# ----------------------------------- a malformed Item never silences the writer ---
+
+BAD = ("---\nid: %s\nkind: bug\ntitle: Hand pushed\nstatus: bogus\ncreated: 2026-10-26\n"
+       "updated: 2026-10-26T00:00:00Z\nfiled_by: harrison\n---\n\nx\n")
+
+
+def push_malformed_from(other, slug, sid):
+    """A hand push of an Item the loader refuses (``status: bogus``)."""
+    with open(str(other / "map" / ("bug-%s.md" % slug)), "w", encoding="utf-8") as fh:
+        fh.write(BAD % sid)
+    git(other, "pull", "--quiet", "--rebase")
+    git(other, "add", "-A")
+    git(other, "commit", "--quiet", "-m", "map: hand push")
+    git(other, "push", "--quiet", "origin", "main")
+
+
+def test_a_malformed_item_elsewhere_does_not_stop_the_renumber_or_the_push(id_remote):
+    repo, bare, other = id_remote
+    app, c = make_client(repo, git=True, debounce_ms=1500, watch_ms=50)
+    with c:
+        w = app.state.writer
+        pid = c.get(API + "/projects").json()[0]["id"]
+        made = c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "Mine"})
+        assert made.json()["short_id"] == "JB-6"
+        push_items_from(other, [("phone-d", "JB-6")])  # collides with ours
+        push_malformed_from(other, "broken", "JB-40")  # unloadable, and holds the highest ID
+        assert wait_for(lambda: w.attempts >= 1 and w.idle())
+        assert w.successes == 1, w.last_error
+        assert app.state.banner.get()["level"] is None
+        _, ts = tasks(c)
+        assert ts["mine"]["short_id"] == "JB-41"  # past the unloadable file's JB-40
+        assert ts["mine"]["unpushed"] is False
+    assert remote_ids(bare) == sorted(["JB-%d" % n for n in range(1, 7)] + ["JB-40", "JB-41"])
+
+
+def test_an_unloadable_file_holding_our_id_still_forces_the_renumber(id_remote):
+    repo, bare, other = id_remote
+    app, c = make_client(repo, git=True, debounce_ms=1500, watch_ms=50)
+    with c:
+        w = app.state.writer
+        pid = c.get(API + "/projects").json()[0]["id"]
+        c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "Mine too"})
+        push_malformed_from(other, "broken", "JB-6")  # the same ID, in a file nobody can load
+        assert wait_for(lambda: w.attempts >= 1 and w.idle())
+        assert w.successes == 1, w.last_error
+        _, ts = tasks(c)
+        assert ts["mine-too"]["short_id"] == "JB-7"
+        # A file the index skips still counts for the next allocation.
+        nxt = c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "idea", "title": "After"})
+        assert nxt.json()["short_id"] == "JB-8"
+    assert remote_ids(bare).count("JB-6") == 1
+
+
+def test_any_failure_in_the_renumber_sets_the_banner(id_remote, monkeypatch):
+    from server import idrepair
+    repo, bare, _ = id_remote
+
+    def boom(*a, **k):
+        raise ValueError("unexpected")
+
+    monkeypatch.setattr(idrepair, "repair", boom)
+    app, c = make_client(repo, git=True, debounce_ms=200, watch_ms=50)
+    with c:
+        w = app.state.writer
+        pid = c.get(API + "/projects").json()[0]["id"]
+        c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "Held"})
+        assert wait_for(lambda: w.attempts >= 1 and w.idle())
+        assert w.successes == 0
+        b = app.state.banner.get()
+        assert b["level"] == "error" and "not pushed: ValueError: unexpected" in b["message"]
+        assert tasks(c)[1]["held"]["unpushed"] is True  # still provisional
+        w.enabled = False  # keep the shutdown flush off the remote
+    assert "JB-6" not in remote_ids(bare)
+
+
+# --------------------------------------- a death inside the debounce window ---
+
+def test_a_file_left_uncommitted_by_a_dead_process_is_committed_at_restart(id_remote):
+    repo, bare, _ = id_remote
+    app, c = make_client(repo, git=True, debounce_ms=60000, watch=False)
+    with c:
+        pid = c.get(API + "/projects").json()[0]["id"]
+        c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "Orphan"})
+        patch(c, "wobbly-leg", {"title": "Wobbly leg, edited"})
+        app.state.writer.enabled = False  # the process dies: no shutdown flush
+    assert git(repo, "status", "--porcelain", "--", "map").strip()  # untracked + modified
+    app, c = make_client(repo, git=True, debounce_ms=1500, watch=False)
+    with c:
+        w = app.state.writer
+        _, ts = tasks(c)
+        assert ts["orphan"]["unpushed"] is True  # provisional, not shown as settled
+        assert ts["wobbly-leg"]["unpushed"] is False  # an edit of a pushed Item
+        assert wait_for(lambda: w.attempts >= 1 and w.idle())  # no API edit needed
+        assert w.successes == 1, w.last_error
+        _, ts = tasks(c)
+        assert ts["orphan"]["unpushed"] is False
+    assert git(repo, "status", "--porcelain", "--", "map").strip() == ""
+    assert "JB-6" in remote_ids(bare)
+    assert "Wobbly leg, edited" in git(bare, "show", "main:map/bug-wobbly-leg.md")

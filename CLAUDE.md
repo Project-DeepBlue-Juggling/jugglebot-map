@@ -13,6 +13,7 @@ frontend (`frontend/`).
   object carries every field in `server/models.py` (null where unknown, never omitted). Adding a field
   means adding it to the model, the store's renderer and the field-set test together.
 - Parsing lives in the checkout's `mapkit`, never here; the server only maps it onto the API.
+- Short Item IDs (`JB-<n>`) follow `mapkit.ids` (format, allocation, keeper rule); `server/idrepair.py` only loads `map/` leniently around it. An `unpushed` Item's ID is provisional: link it by uuid, never by `JB-<n>`.
 - Domain words follow the Jugglebot checkout's `GLOSSARY.md` (Pathway, Sitting, Throw, ...).
 - No upstream names: the frontend's origin project, organisation, account and URL are never named anywhere in this repo (CI check).
 - CI (`.github/workflows/ci.yml`): `python` (3.11, `pip install -e .[test]`, `pytest -q`), `frontend` (Node 22: lint, typecheck, vitest, build; every step skipped until `frontend/package.json` exists), `no-upstream-name`.

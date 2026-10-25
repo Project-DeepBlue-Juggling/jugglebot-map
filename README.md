@@ -85,12 +85,22 @@ their `editable` is false.
 
 Short IDs: every Item also carries `short_id` (`JB-<n>`, frontmatter `id:`, from `mapkit.ids`; `null` for
 plans, phases and an Item without one). `/tasks/{task_id}` accepts the uuid or the short ID (`JB-12`,
-`jb12`, any case); bare `12` only on GET, PATCH and DELETE answer 422 for it. A duplicated ID answers 409
-and shows on `/health`. `POST /tasks` allocates the next ID (1 + max over the index and `origin/main`) and
-refuses a supplied one (422); a PATCH whose `id` or `short_id` differs from the current value is 422. The
-git writer, after its `pull --rebase`, renumbers every Item it added and has not pushed whose ID the rebase
-brought in on another Item (`map: renumber JB-a -> JB-b <stem>`, its own commit) and refreshes the index;
-its other subjects stay `map: <titles>` with no ID. The server needs a checkout whose `mapkit` has `ids.py`. The conflict token is the task's `updated_at`: send it as
+`jb12`, any case); a bare `12` is accepted on GET only, and PATCH and DELETE answer 422 for it. A
+duplicated ID answers 409 and shows on `/health`. `POST /tasks` allocates the next ID (1 + max over the
+index, the `id:` lines of files the index skipped, and `origin/main`) and refuses a supplied one (422); a
+PATCH whose `id` or `short_id` differs from the current value is 422. The git writer, after its
+`pull --rebase`, renumbers every Item it added and has not pushed whose ID the rebase brought in on another
+file (`map: renumber JB-a -> JB-b <stem>`, its own commit) and refreshes the index; its other subjects stay
+`map: <titles>` with no ID. The renumber loads `map/` leniently, like the index: a malformed Item is
+skipped but its `id:` line still counts, so it neither stops the push nor gets its ID handed out again.
+`unpushed` is true for an Item this clone filed whose push has not landed (from git at start, so it
+survives a restart): its short ID is provisional, the UI shows it muted with an "unsent" marker, and the
+drawer writes that Item's uuid into `?item=` (a renumber must not reopen the drawer on another writer's
+Item), switching to `?item=JB-<n>` once the push lands. A bare page link keeps its page and query through the
+redirect to the project (`/now?item=JB-5`). The server needs a checkout whose `mapkit` has
+`ids.py`.
+
+The conflict token is the task's `updated_at`: send it as
 `if_unchanged_since` (body field or query parameter) on PATCH or DELETE, and a mismatch answers
 `409 {"detail": "Task was modified", "current": <Task>}`. Closing or dropping a pathway that still has
 an active or parked plan answers the delete-conflict shape with detail "Pathway still has live plans"
@@ -124,8 +134,11 @@ The subject is the changed items' titles joined by `; ` (72 characters at most, 
 no `Logbook-Entry` trailer and the generator is not run (`docs/project-map.md` is regenerated upstream).
 A failed pull (a conflict) or push never discards anything: the rebase is aborted, the local commit and
 the working tree stay, `/health`'s `banner` turns `error` with the operation and git's stderr tail, and
-the next edit retries (the next success clears the banner). Only `main` is written: on another branch
-the writer refuses to start, the banner is a `warning` and every write answers 403.
+the next edit retries (the next success clears the banner). Any other failure in the flush, the short-ID
+renumber included, sets the same banner. A `map/` file left uncommitted by a process that died inside the
+5 s window is committed at the next start without waiting for an edit (an untracked one is a new Item and
+counts as `unpushed` until its push lands). Only `main` is written: on another branch the writer refuses
+to start, the banner is a `warning` and every write answers 403.
 
 ## Jetson runbook
 

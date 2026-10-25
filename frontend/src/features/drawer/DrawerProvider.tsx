@@ -18,7 +18,9 @@ interface DrawerState {
 /**
  * The open item is URL state: `?item=<ref>` on the current page, where an Item
  * is written by its short ID (`?item=JB-12`) and a plan or phase by its uuid; a
- * pasted `?item=jb12`, `?item=12` or uuid resolves to the same drawer. Opening pushes
+ * pasted `?item=jb12`, `?item=12` or uuid resolves to the same drawer. An Item
+ * not yet pushed is written by its uuid (its short ID may still be renumbered),
+ * and the URL takes the `JB-` form once the push lands. Opening pushes
  * a history entry (so Back closes it, and in-drawer links walk back through the
  * items); closing goes back over every entry the drawer pushed, or, for a pasted
  * `?item=` URL where none were pushed, replaces the URL without the parameter.
@@ -78,6 +80,22 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
       );
     });
   }, [depth, location.pathname, location.search, navigate]);
+
+  // Keep the URL on the open Item's settled name: an unpushed Item's uuid (a
+  // renumber must not swap the drawer to another Item), then `JB-n` once pushed.
+  const settled = openId === null ? null : itemParam(tasks, openId);
+  useEffect(() => {
+    if (param === null || settled === null || settled === param) return;
+    const t = tasks?.find((x) => x.id === openId);
+    if (t === undefined || t.short_id === null) return; // plans, phases, unknown: as typed
+    if (!t.unpushed && param !== t.id) return; // a pushed Item by any short-ID form: as typed
+    const params = new URLSearchParams(location.search);
+    params.set('item', settled);
+    navigate(
+      { pathname: location.pathname, search: `?${params.toString()}` },
+      { replace: true, state: location.state as DrawerState | null },
+    );
+  }, [param, settled, openId, tasks, location.pathname, location.search, location.state, navigate]);
 
   useEffect(() => {
     if (openId !== null) return;

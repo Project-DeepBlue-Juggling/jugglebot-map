@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Navigate, Route, BrowserRouter, Routes } from 'react-router-dom';
+import { Route, BrowserRouter, Routes } from 'react-router-dom';
 import { ApiProvider } from './api/ApiContext';
 import { AuthProvider } from './auth/AuthContext';
 import { StaticAuthClient } from './auth/StaticAuthClient';
@@ -48,8 +48,9 @@ export default function App({ authClient: injectedAuthClient }: AppProps = {}) {
                       <Route path="dictionary" element={<DictionaryRoute />} />
                     </Route>
                     <Route path="/" element={<RootRedirect />} />
+                    {/* A bare page path keeps its page and query (`/now?item=JB-5`). */}
+                    <Route path="*" element={<RootRedirect />} />
                   </Route>
-                  <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </ToastProvider>
             </ThemeProvider>

@@ -19,7 +19,10 @@ Safety rules, each pinned by a test:
   clears it; the next edit retries (the local commit stays ahead of
   ``origin/main`` and is pushed then);
 * only ``main`` is written: on another branch the writer refuses to start and
-  the server serves read-only under a warning banner.
+  the server serves read-only under a warning banner;
+* a ``map/`` file left dirty by a process that died inside the debounce is
+  committed at start (an untracked one counts as an unpushed new Item);
+* any failure in the flush, the short-ID renumber included, sets the banner.
 
 The commit does NOT run the generator (#32): only ``map/`` is staged. The
 store's lock is held from ``add`` through ``pull --rebase`` (the rebase rewrites
@@ -169,9 +172,52 @@ class GitWriter:
             # A previous process died mid-rebase: abort it so the tree is the local commit again.
             self._git("rebase", "--abort", check=False)
         self.enabled = True
+        left = self._uncommitted()  # a previous process died inside the debounce
         with self._plock:
             self._unpushed = set(self._own_unpushed())  # left by a previous process
+            for rel, (title, added) in left.items():
+                if added:
+                    self._unpushed.add(os.path.basename(rel)[:-3])
+                self._pending.setdefault(rel, title)
+        if left:
+            log.warning("jugglebot-map: committing %d map file(s) left uncommitted: %s",
+                        len(left), ", ".join(sorted(left)))
+            self._debounce.trigger()
         return True
+
+    def _uncommitted(self) -> "OrderedDict[str, Any]":
+        """``{rel path: (title, untracked)}`` for every dirty ``map/*.md`` file.
+
+        Only this writer edits its clone, so a dirty file is an API edit whose
+        commit never ran. An untracked one is a new Item: its short ID is
+        provisional until the push, like any other created Item.
+        """
+        from mapkit.items import ItemError, load_item  # local: see _repair_ids
+        p = self._git("status", "--porcelain", "-z", "--untracked-files=all", "--",
+                      self.items_rel, check=False)
+        out: "OrderedDict[str, Any]" = OrderedDict()
+        if p.returncode != 0:
+            return out
+        entries = p.stdout.split("\0")
+        i = 0
+        while i < len(entries):
+            e = entries[i]
+            i += 1
+            if len(e) < 4:
+                continue
+            code, rel = e[:2], e[3:]
+            if code[0] in "RC":
+                i += 1  # a rename carries its source path as the next entry
+            if not rel.endswith(".md"):
+                continue
+            path = os.path.join(self.repo_root, rel)
+            title = rel
+            try:
+                title = load_item(path).meta.get("title") or rel
+            except (ItemError, OSError, UnicodeDecodeError):
+                pass  # deleted, or not loadable: the path names it
+            out[rel] = (title, code == "??")
+        return out
 
     def stop(self) -> None:
         self._debounce.close()
@@ -228,12 +274,19 @@ class GitWriter:
                     self._repair_ids()
                 self._git("push", REMOTE, "HEAD:refs/heads/" + BRANCH, op="git push")
             except GitError as exc:
-                self.last_error = str(exc)
-                log.error("jugglebot-map: %s", exc)
-                self.banner.set("error", "map edit saved locally but not pushed: %s" % exc)
+                self._fail(str(exc))
+                return False
+            except Exception as exc:  # the renumber parses Items: anything else must banner too
+                log.exception("jugglebot-map: flush failed")
+                self._fail("%s: %s" % (type(exc).__name__, exc))
                 return False
             self._ok()
             return True
+
+    def _fail(self, why: str) -> None:
+        self.last_error = why
+        log.error("jugglebot-map: %s", why)
+        self.banner.set("error", "map edit saved locally but not pushed: %s" % why)
 
     def _ok(self) -> None:
         with self._plock:
@@ -286,11 +339,12 @@ class GitWriter:
         subject ``mapkit ids --check`` accepts for an ID change); our earlier
         ``map: <title>`` subjects carry no ID, so nothing in history goes stale.
         """
-        from mapkit import ids  # local: mapkit is importable only after config.setup()
+        from server import idrepair  # local: mapkit is importable only after config.setup()
         own = self._own_unpushed()
         if not own:
             return
-        rows = ids.repair(self.repo_root, "%s/%s" % (REMOTE, BRANCH), own=own)
+        # Lenient: one malformed Item elsewhere in map/ must not stop the push.
+        rows = idrepair.repair(self.repo_root, "%s/%s" % (REMOTE, BRANCH), own=own)
         if not rows:
             return
         self._git("add", "-A", "--", self.items_rel, op="git add")

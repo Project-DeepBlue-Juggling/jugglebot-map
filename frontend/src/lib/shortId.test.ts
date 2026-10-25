@@ -32,6 +32,8 @@ describe('short Item IDs', () => {
     expect(resolveItemParam(undefined, 'jb12')).toBe('jb12'); // tasks not loaded yet
     expect(itemParam(tasks, 'uuid-a')).toBe('JB-12');
     expect(itemParam(tasks, 'uuid-plan')).toBe('uuid-plan'); // plans keep the uuid
+    const sent = [mapTask({ id: 'uuid-u', kind: 'bug', short_id: 'JB-13', unpushed: true })];
+    expect(itemParam(sent, 'uuid-u')).toBe('uuid-u'); // unpushed: the ID is provisional
     expect(shortIdIndex(tasks)).toEqual(new Map([['JB-12', 'uuid-a']]));
   });
 });
