@@ -2,6 +2,32 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Item drawer surface tokens (design: drawer-review.md 3.1). */
+:root {
+  --dr-bg: #ffffff;
+  --dr-border: #e2e8f0;
+  --dr-border-strong: #cbd5e1;
+  --dr-text-hi: #0f172a;
+  --dr-text-body: #334155;
+  --dr-text-med: #475569;
+  --dr-text-lo: #64748b;
+  --dr-code-bg: #f1f5f9;
+  --dr-link: #0369a1;
+  --dr-focus: #0284c7;
+}
+.dark {
+  --dr-bg: #1c2430;
+  --dr-border: #2b3542;
+  --dr-border-strong: #3b4757;
+  --dr-text-hi: #e7ecf3;
+  --dr-text-body: #cdd5df;
+  --dr-text-med: #a8b3c2;
+  --dr-text-lo: #8390a2;
+  --dr-code-bg: #151b24;
+  --dr-link: #70adfb;
+  --dr-focus: #70adfb;
+}
+
 @layer base {
   html,
   body,

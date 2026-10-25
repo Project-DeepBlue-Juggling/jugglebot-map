@@ -11,6 +11,8 @@ interface Props {
   allTasks: Task[];
   /** Applied to the "blocked by" picker only (e.g. the server refuses a phase as a blocker). */
   blockerFilter?: (task: Task) => boolean;
+  /** Render without the fieldset frame and legend (the caller supplies the heading). */
+  bare?: boolean;
 }
 
 // Both lists rendered with the same shape — only the resolved title comes
@@ -26,9 +28,9 @@ function DependencyRow({ edgeId, title, busy, onRemove }: RowProps) {
   return (
     <li
       key={edgeId}
-      className="flex items-center justify-between rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-700"
+      className="flex items-start justify-between rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs dark:border-slate-600 dark:bg-slate-700"
     >
-      <span className="truncate" title={title}>
+      <span className="min-w-0 break-words" title={title}>
         {title}
       </span>
       <button
@@ -44,7 +46,7 @@ function DependencyRow({ edgeId, title, busy, onRemove }: RowProps) {
   );
 }
 
-export default function TaskDependenciesSection({ task, allTasks, blockerFilter }: Props) {
+export default function TaskDependenciesSection({ task, allTasks, blockerFilter, bare }: Props) {
   const create = useCreateDependency();
   const del = useDeleteDependency();
   const toast = useToast();
@@ -161,10 +163,18 @@ export default function TaskDependenciesSection({ task, allTasks, blockerFilter 
   const busy = create.isPending || del.isPending;
 
   return (
-    <fieldset className="flex flex-col gap-3 rounded border border-slate-200 p-3 dark:border-slate-700">
-      <legend className="px-1 text-xs font-medium text-slate-500 dark:text-slate-400">
-        Dependencies
-      </legend>
+    <fieldset
+      className={
+        bare === true
+          ? 'flex min-w-0 flex-col gap-3'
+          : 'flex flex-col gap-3 rounded border border-slate-200 p-3 dark:border-slate-700'
+      }
+    >
+      {bare !== true && (
+        <legend className="px-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+          Dependencies
+        </legend>
+      )}
 
       <div>
         <p className="mb-1 text-xs font-medium text-slate-700 dark:text-slate-300">

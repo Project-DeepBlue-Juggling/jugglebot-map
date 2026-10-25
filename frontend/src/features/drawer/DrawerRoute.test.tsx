@@ -7,7 +7,6 @@ import { renderApp, settleQueries } from '../../test/renderApp';
 import { mapTask, planWithPhases } from '../../test/mapFixtures';
 import { createState, makeServer, type TestState } from '../../test/server';
 import { FrontRoute, NowRoute } from './routes';
-import { fullDescription } from './fullText';
 
 /** Drawer as URL state: `?item=`, Back, cache-first render, full text, docking. */
 let state: TestState;
@@ -127,24 +126,27 @@ describe('drawer content', () => {
     renderApp('/now', <NowRoute />);
     fireEvent.click(await screen.findByRole('button', { name: /Wobbly idea/ }));
     const d = await drawer();
-    expect(await within(d).findByLabelText('Title')).toHaveValue('Wobbly idea');
+    expect(
+      await within(d).findByRole('heading', { level: 2, name: 'Wobbly idea' }),
+    ).toBeInTheDocument();
     expect(within(d).getByTestId('deps-loading')).toBeInTheDocument();
     await waitFor(() => expect(within(d).queryByTestId('deps-loading')).toBeNull(), {
       timeout: 3000,
     });
   });
 
-  it('renders a long phase description in full, emphasis stripped, without clipping classes', async () => {
+  it('renders a long phase description in full, emphasis as markup, without clipping classes', async () => {
     renderApp('/now?item=phase1', <NowRoute />);
     const d = await drawer();
     const ro = await within(d).findByTestId('readonly-body');
+    await waitFor(() => expect(ro.querySelector('strong')).not.toBeNull());
+    expect(ro.querySelector('strong')?.textContent).toBe('Implements:');
+    expect(ro.querySelector('code')?.textContent).toBe('para');
     const text = ro.textContent ?? '';
-    expect(text).toContain(`Implements: ${LONG}`);
-    expect(text).toContain('Second para.');
+    expect(text).toContain(LONG);
     expect(text).not.toContain('**');
     expect(text).not.toContain('…');
     expect(ro.innerHTML).not.toMatch(/line-clamp|truncate/);
-    expect(fullDescription('**A:** `b`\n\n\n\nc')).toBe('A: b\n\nc');
   });
 });
 
@@ -181,14 +183,13 @@ describe('leaving the drawer saves first', () => {
     );
     fireEvent.click(await screen.findByRole('button', { name: /Wobbly idea/ }));
     const d = await drawer();
-    const title = await within(d).findByLabelText('Title');
+    await userEvent.click(await within(d).findByRole('button', { name: 'Edit title' }));
+    const title = within(d).getByLabelText('Title');
     await userEvent.clear(title);
     await userEvent.type(title, value);
   };
   const gone = () =>
-    waitFor(() =>
-      expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
-    );
+    waitFor(() => expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull());
 
   it('a click on empty space saves the edit and closes', async () => {
     await editTitle('Renamed by click-away');

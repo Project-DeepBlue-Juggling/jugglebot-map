@@ -66,7 +66,7 @@ describe('shared drawer wiring', () => {
     expect(await within(d).findByTestId('drawer-next')).toHaveTextContent(
       'P2 Phase 2 of oval-plan',
     );
-    expect(within(d).getByLabelText('Destination')).toHaveValue('Two balls in one hand.');
+    expect(await within(d).findByText('Two balls in one hand.')).toBeInTheDocument();
     expect(within(d).getByText('oval-plan')).toBeInTheDocument(); // Contains
   });
 
@@ -74,7 +74,9 @@ describe('shared drawer wiring', () => {
     renderApp('/now', <NowRoute />);
     fireEvent.click(await screen.findByRole('button', { name: /Wobbly idea/ }));
     const d = await drawer();
-    expect(await within(d).findByLabelText('Title')).toHaveValue('Wobbly idea');
+    expect(
+      await within(d).findByRole('heading', { level: 2, name: 'Wobbly idea' }),
+    ).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
     await waitFor(() =>
       expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
@@ -136,7 +138,8 @@ describe('shared drawer wiring', () => {
     renderApp('/now', <NowRoute />);
     fireEvent.click(await screen.findByRole('button', { name: /Wobbly idea/ }));
     const d = await drawer();
-    const title = await within(d).findByLabelText('Title');
+    await userEvent.click(await within(d).findByRole('button', { name: 'Edit title' }));
+    const title = within(d).getByLabelText('Title');
     await userEvent.clear(title);
     await userEvent.type(title, 'Mine');
     await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
@@ -222,7 +225,8 @@ describe('P4 audit fixes (drawer)', () => {
 
   it('A4: a refetched title is re-seeded, not overwritten by Save; a dirty field survives', async () => {
     const d = await openIdea();
-    const desc = await within(d).findByLabelText('Description');
+    await userEvent.click(await within(d).findByRole('button', { name: 'Edit description' }));
+    const desc = within(d).getByLabelText('Description');
     await userEvent.clear(desc);
     await userEvent.type(desc, 'Mine');
     // Someone else renames the item; the app refetches (SSE invalidate).
@@ -233,7 +237,9 @@ describe('P4 audit fixes (drawer)', () => {
     );
     const qc = (await import('../../test/renderApp')).getLastClient();
     await qc?.invalidateQueries();
-    await waitFor(() => expect(within(d).getByLabelText('Title')).toHaveValue('Renamed elsewhere'));
+    await waitFor(() =>
+      expect(within(d).getByRole('heading', { level: 2 })).toHaveTextContent('Renamed elsewhere'),
+    );
     expect(within(d).getByLabelText('Description')).toHaveValue('Mine');
     await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(patchBodies).toHaveLength(1));
@@ -255,6 +261,7 @@ describe('P4 audit fixes (drawer)', () => {
     const d = await openIdea();
     const status = await within(d).findByLabelText('Status');
     expect(within(status).queryByRole('option', { name: /Promoted/ })).toBeNull();
+    await userEvent.click(within(d).getByRole('button', { name: 'Edit title' }));
     const title = within(d).getByLabelText('Title');
     await userEvent.clear(title);
     await userEvent.type(title, 'Edited');
@@ -281,6 +288,7 @@ describe('P4 audit fixes (drawer)', () => {
     renderApp('/now', <NowRoute />);
     fireEvent.click(await screen.findByRole('button', { name: /Do it/ }));
     const d = await drawer();
+    await userEvent.click(await within(d).findByRole('button', { name: '+ Add link' }));
     expect(await within(d).findByLabelText('Add link')).toBeInTheDocument();
     const pw = within(d).getByLabelText('Pathway');
     expect(within(pw).queryByRole('option', { name: 'Unattached' })).toBeNull();

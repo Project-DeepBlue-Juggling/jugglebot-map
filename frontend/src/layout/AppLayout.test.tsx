@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FrontRoute } from '../features/drawer/routes';
 import FrontPage from '../pages/FrontPage';
@@ -40,7 +40,7 @@ describe('AppLayout', () => {
     state.tasks = [mapTask({ id: 'idea1', kind: 'idea', title: 'Wobbly idea', status: 'inbox' })];
     renderApp('/', <FrontRoute />);
     await screen.findByRole('navigation', { name: 'Primary' });
-    expect(SHORTCUT_ROWS.map((r) => r.keys[0])).toEqual(['n', 's', 'Enter', 'Esc']);
+    expect(SHORTCUT_ROWS.map((r) => r.keys[0])).toEqual(['n', 's', 'Enter', 'e', 'Esc']);
 
     // s opens the cheat-sheet; Esc closes it.
     fireEvent.keyDown(document.body, { key: 's' });
@@ -62,7 +62,13 @@ describe('AppLayout', () => {
     fireEvent.keyDown(card as HTMLElement, { key: 'Enter' });
     const drawer = await screen.findByRole('complementary', { name: 'Item drawer' });
     expect(drawer).toBeVisible();
+
+    // e, with focus in the drawer, opens the description editor.
+    fireEvent.keyDown(await within(drawer).findByRole('heading', { level: 2 }), { key: 'e' });
+    expect(await screen.findByLabelText('Description')).toBeVisible();
     fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
+    );
   });
 });

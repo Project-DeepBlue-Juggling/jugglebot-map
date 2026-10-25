@@ -341,6 +341,15 @@ export function displayTitle(task: Task): string {
   return task.title;
 }
 
+/** The drawer's title for a task: never shortened (a plan's whole title, a phase's code + title). */
+export function fullDisplayTitle(task: Task): string {
+  if (task.kind === 'phase') {
+    const code = phaseCode(task);
+    return code === '' ? task.title : `${code} ${task.title}`;
+  }
+  return task.title;
+}
+
 /** Age since filing: `today`, `3d`, `2w`, `5mo`. Empty for an unparsable date. */
 export function formatAge(createdAt: string, now: Date = new Date()): string {
   const ms = now.getTime() - Date.parse(createdAt);

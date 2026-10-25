@@ -240,7 +240,11 @@ describe('P4 audit fixes (derive)', () => {
     ].join('\n\n');
     const t = mapTask({ id: 'x', kind: 'phase', description: body });
     expect(phaseSummary(t)).toBe('Compute the lanes from plan order using openBlockers.');
-    const bullet = mapTask({ id: 'bullet', kind: 'phase', description: '- **Sequencing:** rung 2 flew `MET`.' });
+    const bullet = mapTask({
+      id: 'bullet',
+      kind: 'phase',
+      description: '- **Sequencing:** rung 2 flew `MET`.',
+    });
     expect(phaseSummary(bullet)).toBe('rung 2 flew MET.');
     const first = mapTask({
       id: 'y',
@@ -251,5 +255,17 @@ describe('P4 audit fixes (derive)', () => {
     const long = mapTask({ id: 'z', kind: 'phase', description: 'w'.repeat(500) });
     expect(phaseSummary(long)).toHaveLength(240);
     expect(phaseSummary(mapTask({ id: 'e', kind: 'phase' }))).toBe('');
+  });
+});
+
+describe('fullDisplayTitle', () => {
+  it('never shortens a plan title and prefixes a phase with its code', async () => {
+    const { fullDisplayTitle } = await import('./derive');
+    const { mapTask, planWithPhases } = await import('../test/mapFixtures');
+    const long = `Name: ${'subtitle '.repeat(12)}`.trim();
+    const [plan, phase] = planWithPhases('p', 'pw', ['not_started'], { title: long });
+    expect(fullDisplayTitle(plan)).toBe(long);
+    expect(fullDisplayTitle(phase)).toBe('P1 Phase 1 of p');
+    expect(fullDisplayTitle(mapTask({ id: 'x', title: 'T' }))).toBe('T');
   });
 });

@@ -28,6 +28,8 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   const openId = new URLSearchParams(location.search).get('item') || null;
   const depth = (location.state as DrawerState | null)?.drawerDepth ?? 0;
+  // The element that opened the drawer: focus returns to it on close.
+  const opener = useRef<Element | null>(null);
   const flush = useRef<(() => boolean | Promise<boolean>) | null>(null);
   const setFlush = useCallback((fn: (() => boolean | Promise<boolean>) | null) => {
     flush.current = fn;
@@ -41,6 +43,7 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback(
     (id: string) => {
+      if (openId === null) opener.current = document.activeElement;
       const go = () => {
         const params = new URLSearchParams(location.search);
         params.set('item', id);
@@ -68,6 +71,13 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
       );
     });
   }, [depth, location.pathname, location.search, navigate]);
+
+  useEffect(() => {
+    if (openId !== null) return;
+    const el = opener.current;
+    opener.current = null;
+    if (el instanceof HTMLElement && el.isConnected && el !== document.body) el.focus();
+  }, [openId]);
 
   useEffect(() => {
     if (openId === null) return;
