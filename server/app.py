@@ -104,7 +104,8 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     if git:
         items_rel = os.path.relpath(cfg.items_dir, cfg.repo_root).replace(os.sep, "/")
         writer = GitWriter(cfg.repo_root, banner, items_rel=items_rel,
-                           debounce_ms=debounce_ms, lock=store._lock)
+                           debounce_ms=debounce_ms, lock=store._lock,
+                           on_repair=store.invalidate)
         if writer.start():
             store.writer = writer
         else:
@@ -221,7 +222,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             node = store._node(ix, task_id)  # 404s an unknown id: nothing request-supplied reaches git
             path = node.path
             links = [str(x) for x in ((node.item.meta.get("links") or []) if node.item else [])]
-        return history.get(task_id, path, links)
+        return history.get(node.id, path, links)  # canonical uuid: JB-12 and its uuid share one entry
 
     @r.patch(P + "/tasks/{task_id}", response_model=Task)
     async def patch_task(project_id: str, task_id: str, request: Request) -> Any:

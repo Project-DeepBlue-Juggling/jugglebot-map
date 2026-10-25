@@ -71,6 +71,7 @@ def ensure_mapkit(repo_root: str) -> None:
     if repo_root not in sys.path:
         sys.path.insert(0, repo_root)
     try:
+        import mapkit.ids  # noqa: F401  (short Item IDs JB-<n>; on main since map-item-ids P1)
         import mapkit.items  # noqa: F401
         import mapkit.plans  # noqa: F401
     except ImportError as exc:

@@ -33,6 +33,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from mapkit import ids
 from mapkit.items import (INBOX_KINDS, KINDS, Item, ItemError, item_uuid,
                           load_item, write_item)
 from mapkit.plans import Plan, PlanError, load_plan
@@ -147,6 +148,7 @@ class Index:
     plans: Dict[str, Plan] = field(default_factory=dict)        # filename -> Plan
     nodes: Dict[str, Node] = field(default_factory=dict)        # task id -> Node
     by_ref: Dict[str, Node] = field(default_factory=dict)
+    by_short: Dict[int, List[Node]] = field(default_factory=dict)  # JB-<n> number -> Item nodes
     errors: List[Dict[str, str]] = field(default_factory=list)
 
     # --- resolution -----------------------------------------------------
@@ -250,7 +252,7 @@ class Index:
             "promoted_to": None, "rank": None, "ticket_type": None,
             "source_path": os.path.relpath(node.path, repo_root).replace(os.sep, "/"),
             "editable": node.kind not in READ_ONLY_KINDS, "pathway_id": _pid(pathway),
-            "kind": node.kind,
+            "kind": node.kind, "short_id": None,
         }
         if node.item is not None:
             base.update(self._item_fields(node))
@@ -287,6 +289,7 @@ class Index:
             "branch": m.get("branch"), "links": [str(x) for x in (m.get("links") or [])],
             "filed_by": m.get("filed_by"), "promoted_to": m.get("promoted_to"),
             "rank": rank, "ticket_type": m.get("type") if item.kind == "ticket" else None,
+            "short_id": item.short_id,
         }
 
     def _plan_fields(self, node: Node) -> Dict[str, Any]:
@@ -409,6 +412,9 @@ class Store:
                 if len(ix.nodes) > before:
                     ix.items[stem(item)] = item
                     ix.by_slug.setdefault(item.slug, item)
+                    n = ids.canonical(item.meta.get("id"))
+                    if n is not None:
+                        ix.by_short.setdefault(n, []).append(ix.nodes[item.uuid])
         for pd in self.cfg.plan_dirs:
             if not os.path.isdir(pd):
                 continue
@@ -432,6 +438,11 @@ class Store:
                     ref = "%s#%s" % (plan.filename, step.norm_id)
                     self._add(ix, Node(id=uid(ref), kind="phase", ref=ref, path=path,
                                        plan=plan, step_index=i))
+        for n, nodes in sorted(ix.by_short.items()):
+            if len(nodes) > 1:  # the gitwriter repairs its own; anything else is for mapkit ids --repair
+                for node in nodes:
+                    self._err(ix, node.path, "id %s also on %s (python -m mapkit ids --repair)" % (
+                        ids.format_id(n), ", ".join(x.ref for x in nodes if x is not node)))
         return ix
 
     # --- reads --------------------------------------------------------------
@@ -446,11 +457,29 @@ class Store:
         ix = self.index()
         return [ix.task(n, self.repo_root) for n in ix.nodes.values()]
 
-    def _node(self, ix: Index, task_id: str) -> Node:
+    def _node(self, ix: Index, task_id: str, write: bool = False) -> Node:
+        """A task uuid, or an Item's short ID (``JB-12``, ``jb12``; bare ``12`` on reads only).
+
+        Always returns the node, whose ``id`` is the canonical uuid. Bare digits
+        on a write are refused, matching mapkit: a one-digit typo in one global
+        sequence lands on another real Item.
+        """
         node = ix.nodes.get(task_id)
-        if node is None:
+        if node is not None:
+            return node
+        n = ids.parse(task_id, allow_bare=True)
+        if n is None:
             raise ApiError(404, {"detail": "task not found"})
-        return node
+        if write and ids.parse(task_id) is None:
+            raise ApiError(422, {"detail": "a write names an Item by uuid or %s, not bare %r"
+                                           % (ids.format_id(n), task_id)})
+        hits = ix.by_short.get(n, [])
+        if len(hits) > 1:
+            raise ApiError(409, {"detail": "%s names %d Items" % (ids.format_id(n), len(hits)),
+                                 "children": self._summ(ix, hits), "blocking": [], "blocked_by": []})
+        if not hits:
+            raise ApiError(404, {"detail": "task not found"})
+        return hits[0]
 
     def task(self, task_id: str) -> Dict[str, Any]:
         ix = self.index()
@@ -525,7 +554,10 @@ class Store:
             while slug in ix.by_slug or uid(slug) in ix.nodes or \
                     os.path.exists(os.path.join(self.cfg.items_dir, "%s-%s.md" % (kind, slug))):
                 slug, n = "%s-%d" % (base, n), n + 1
+            if body.get("id") not in (None, "") or body.get("short_id") not in (None, ""):
+                raise ApiError(422, {"detail": "the short ID is allocated by the server"})
             meta: Dict[str, Any] = {
+                "id": self._next_id(ix),
                 "kind": kind, "title": body.get("title") or slug,
                 "status": body.get("status") or DEFAULT_STATUS[kind],
                 "created": dt.date.today().isoformat(), "updated": now_iso(),
@@ -548,7 +580,8 @@ class Store:
         with self._lock:
             self._writable()
             ix = self.index()
-            node = self._node(ix, task_id)
+            node = self._node(ix, task_id, write=True)
+            self._refuse_id_change(node, body)
             body_token = body.pop(TOKEN_KEY, None)
             if token in (None, ""):
                 token = body_token
@@ -589,7 +622,7 @@ class Store:
         with self._lock:
             self._writable()
             ix = self.index()
-            node = self._node(ix, task_id)
+            node = self._node(ix, task_id, write=True)
             if node.item is None:
                 raise ApiError(405, {"detail": "%ss are read-only in the app: edit the plan file" % node.kind})
             self._check_token(ix, node, token)
@@ -603,6 +636,26 @@ class Store:
                                      "blocked_by": self._summ(ix, blocked_by)})
             os.remove(node.path)
             self._commit(node.path, node.item.meta.get("title") or node.item.slug)
+
+    def _next_id(self, ix: Index) -> str:
+        """The next ``JB-<n>``: 1 + max over the index and, with a git writer,
+        ``origin/main`` (``mapkit.ids.allocate``). Under ``--no-git`` nothing
+        shells out. A collision with an Item filed elsewhere since the last pull
+        is repaired by the git writer after its rebase."""
+        if self.writer is None:
+            return ids.format_id(max(ix.by_short or [0]) + 1)
+        return ids.allocate(self.repo_root, items=list(ix.items.values()))
+
+    @staticmethod
+    def _refuse_id_change(node: Node, body: Dict[str, Any]) -> None:
+        """``id`` (the task uuid) and ``short_id`` are immutable: echoing them back
+        unchanged is allowed, a different value is a 422."""
+        current = node.item.short_id if node.item is not None else None
+        changed = [k for k, v in (("id", node.id), ("short_id", current))
+                   if k in body and body[k] != v]
+        if changed:
+            raise ApiError(422, {"detail": "%s cannot change (renumbering is "
+                                           "python -m mapkit ids --repair)" % " and ".join(changed)})
 
     def _apply(self, ix: Index, node: Optional[Node], kind: str, meta: Dict[str, Any],
                body_text: str, b: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:

@@ -34,7 +34,7 @@ import os
 import subprocess
 import threading
 from collections import OrderedDict
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from server.watcher import Debouncer
 
@@ -105,8 +105,10 @@ def has_origin(repo_root: str) -> bool:
 
 class GitWriter:
     def __init__(self, repo_root: str, banner: Banner, items_rel: str = "map",
-                 debounce_ms: int = DEFAULT_DEBOUNCE_MS, lock: Optional[Any] = None) -> None:
+                 debounce_ms: int = DEFAULT_DEBOUNCE_MS, lock: Optional[Any] = None,
+                 on_repair: Optional[Callable[[], None]] = None) -> None:
         self.repo_root = repo_root
+        self._on_repair = on_repair  # the store's invalidate: renumbered tiles refetch
         self.banner = banner
         self.items_rel = items_rel
         self._store_lock = lock if lock is not None else threading.RLock()
@@ -207,6 +209,7 @@ class GitWriter:
                         self._ok()
                         return True
                     self._pull()
+                    self._repair_ids()
                 self._git("push", REMOTE, "HEAD:refs/heads/" + BRANCH, op="git push")
             except GitError as exc:
                 self.last_error = str(exc)
@@ -234,6 +237,46 @@ class GitWriter:
         if p.returncode != 0:
             return True  # no remote-tracking ref yet: let the pull/push decide
         return p.stdout.strip() != "0"
+
+    def _own_unpushed(self) -> List[str]:
+        """Stems of the Items this clone added in commits not yet on ``origin/main``.
+
+        After a stuck banner several app creations can be pending; every one of
+        them is ours, and no other writer's file is ever in this list.
+        """
+        p = self._git("diff", "--name-only", "--diff-filter=A", "%s/%s...HEAD" % (REMOTE, BRANCH),
+                      "--", self.items_rel, check=False)
+        out = []
+        for line in p.stdout.splitlines():
+            name = os.path.basename(line.strip())
+            if name.endswith(".md"):
+                out.append(name[:-3])
+        return out
+
+    def _repair_ids(self) -> None:
+        """After the rebase, before the push (store lock held): renumber every own
+        unpushed Item whose short ID a rebase brought in on another Item.
+
+        ``mapkit.ids.repair`` allocates the replacements one after another against
+        the merged tree and ``origin/main``, and with ``own`` never touches another
+        writer's file. The renumber is its own ``map: renumber`` commit (the one
+        subject ``mapkit ids --check`` accepts for an ID change); our earlier
+        ``map: <title>`` subjects carry no ID, so nothing in history goes stale.
+        """
+        from mapkit import ids  # local: mapkit is importable only after config.setup()
+        own = self._own_unpushed()
+        if not own:
+            return
+        rows = ids.repair(self.repo_root, "%s/%s" % (REMOTE, BRANCH), own=own)
+        if not rows:
+            return
+        self._git("add", "-A", "--", self.items_rel, op="git add")
+        msg = subject(["renumber %s -> %s %s" % (old, new, st) for old, new, st in rows])
+        self._git("commit", "--quiet", "-m", msg, "--", self.items_rel, op="git commit", bot=True)
+        log.warning("jugglebot-map: renumbered after rebase: %s",
+                    ", ".join("%s %s -> %s" % (st, old, new) for old, new, st in rows))
+        if self._on_repair is not None:
+            self._on_repair()
 
     def _pull(self) -> None:
         p = self._git("pull", "--rebase", "--no-autostash", REMOTE, BRANCH, check=False, bot=True)

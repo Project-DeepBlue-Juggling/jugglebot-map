@@ -81,7 +81,16 @@ Quiet stubs: `POST /projects/{p}/undo` 404 "Nothing to undo"; comments `[]`; not
 
 Identity: an item's id is `uuid5(mapkit ITEM_NAMESPACE, slug)`, a plan's the same of its filename, a plan
 step's of `<filename>#<normalised step id>`. Plans and steps are read-only here (edit the plan file);
-their `editable` is false. The conflict token is the task's `updated_at`: send it as
+their `editable` is false.
+
+Short IDs: every Item also carries `short_id` (`JB-<n>`, frontmatter `id:`, from `mapkit.ids`; `null` for
+plans, phases and an Item without one). `/tasks/{task_id}` accepts the uuid or the short ID (`JB-12`,
+`jb12`, any case); bare `12` only on GET, PATCH and DELETE answer 422 for it. A duplicated ID answers 409
+and shows on `/health`. `POST /tasks` allocates the next ID (1 + max over the index and `origin/main`) and
+refuses a supplied one (422); a PATCH whose `id` or `short_id` differs from the current value is 422. The
+git writer, after its `pull --rebase`, renumbers every Item it added and has not pushed whose ID the rebase
+brought in on another Item (`map: renumber JB-a -> JB-b <stem>`, its own commit) and refreshes the index;
+its other subjects stay `map: <titles>` with no ID. The server needs a checkout whose `mapkit` has `ids.py`. The conflict token is the task's `updated_at`: send it as
 `if_unchanged_since` (body field or query parameter) on PATCH or DELETE, and a mismatch answers
 `409 {"detail": "Task was modified", "current": <Task>}`. Closing or dropping a pathway that still has
 an active or parked plan answers the delete-conflict shape with detail "Pathway still has live plans"

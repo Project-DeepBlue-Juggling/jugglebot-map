@@ -81,6 +81,7 @@ class Task(_Strict):
     source_path: str
     editable: bool
     pathway_id: Optional[str]
+    short_id: Optional[str]      # the Item's JB-<n>; None for plans, phases and an ID-less Item
 
 
 class Dependency(_Strict):
