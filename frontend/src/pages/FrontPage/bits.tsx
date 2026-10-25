@@ -149,7 +149,11 @@ export function StaleBadge({ days, count, item }: { days?: number; count?: numbe
   return (
     <span
       data-testid="stale-badge"
-      title={`no progress since ${staleClock(item)}`}
+      title={
+        count !== undefined
+          ? `no progress since ${staleClock(item)}`
+          : `stale · ${days ?? 0} d: no progress since ${staleClock(item)}`
+      }
       className="shrink-0 whitespace-nowrap rounded border px-1 text-[10px]"
       style={{ color: STALE_HEX, borderColor: `${STALE_HEX}66` }}
     >

@@ -1,7 +1,8 @@
 import type { Task } from '../../api/schemas';
 import { formatAge } from '../../lib/derive';
+import { isStale, staleAge } from '../../lib/stale';
 import { kindHue, statusLabel, TICKET_HUE } from '../../theme/palette';
-import { Openable, Owners, PriorityTag } from './bits';
+import { Openable, Owners, PriorityTag, StaleBadge } from './bits';
 import { DepTags } from './DepTags';
 import { FRONT_LAYOUT, linkLabel, type MapView } from './mapView';
 import ShortId from '../../ui/ShortId';
@@ -63,6 +64,7 @@ function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
         <span>{statusLabel(task.status)}</span>
         <PriorityTag priority={task.priority} />
         <ShortId task={task} />
+        {isStale(task, view.now) && <StaleBadge days={staleAge(task, view.now)} item={task} />}
         <span className="ml-auto" title={`Filed ${task.created_at}`}>
           {formatAge(task.created_at, view.now)}
         </span>

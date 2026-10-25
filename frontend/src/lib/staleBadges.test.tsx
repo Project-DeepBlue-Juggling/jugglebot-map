@@ -16,7 +16,7 @@ const stale = (over: Record<string, unknown> = {}) =>
     created_at: '2026-09-20T00:00:00Z',
     ...over,
   });
-const fresh = () =>
+const fresh = (over: Record<string, unknown> = {}) =>
   mapTask({
     id: 'new',
     kind: 'bug',
@@ -24,6 +24,7 @@ const fresh = () =>
     title: 'New bug',
     pathway_id: 'pw',
     created_at: '2026-10-20T00:00:00Z',
+    ...over,
   });
 
 describe('stale badges', () => {
@@ -51,6 +52,29 @@ describe('stale badges', () => {
       />,
     );
     expect(screen.queryByTestId('stale-badge')).toBeNull();
+  });
+
+  it('Front page: an unattached stale inbox card carries the badge, a fresh one does not', () => {
+    render(
+      <FrontPageView
+        tasks={[
+          stale({ id: 'loose-old', title: 'Loose old', pathway_id: null }),
+          fresh({ id: 'loose-new', title: 'Loose new', pathway_id: null }),
+        ]}
+        deps={[]}
+        users={[]}
+        onOpen={vi.fn()}
+        now={NOW}
+      />,
+    );
+    const badge = within(screen.getByRole('button', { name: 'Loose old' })).getByTestId(
+      'stale-badge',
+    );
+    expect(badge).toHaveTextContent('stale · 35 d');
+    expect(badge).toHaveAttribute('title', 'stale · 35 d: no progress since 2026-09-20');
+    expect(
+      within(screen.getByRole('button', { name: 'Loose new' })).queryByTestId('stale-badge'),
+    ).toBeNull();
   });
 
   it('Now / Next / Later: rings on stale item lines and rail rows, listed in the Key', () => {

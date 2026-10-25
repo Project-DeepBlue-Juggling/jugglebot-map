@@ -78,6 +78,25 @@ def _safe_rel(link: str) -> Optional[str]:
     return None if rel.startswith("..") else rel
 
 
+def _resolve_logbook(repo: str, slug: str) -> str:
+    """A ``Logbook-Entry`` slug as a repo-relative path.
+
+    Trailers usually omit the date the file carries (``foo`` for
+    ``logbook/2026-10-25-foo.md``), so: the exact ``logbook/<slug>.md``, else the
+    newest ``logbook/YYYY-MM-DD-<slug>.md``, else the exact path (reported missing).
+    """
+    slug = slug[:-3] if slug.endswith(".md") else slug
+    exact = "logbook/%s.md" % slug
+    if os.path.isfile(os.path.join(repo, exact)):
+        return exact
+    dated = re.compile(r"^\d{4}-\d{2}-\d{2}-%s\.md$" % re.escape(slug))
+    try:
+        names = sorted(n for n in os.listdir(os.path.join(repo, "logbook")) if dated.match(n))
+    except OSError:
+        names = []
+    return "logbook/%s" % names[-1] if names else exact
+
+
 class HistoryCache:
     def __init__(self, repo_root: str) -> None:
         self.repo_root = repo_root
@@ -114,11 +133,13 @@ class HistoryCache:
         for c in commits:  # newest first, so the freshest entry leads
             e = c["logbook_entry"]
             if e and _SLUG.match(e):
-                p = "logbook/%s.md" % (e[:-3] if e.endswith(".md") else e)
+                p = _resolve_logbook(self.repo_root, e)
                 if p not in paths:
                     paths.append(p)
         for link in links:
             p = _safe_rel(str(link))
+            if p and p.startswith("logbook/") and "/" not in p[len("logbook/"):]:
+                p = _resolve_logbook(self.repo_root, p[len("logbook/"):])
             if p and p not in paths:
                 paths.append(p)
         base = web_base(self.repo_root)

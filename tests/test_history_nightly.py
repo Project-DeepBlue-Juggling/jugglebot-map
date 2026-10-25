@@ -74,6 +74,30 @@ def test_history_links_missing_and_web_base(hist_repo, monkeypatch):
     assert docs[1]["url"] == "https://web.example/blob/main/plans/active/nope.md"
 
 
+def test_history_resolves_undated_trailer_and_link_slugs(hist_repo, monkeypatch):
+    """A trailer or link naming the slug without the file's date prefix finds the dated file (newest wins)."""
+    monkeypatch.delenv("MAP_WEB_BASE", raising=False)
+    lb = os.path.join(hist_repo, "logbook")
+    for name, title in (("2026-10-01-dated-slug.md", "Old"), ("2026-10-20-dated-slug.md", "Newer"),
+                        ("2026-10-02-link-slug.md", "Linked")):
+        with open(os.path.join(lb, name), "w") as fh:
+            fh.write("# %s\n" % title)
+    item = os.path.join(hist_repo, "map", "bug-wobbly-leg.md")
+    text = open(item).read().replace("links: []", "links:\n- logbook/link-slug.md\n- logbook/2026-10-01-dated-slug.md\n- logbook/none-such.md")
+    open(item, "w").write(text)
+    git(hist_repo, "add", "-A")
+    git(hist_repo, "commit", "--quiet", "-m", "more\n\nLogbook-Entry: dated-slug")
+    git(hist_repo, "commit", "--quiet", "--allow-empty", "-m", "exact\n\nLogbook-Entry: some-slug")
+    with _client(hist_repo) as c:
+        docs = c.get(_api(c) + "/tasks/%s/history" % _bug_id(c)).json()["documents"]
+    got = [(d["path"], d["exists"]) for d in docs]
+    assert ("logbook/2026-10-20-dated-slug.md", True) in got      # undated trailer -> newest dated file
+    assert ("logbook/2026-10-02-link-slug.md", True) in got       # undated link resolves too
+    assert ("logbook/2026-10-01-dated-slug.md", True) in got      # a full stem is used as is
+    assert ("logbook/none-such.md", False) in got                 # nothing matches -> reported missing
+    assert not any(p == "logbook/dated-slug.md" or p == "logbook/link-slug.md" for p, _ in got)
+
+
 def test_history_no_remote_null_url_and_cache_follows_head(hist_repo, monkeypatch):
     monkeypatch.delenv("MAP_WEB_BASE", raising=False)
     with _client(hist_repo) as c:

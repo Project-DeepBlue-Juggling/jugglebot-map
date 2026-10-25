@@ -8,7 +8,7 @@ import { useActiveProjectId } from '../../projects/useActiveProject';
 import { useOpenItem } from '../drawer/drawerContext';
 import { NightlyChip } from '../nightly/NightlyChip';
 
-const DEBOUNCE_MS = 100;
+const DEBOUNCE_MS = 50; // search is ~7 ms, so keystroke-to-results stays inside the 100 ms budget
 
 /**
  * Header search over the loaded items, plans and glossary terms. `/` focuses

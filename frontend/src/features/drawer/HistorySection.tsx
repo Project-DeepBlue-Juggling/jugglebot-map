@@ -7,7 +7,7 @@ function DocumentRow({ doc }: { doc: HistoryDocument }) {
   return (
     <li className="flex min-w-0 items-baseline gap-2 text-[13px]" data-testid="history-document">
       <span className="shrink-0 text-[10px] uppercase text-dr-lo">{doc.kind}</span>
-      {doc.url !== null ? (
+      {doc.exists && doc.url !== null ? (
         <a
           href={doc.url}
           target="_blank"

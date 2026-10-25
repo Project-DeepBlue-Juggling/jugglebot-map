@@ -91,20 +91,24 @@ describe('short IDs in the app', () => {
     expect(loc()).toMatch(/^\?item=oval-plan/); // a plan or phase: the uuid, never a JB form
   });
 
-  // OPEN DEFECT (ids-p5 handoff): in the full app harness the drawer body's JB-n link is
-  // not found (ui/ShortIdLinks.test.tsx passes with the same Markdown + context in
-  // isolation). Skipped, not deleted, until the next unit diagnoses it.
-  it.skip('a JB-n mention in a drawer body renders as a link; an unknown one stays text', async () => {
-    // Clicking it is covered by ui/ShortIdLinks.test.tsx (the link calls the drawer's
-    // opener with the uuid) and the ?item= write by the test above.
-    renderApp('/now?item=JB-12', <NowRoute />);
+  // Cause of the old skip: the drawer mounts as an overlay then moves into the page slot, so the first `aside` was detached (no app defect).
+  it('a JB-n mention in a drawer body renders as a link; an unknown one stays text', async () => {
+    renderApp(
+      '/now?item=JB-12',
+      <>
+        <Probe />
+        <NowRoute />
+      </>,
+    );
+    const slot = await screen.findByTestId('drawer-slot');
+    await waitFor(() => expect(slot.childElementCount).toBe(1));
     const d = await drawer();
     await settleQueries();
     // The Markdown renderer is lazy: allow its first load.
-    expect(
-      await within(d).findByRole('button', { name: 'JB-13' }, { timeout: 8000 }),
-    ).toBeInTheDocument();
+    const link = await within(d).findByRole('button', { name: 'JB-13' }, { timeout: 8000 });
     expect(within(d).queryByRole('button', { name: 'JB-99' })).toBeNull();
+    fireEvent.click(link);
+    await waitFor(() => expect(loc()).toBe('?item=JB-13'));
   }, 15000);
 
   it('the Front page inbox, the Now / Next / Later rail and the Done rows show the ID', async () => {

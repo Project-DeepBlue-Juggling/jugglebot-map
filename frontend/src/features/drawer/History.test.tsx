@@ -95,6 +95,31 @@ describe('drawer History section', () => {
     ).toBeTruthy();
   });
 
+  it('renders a missing document as its path with the tag and no link, even when the server sent a url', async () => {
+    server.use(
+      http.get(URL, () =>
+        HttpResponse.json({
+          head: 'abc',
+          commits: [],
+          documents: [
+            {
+              kind: 'logbook',
+              path: 'logbook/gone.md',
+              title: 'gone.md',
+              exists: false,
+              url: 'https://x.test/blob/main/logbook/gone.md',
+            },
+          ],
+        }),
+      ),
+    );
+    const h = await openHistory();
+    const row = await h.findByTestId('history-document');
+    expect(within(row).getByText('logbook/gone.md')).toBeInTheDocument();
+    expect(within(row).getByText('missing')).toBeInTheDocument();
+    expect(within(row).queryByRole('link')).toBeNull();
+  });
+
   it('says so for an item that has not been committed', async () => {
     const h = await openHistory();
     expect(
