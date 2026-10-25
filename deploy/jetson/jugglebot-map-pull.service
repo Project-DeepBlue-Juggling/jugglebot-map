@@ -1,0 +1,10 @@
+[Unit]
+Description=Fast-forward the map data clone (picks up /inbox items filed elsewhere); restart the server if mapkit/ changed
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/jetson/map-live/jugglebot-map/deploy/jetson/pull.sh
+Nice=10
+IOSchedulingClass=idle

@@ -1,0 +1,28 @@
+[Unit]
+Description=jugglebot-map project-map server (API + built frontend, port 8765)
+Documentation=file:///home/jetson/map-live/jugglebot-map/README.md
+# The writer pushes to origin as soon as an edit lands, so wait for the network.
+Wants=network-online.target
+After=network-online.target
+# Appliance behaviour: never land in "start-limit-hit"; a crash loop keeps retrying.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+WorkingDirectory=/home/jetson/map-live/jugglebot-map
+# --repo is the data clone whose map/ is served and committed (branch main only; on any
+# other branch the server serves read-only under a warning banner). Never the robot's checkout.
+ExecStart=/home/jetson/map-live/jugglebot-map/.venv/bin/jugglebot-map --repo /home/jetson/map-live/Jugglebot --host 0.0.0.0 --port 8765 --no-open
+Environment=PYTHONUNBUFFERED=1
+Environment=GIT_TERMINAL_PROMPT=0
+Restart=on-failure
+RestartSec=3
+# This Jetson runs the robot: keep the map server behind the control loops.
+Nice=10
+CPUWeight=20
+IOWeight=20
+CPUQuota=20%
+MemoryMax=300M
+
+[Install]
+WantedBy=default.target

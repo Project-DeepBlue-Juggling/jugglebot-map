@@ -12,7 +12,7 @@ Licence: MIT (`LICENSE`).
 ```bash
 pip install -e .                       # once, into a venv (Python 3.11+; the dev box also runs 3.8)
 jugglebot-map --repo ~/Desktop/Jugglebot          # or JUGGLEBOT_REPO=... jugglebot-map
-jugglebot-map --repo ~/Jugglebot --host 0.0.0.0 --no-open   # the Pi
+jugglebot-map --repo ~/map-live/Jugglebot --host 0.0.0.0 --no-open   # the Jetson
 ```
 
 `--port` defaults to 8765; the bind is 127.0.0.1 unless `--host 0.0.0.0`; a browser opens unless
@@ -107,46 +107,52 @@ the working tree stay, `/health`'s `banner` turns `error` with the operation and
 the next edit retries (the next success clears the banner). Only `main` is written: on another branch
 the writer refuses to start, the banner is a `warning` and every write answers 403.
 
-## Raspberry Pi runbook
+## Jetson runbook
 
-Host `jeeves`, user `jeeves`. The units in `deploy/` assume these two checkouts:
+Hosted on the robot Jetson (user `jetson`, LAN IP 192.168.20.34) as **user** systemd units (no sudo; linger
+keeps them running). The server is deliberately cheap (idle ~0.3 % of one core, ~58 MB) and the unit pins it
+behind the robot: `Nice=10`, `CPUWeight=20`, `IOWeight=20`, `CPUQuota=20%`, `MemoryMax=300M`.
+
+Layout, all under `~/map-live/` (the map server must never write to the robot's `~/Desktop/Jugglebot`):
+
+- `~/map-live/jugglebot-map` - clean clone of this repo on `main`, with its own `.venv` (built from the PDJ
+  interpreter, Python 3.11+) and the built `frontend/dist`;
+- `~/map-live/Jugglebot` - the data clone on `main` whose `map/` is served and committed (pushes use the
+  global `credential.helper store`, https; commits are authored `map-bot`).
 
 ```bash
-git clone -b main git@github.com:Project-DeepBlue-Juggling/Jugglebot.git ~/Jugglebot   # the map that is served and committed (SSH: the deploy key pushes)
-git clone https://github.com/Project-DeepBlue-Juggling/jugglebot-map.git ~/jugglebot-map
-cd ~/jugglebot-map && ./deploy.sh
+git clone -b main https://github.com/Project-DeepBlue-Juggling/jugglebot-map.git ~/map-live/jugglebot-map
+~/map-live/jugglebot-map/deploy-jetson.sh      # clones the data repo if missing; idempotent, rerun after every fork change
 ```
 
-`~/Jugglebot` needs push credentials for `origin` that work without a prompt (a deploy key or a stored
-token): the writer runs with `GIT_TERMINAL_PROMPT=0`, so a missing credential shows as the red banner
-rather than a hang. `deploy.sh` is idempotent - rerun it after every fork change. It installs Node 22
-(NodeSource) when `node` is missing or older, fast-forwards this checkout, builds `frontend/`, creates
-`.venv` and installs the package, installs `jugglebot-map.service`, `jugglebot-map-pull.service` and
-`jugglebot-map-pull.timer` into `/etc/systemd/system`, enables the timer and the server, restarts the
-server and prints `systemctl is-active` for both.
+`deploy-jetson.sh` fast-forwards both clones, builds the frontend (the installed Node 22), creates `.venv` and
+`pip install -e .`, installs `deploy/jetson/*` into `~/.config/systemd/user/`, enables the pull timer and the
+server, restarts the server, prints `is-active` for both and curls `/api/v1/health`.
 
-`jugglebot-map-pull.timer` runs `git pull --ff-only` on `~/Jugglebot` every 2 minutes; it never merges,
-so while an unpushed `map-bot` commit is waiting (red banner) it simply fails until the server's own
-retry lands.
+`jugglebot-map-pull.timer` runs `deploy/jetson/pull.sh` every 2 minutes: `git pull --ff-only` on the data
+clone (never merges; while an unpushed `map-bot` commit waits it fails until the server's retry lands). When
+the pull changed `mapkit/` it also runs `systemctl --user restart jugglebot-map`, because the server imports
+the checkout's mapkit once at start-up (`tests/test_pull_restart.py`).
 
 Acceptance checks:
 
-1. A phone on the same network opens `http://jeeves.local:8765` (or `http://192.168.20.7:8765`, the wired address). The bare name `jeeves` has no DNS entry on the LAN; mDNS answers `jeeves.local` (it may return the Wi-Fi address, 192.168.20.38; same Pi), which Windows 10, macOS, iOS and Android resolve natively.
-2. An edit in the browser lands on `main` within 10 s as `map-bot` (`git log -1 --format='%an %s'
-   origin/main` from any checkout after a fetch).
-3. A file edited by hand in `~/Jugglebot/map/` shows in the open page within 1 s.
+1. A phone on the LAN opens `http://192.168.20.34:8765` (or `http://<jetson-hostname>.local:8765`).
+2. An edit in the browser lands on `main` within 10 s as `map-bot` (`git log -1 --format='%an %s' origin/main`
+   after a fetch).
+3. A file edited by hand in `~/map-live/Jugglebot/map/` shows in the open page within 1 s.
 4. `/inbox` from another checkout (commit + push there) appears within about 2 minutes (the pull timer).
-5. A forced conflict (`sudo systemctl stop jugglebot-map-pull.timer` so the Pi cannot fast-forward
-   first, push a change to one item's title from another checkout, then edit that title in the browser;
-   start the timer again afterwards) shows the red banner and keeps the browser's edit on disk and in a local
-   commit; resolve by hand in `~/Jugglebot` (`git pull --rebase`, fix, `git push`) and the next edit
-   clears the banner.
+5. A forced conflict (`systemctl --user stop jugglebot-map-pull.timer`, push a title change from another
+   checkout, then edit that title in the browser; start the timer again) shows the red banner and keeps the
+   edit on disk and in a local commit; resolve by hand in `~/map-live/Jugglebot` and the next edit clears it.
 
-When a check fails:
+When a check fails: `journalctl --user -u jugglebot-map -e` (startup lines say whether the git writer is on,
+off or REFUSED), `journalctl --user -u jugglebot-map-pull -e`, `systemctl --user list-timers`,
+`curl -s http://127.0.0.1:8765/api/v1/health`, `git -C ~/map-live/Jugglebot status -sb`.
 
-- `journalctl -u jugglebot-map -e` - startup lines say whether the git writer is on, off or REFUSED
-  (wrong branch), and every git failure is logged with its stderr;
-- `journalctl -u jugglebot-map-pull -e` and `systemctl list-timers jugglebot-map-pull.timer` for check 4;
-- `curl -s http://jeeves.local:8765/api/v1/health` for the banner and any parse errors;
-- `git -C ~/Jugglebot status -sb` - the writer never leaves a rebase in progress; an `ahead` count is a
-  commit waiting for the next successful push.
+### Retiring the Pi
+
+After the Jetson serves correctly, on `jeeves` (owner-run):
+
+```bash
+sudo systemctl disable --now jugglebot-map.service jugglebot-map-pull.timer
+```

@@ -1,0 +1,12 @@
+[Unit]
+Description=Fast-forward the map data clone every 2 minutes
+
+[Timer]
+# Calendar form because Persistent= only applies to calendar timers.
+OnCalendar=*:0/2
+Persistent=true
+AccuracySec=10s
+Unit=jugglebot-map-pull.service
+
+[Install]
+WantedBy=timers.target
