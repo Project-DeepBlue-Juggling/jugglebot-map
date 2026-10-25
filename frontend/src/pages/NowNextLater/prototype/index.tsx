@@ -12,6 +12,7 @@ import { VariantD } from './VariantD';
 import { VariantE } from './VariantE';
 import { VariantF } from './VariantF';
 import { VariantG } from './VariantG';
+import { VariantH } from './VariantH';
 
 const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLaterViewProps>]> = [
   ['A', 'Horizon strips', VariantA],
@@ -21,11 +22,12 @@ const VARIANTS: ReadonlyArray<readonly [string, string, ComponentType<NowNextLat
   ['E', 'Metro + ledger', VariantE],
   ['F', 'Kind grid', VariantF],
   ['G', 'Plan tracks', VariantG],
+  ['H', 'G + one-liners', VariantH],
   ['Z', 'Current page', NowNextLaterView],
 ];
 
 // Round 2 (critic-reviewed) cycles in the bar, G first; A-D and F stay reachable by URL.
-const CYCLE = ['G', 'E', 'B', 'Z'];
+const CYCLE = ['H', 'G', 'E', 'Z'];
 
 export function PrototypeNowNextLater(props: NowNextLaterViewProps) {
   const v = usePrototypeVariant([...CYCLE, ...VARIANTS.map(([k]) => k).filter((k) => !CYCLE.includes(k))]);
