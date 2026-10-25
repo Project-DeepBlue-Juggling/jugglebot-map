@@ -39,6 +39,14 @@ describe('Dictionary page', () => {
     expect(screen.queryByRole('button', { name: /edit|save/i })).toBeNull();
   });
 
+  it('follows the app theme: nothing inside the page forces the dark class', async () => {
+    renderApp('/dictionary', <DictionaryPage />);
+    await search();
+    const page = screen.getByTestId('dictionary-page');
+    expect(page.classList.contains('dark')).toBe(false);
+    expect(page.querySelector('.dark')).toBeNull();
+  });
+
   it('filters by term, definition and Avoid word, and shows an empty state', async () => {
     renderApp('/dictionary', <DictionaryPage />);
     const box = await search();

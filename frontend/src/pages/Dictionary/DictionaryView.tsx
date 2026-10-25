@@ -48,7 +48,7 @@ export function DictionaryView({ glossary }: { glossary: Glossary }) {
   return (
     <div
       data-testid="dictionary-page"
-      className="dark flex h-full flex-col overflow-hidden"
+      className="flex h-full flex-col overflow-hidden"
       style={{ backgroundColor: NNL.canvas, color: NNL.textHi }}
     >
       <header className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 px-4 pb-2 pt-3">
