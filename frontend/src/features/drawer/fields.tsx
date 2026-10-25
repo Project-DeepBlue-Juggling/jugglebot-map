@@ -237,7 +237,7 @@ export function MarkdownField({
               aria-label={label}
               value={value}
               onChange={(e) => onChange?.(e.target.value)}
-              className="block max-h-[60vh] min-h-[10rem] w-full resize-none overflow-y-auto rounded border border-dr-strong bg-dr-code p-2 font-mono text-[13px] leading-[1.55] text-dr-hi focus:outline-none focus:ring-2 focus:ring-dr-focus"
+              className="block max-h-[calc(60vh/var(--app-zoom,1))] min-h-[10rem] w-full resize-none overflow-y-auto rounded border border-dr-strong bg-dr-code p-2 font-mono text-[13px] leading-[1.55] text-dr-hi focus:outline-none focus:ring-2 focus:ring-dr-focus"
             />
           ) : empty ? (
             <p className="text-[13px] text-dr-lo">Nothing to preview</p>

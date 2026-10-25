@@ -28,12 +28,82 @@
   --dr-focus: #70adfb;
 }
 
+/* Now / Next / Later + Dictionary palette (src/theme/nnl.ts reads these by name).
+   Dark values are the original hard-coded hexes. Light: neutral canvas/surfaces,
+   text >= 4.5:1, every mark hue >= 3:1 on the darkest light surface (#eef1f5);
+   amber stays reserved for Next. */
+:root {
+  --nnl-canvas: #f4f6f9;
+  --nnl-surface: #ffffff;
+  --nnl-raised: #eef1f5;
+  --nnl-border: #d5dbe3;
+  --nnl-border-strong: #b9c2cd;
+  --nnl-text-hi: #0f1720;
+  --nnl-text-med: #425062;
+  --nnl-text-lo: #586578;
+  --nnl-next: #b27807;
+  --nnl-later: #7d8899;
+  --nnl-blocked: #f64541;
+  --nnl-blocked-text: #b3261e;
+  --nnl-complete: #7d8792;
+  --nnl-kind-bug: #eb4e6e;
+  --nnl-kind-feature: #108ed0;
+  --nnl-kind-idea: #996ced;
+  --nnl-on-hue: #ffffff;
+  --nnl-hue-0: #667cf2;
+  --nnl-hue-1: #2b9484;
+  --nnl-hue-2: #d76321;
+  --nnl-hue-3: #749040;
+  --nnl-hue-4: #c461bc;
+  --nnl-hue-5: #8b8742;
+  --nnl-hue-6: #429656;
+  --nnl-hue-7: #a97d4a;
+}
+.dark {
+  --nnl-canvas: #0e131a;
+  --nnl-surface: #151b24;
+  --nnl-raised: #1c2430;
+  --nnl-border: #2b3542;
+  --nnl-border-strong: #3b4757;
+  --nnl-text-hi: #e7ecf3;
+  --nnl-text-med: #a8b3c2;
+  --nnl-text-lo: #8390a2;
+  --nnl-next: #f7b83d;
+  --nnl-later: #7d8899;
+  --nnl-blocked: #f75d59;
+  --nnl-blocked-text: #fe8b83;
+  --nnl-complete: #7d8792;
+  --nnl-kind-bug: #ef6e88;
+  --nnl-kind-feature: #5abdf2;
+  --nnl-kind-idea: #c2a7f4;
+  --nnl-on-hue: #e7ecf3;
+  --nnl-hue-0: #95a4f6;
+  --nnl-hue-1: #39c3ae;
+  --nnl-hue-2: #e79363;
+  --nnl-hue-3: #99b860;
+  --nnl-hue-4: #d58ecf;
+  --nnl-hue-5: #b4af61;
+  --nnl-hue-6: #6fc082;
+  --nnl-hue-7: #d3b99b;
+}
+
 @layer base {
   html,
   body,
   #root {
     height: 100%;
     overflow: hidden;
+  }
+  /* GUI font-size pref (src/prefs/guiPrefs.ts): the whole app is zoomed by
+     --app-zoom (= fontSize / 14); #root is sized in viewport units divided by
+     the same factor so that, zoomed, it fills the viewport exactly with no
+     scroll or empty band. (Not percentages: Firefox resolves a percentage in
+     the zoomed element's own scaled space, Chromium does not, so a % would
+     differ between engines; vh/vw agree.) */
+  #root {
+    zoom: var(--app-zoom, 1);
+    height: calc(100vh / var(--app-zoom, 1));
+    width: calc(100vw / var(--app-zoom, 1));
   }
 
   /* Dark-mode page background. Components use Tailwind dark: variants

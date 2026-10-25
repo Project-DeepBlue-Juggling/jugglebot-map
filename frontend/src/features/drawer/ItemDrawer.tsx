@@ -905,7 +905,7 @@ function EditableBody({
               className={clsx(
                 'mr-auto text-xs',
                 statusText === 'Not saved'
-                  ? 'text-[#fe8b83]'
+                  ? 'text-[color:var(--nnl-blocked-text)]'
                   : statusText === 'Saved'
                     ? 'text-dr-lo'
                     : 'text-dr-med',

@@ -108,7 +108,7 @@ describe('Now / Next / Later page', () => {
 
   /**
    * CSS CONTRACT ONLY: happy-dom does no layout, so this pins the classes
-   * (shell `h-screen overflow-hidden`, page root `h-full overflow-hidden`,
+   * (shell `h-full overflow-hidden` inside #root, which index.css sizes to the viewport / --app-zoom, page root `h-full overflow-hidden`,
    * the rail's inner lists `overflow-y-auto`). The real check is the Firefox
    * 1500x900 screenshot (`frontend/scripts/screenshot.sh`).
    */
@@ -116,7 +116,7 @@ describe('Now / Next / Later page', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
     expect(screen.getAllByTestId('pathway-block')).toHaveLength(6);
-    expect(layoutSrc).toContain('flex h-screen flex-col overflow-hidden');
+    expect(layoutSrc).toContain('flex h-full flex-col overflow-hidden');
     expect(screen.getByTestId('nnl-page')).toHaveClass('h-full', 'overflow-hidden');
     expect(screen.getByTestId('blocks')).toHaveClass('overflow-hidden');
   });

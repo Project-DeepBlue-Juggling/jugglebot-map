@@ -1,43 +1,55 @@
 /**
- * The Now / Next / Later page's dark palette: three channels, three encodings
+ * The Now / Next / Later page's palette: three channels, three encodings
  * (Pathway hue / stage status / item kind). Separate from `palette.ts` because
  * this page paints on its own canvas and amber is reserved for Next.
+ *
+ * Every colour is a CSS custom property (`--nnl-*`, defined for both themes in
+ * `index.css`), so the pages follow the `dark` class on <html>. These are
+ * `var()` references, not hex: never append alpha digits (`${hue}59`); use
+ * `tint()` below.
  */
 export const NNL = {
-  canvas: '#0e131a',
-  surface: '#151b24',
-  raised: '#1c2430',
-  border: '#2b3542',
-  borderStrong: '#3b4757',
-  textHi: '#e7ecf3',
-  textMed: '#a8b3c2',
-  textLo: '#8390a2',
+  canvas: 'var(--nnl-canvas)',
+  surface: 'var(--nnl-surface)',
+  raised: 'var(--nnl-raised)',
+  border: 'var(--nnl-border)',
+  borderStrong: 'var(--nnl-border-strong)',
+  textHi: 'var(--nnl-text-hi)',
+  textMed: 'var(--nnl-text-med)',
+  textLo: 'var(--nnl-text-lo)',
+  /** Text on a solid Pathway-hue fill. */
+  onHue: 'var(--nnl-on-hue)',
   status: {
     /** Reserved: amber means Next and nothing else. */
-    next: '#f7b83d',
-    later: '#7d8899',
-    blocked: '#f75d59',
+    next: 'var(--nnl-next)',
+    later: 'var(--nnl-later)',
+    blocked: 'var(--nnl-blocked)',
     /** Blocked as TEXT (the mark hue fails 4.5:1). */
-    blockedText: '#fe8b83',
-    complete: '#7d8792',
+    blockedText: 'var(--nnl-blocked-text)',
+    complete: 'var(--nnl-complete)',
   },
   kind: {
-    bug: { hex: '#ef6e88', glyph: '■', label: 'Bug' },
-    feature: { hex: '#5abdf2', glyph: '●', label: 'Feature' },
-    idea: { hex: '#c2a7f4', glyph: '◇', label: 'Idea' },
+    bug: { hex: 'var(--nnl-kind-bug)', glyph: '■', label: 'Bug' },
+    feature: { hex: 'var(--nnl-kind-feature)', glyph: '●', label: 'Feature' },
+    idea: { hex: 'var(--nnl-kind-idea)', glyph: '◇', label: 'Idea' },
   },
   /** Eight Pathway hues (indigo, teal, orange, lime, orchid, olive, sage, sand). */
   pathwayHues: [
-    '#95a4f6',
-    '#39c3ae',
-    '#e79363',
-    '#99b860',
-    '#d58ecf',
-    '#b4af61',
-    '#6fc082',
-    '#d3b99b',
+    'var(--nnl-hue-0)',
+    'var(--nnl-hue-1)',
+    'var(--nnl-hue-2)',
+    'var(--nnl-hue-3)',
+    'var(--nnl-hue-4)',
+    'var(--nnl-hue-5)',
+    'var(--nnl-hue-6)',
+    'var(--nnl-hue-7)',
   ],
 } as const;
+
+/** A translucent version of a colour (any CSS colour, including a `var()`), `pct` percent opaque. */
+export function tint(colour: string, pct: number): string {
+  return `color-mix(in srgb, ${colour} ${pct}%, transparent)`;
+}
 
 /** The three inbox kinds, in the order the page lists them. */
 export type InboxKind = 'bug' | 'feature' | 'idea';

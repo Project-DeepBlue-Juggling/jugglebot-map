@@ -42,7 +42,7 @@ export function KeyboardShortcutsDialog({ open, onClose }: Props) {
       {/* Cap the panel to the viewport and lay it out as a column with a
           scrolling body, so a short window scrolls the shortcut list instead
           of clipping it top and bottom (issue #127). Mirrors NewTaskModal. */}
-      <div className="flex max-h-[90vh] w-full max-w-md flex-col rounded-lg bg-white shadow-lg dark:bg-slate-800 dark:text-slate-100">
+      <div className="flex max-h-[calc(90vh/var(--app-zoom,1))] w-full max-w-md flex-col rounded-lg bg-white shadow-lg dark:bg-slate-800 dark:text-slate-100">
         <header className="flex items-center justify-between px-5 pb-4 pt-5">
           <h2 id="shortcuts-heading" className="text-lg font-semibold">
             Keyboard shortcuts

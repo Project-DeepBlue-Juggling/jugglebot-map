@@ -172,7 +172,7 @@ describe('Front page CSS contract (no-scroll rule)', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
 
-    expect(layoutSrc).toContain('flex h-screen flex-col overflow-hidden');
+    expect(layoutSrc).toContain('flex h-full flex-col overflow-hidden');
     const root = screen.getByTestId('front-page');
     expect(root).toHaveClass('h-full', 'overflow-hidden');
     const grid = screen.getByTestId('tile-grid');

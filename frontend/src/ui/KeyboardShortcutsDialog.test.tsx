@@ -27,7 +27,7 @@ describe('KeyboardShortcutsDialog', () => {
   it('caps the panel height and scrolls its body', () => {
     render(<KeyboardShortcutsDialog open={true} onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog', { name: /keyboard shortcuts/i });
-    expect(dialog.firstElementChild).toHaveClass('max-h-[90vh]', 'flex', 'flex-col');
+    expect(dialog.firstElementChild).toHaveClass('max-h-[calc(90vh/var(--app-zoom,1))]', 'flex', 'flex-col');
     expect(dialog.querySelector('.overflow-auto')).not.toBeNull();
   });
 });

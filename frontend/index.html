@@ -12,6 +12,15 @@
       // Pre-mount FOUC mitigation (ADR 0017): the map is dark by default; the
       // ThemeProvider removes the class only for an explicit 'light' choice.
       document.documentElement.classList.add('dark');
+      // GUI prefs persisted by src/prefs/guiPrefs.ts: apply before first paint.
+      try {
+        var gp = JSON.parse(localStorage.getItem('jugglebot-gui-prefs'));
+        if (gp && gp.theme === 'light') document.documentElement.classList.remove('dark');
+        if (gp && Number.isInteger(gp.fontSize)) {
+          var fs = Math.min(22, Math.max(10, gp.fontSize));
+          document.documentElement.style.setProperty('--app-zoom', String(fs / 14));
+        }
+      } catch (e) {}
     </script>
   </head>
   <body>

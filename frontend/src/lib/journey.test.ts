@@ -100,7 +100,7 @@ describe('pathways', () => {
   it('cycles hues by active index and greys a pathway that is not active', () => {
     const active = [mapTask({ id: 'a' }), mapTask({ id: 'b' })];
     expect(pathwayHue(active, 'a')).not.toBe(pathwayHue(active, 'b'));
-    expect(pathwayHue(active, 'zzz')).toBe('#7d8792');
+    expect(pathwayHue(active, 'zzz')).toBe('var(--nnl-complete)');
   });
 
   it('labels progress as done/total', () => {

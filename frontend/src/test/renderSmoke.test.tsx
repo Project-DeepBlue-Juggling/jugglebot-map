@@ -23,6 +23,6 @@ describe('App provider stack', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Project map' })).toBeInTheDocument();
     });
-    expect(await screen.findByText('Alice')).toBeInTheDocument();
+    expect(await screen.findByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
   });
 });

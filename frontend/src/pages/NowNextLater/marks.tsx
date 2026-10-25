@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import type { CSSProperties } from 'react';
 import type { Station } from '../../lib/journey';
-import { NNL } from '../../theme/nnl';
+import { NNL, tint } from '../../theme/nnl';
 import { SELECTED } from './selection';
 
 const S = NNL.status;
@@ -37,12 +37,12 @@ export function ChipMark({
     style = {
       ...base,
       backgroundColor: NNL.surface,
-      backgroundImage: `linear-gradient(${hue}59, ${hue}59)`,
+      backgroundImage: `linear-gradient(${tint(hue, 35)}, ${tint(hue, 35)})`,
       color: NNL.textMed,
     };
     text = `✓${code.length <= 2 ? code : ''}`;
   } else if (state === 'now') {
-    style = { ...base, backgroundColor: hue, color: NNL.textHi, fontWeight: 700 };
+    style = { ...base, backgroundColor: hue, color: NNL.onHue, fontWeight: 700 };
     halo = true;
   } else if (state === 'next') {
     style = { ...base, border: `2px solid ${S.next}`, color: S.next, backgroundColor: NNL.canvas };
@@ -56,7 +56,7 @@ export function ChipMark({
   return (
     <span className="relative flex items-center justify-center">
       {halo && (
-        <span className="absolute animate-pulse rounded-full" style={{ inset: -3, backgroundColor: `${hue}4d` }} />
+        <span className="absolute animate-pulse rounded-full" style={{ inset: -3, backgroundColor: tint(hue, 30) }} />
       )}
       <span title={title} className="relative flex items-center justify-center" style={style}>
         {text}

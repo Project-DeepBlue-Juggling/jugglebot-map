@@ -31,9 +31,11 @@ describe('AppLayout', () => {
     expect(links.map((l) => l.textContent)).toEqual(['Front page', 'Now / Next / Later', 'Dictionary']);
   });
 
-  it('shows the fixed signed-in user', async () => {
+  it('does not show a signed-in block (single-user map)', async () => {
     renderApp('/', <FrontPage />);
-    expect(await screen.findByText('Alice')).toBeInTheDocument();
+    await screen.findByRole('navigation', { name: 'Primary' });
+    expect(screen.queryByText(/signed in as/i)).toBeNull();
+    expect(screen.getByRole('button', { name: /keyboard shortcuts/i })).toBeInTheDocument();
   });
 
   it('every key the shortcuts dialog lists triggers its handler', async () => {

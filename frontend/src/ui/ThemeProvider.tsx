@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useUsers } from '../api/hooks';
 import { useAuth } from '../auth/useAuth';
+import { useGuiPrefs, useGuiPrefsListener } from '../prefs/useGuiPrefs';
 
 /**
  * Apply the current user's `dark_mode` preference to `<html>` (ADR 0017).
@@ -14,18 +15,25 @@ import { useAuth } from '../auth/useAuth';
  * "Default (dark)") add it. The placeholder script in
  * [index.html](../../index.html) sets `dark` before mount, so there is no
  * flash.
+ *
+ * Precedence: a GUI pref (src/prefs/guiPrefs.ts) beats the user's `dark_mode`
+ * while it exists; the user's preference applies only when the app runs
+ * standalone. This provider also mounts the GUI-prefs listener (once).
  */
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const { data: users } = useUsers();
   const currentUser = users?.find((u) => u.id === user?.id);
   const mode = currentUser?.dark_mode ?? null;
+  useGuiPrefsListener();
+  const gui = useGuiPrefs();
+  const effective = gui !== null ? gui.theme : mode;
 
   useEffect(() => {
     const root = document.documentElement;
-    if (mode === 'light') root.classList.remove('dark');
+    if (effective === 'light') root.classList.remove('dark');
     else root.classList.add('dark');
-  }, [mode]);
+  }, [effective]);
 
   return <>{children}</>;
 }
