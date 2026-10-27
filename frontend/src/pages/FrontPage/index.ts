@@ -9,11 +9,5 @@ export { InboxWall } from './InboxWall';
 export { InboxCard, TicketCard } from './InboxCard';
 export { DepTags } from './DepTags';
 export { BranchChip, Openable, Owners, PriorityTag, StatusGlyph, StatusPill } from './bits';
-export {
-  buildMapView,
-  openBlockerIdsOf,
-  FRONT_LAYOUT,
-  linkLabel,
-  pillState,
-} from './mapView';
+export { buildMapView, openBlockerIdsOf, FRONT_LAYOUT, linkLabel, pillState } from './mapView';
 export type { MapView } from './mapView';

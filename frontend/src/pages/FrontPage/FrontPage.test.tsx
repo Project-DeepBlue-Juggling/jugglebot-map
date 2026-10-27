@@ -80,6 +80,61 @@ describe('PathwayTile', () => {
     expect(rows[4]).toHaveTextContent('+3 more');
   });
 
+  it('gives each open plan of a two-plan Pathway its own row, bar and every remaining phase', () => {
+    // Owner, 2026-10-27 (JB-70): e.g. Two-ball oval carries two plans.
+    page([
+      mapTask({ id: 'pw', title: 'Oval' }),
+      ...planWithPhases('oval', 'pw', ['complete', ...Array(6).fill('not_started')]),
+      ...planWithPhases('clamp', 'pw', ['complete', 'not_started']),
+      mapTask({
+        id: 'old',
+        kind: 'plan',
+        status: 'completed',
+        parent_id: 'pw',
+        pathway_id: 'pw',
+      }),
+    ]);
+    const t = tile('Oval');
+    const stack = within(t).getByTestId('plan-stack');
+    const rows = within(stack).getAllByRole('region');
+    expect(rows).toHaveLength(2);
+    for (const row of rows)
+      expect(within(row).getByRole('img', { name: 'Progress by stop' })).toBeInTheDocument();
+    const oval = within(stack).getByRole('region', { name: /oval/ });
+    // Every remaining phase, no "+n more" (the page scrolls now).
+    const remaining = within(oval).getAllByRole('listitem');
+    expect(remaining).toHaveLength(6);
+    expect(within(oval).queryByText(/more/)).toBeNull();
+    // Each bar holds only its own plan's stops.
+    expect(within(oval).getByRole('img').children).toHaveLength(7);
+    expect(within(stack).getByTestId('plans-done')).toHaveTextContent('✓ 1 plan done');
+    // The Next box and the stops count stay at Pathway level.
+    expect(within(t).getAllByTestId('next-box')).toHaveLength(1);
+    expect(within(t).getByTestId('stops-done')).toHaveTextContent('3 of 10 stops done');
+  });
+
+  it('draws a one-plan Pathway as before: one bar, what remains capped', () => {
+    page([mapTask({ id: 'pw', title: 'Solo' }), ...planWithPhases('solo', 'pw', ['not_started'])]);
+    expect(within(tile('Solo')).queryByTestId('plan-stack')).toBeNull();
+    expect(within(tile('Solo')).getAllByRole('img', { name: 'Progress by stop' })).toHaveLength(1);
+  });
+
+  it('packs tiles by height: each cell spans the grid rows its content needs', () => {
+    const { tasks, deps } = sixPathwayMap();
+    page(tasks, deps);
+    const grid = screen.getByTestId('tile-grid');
+    expect(grid.style.gridAutoRows).toBe(`${FRONT_LAYOUT.row}px`);
+    const cells = screen.getAllByTestId('tile-cell');
+    expect(cells).toHaveLength(6);
+    // happy-dom measures 0 px: the span is the gap alone. A browser adds the tile's height.
+    const gapRows = Math.ceil(FRONT_LAYOUT.gap / FRONT_LAYOUT.row);
+    for (const c of cells) {
+      expect(c.style.gridRowEnd).toBe(`span ${gapRows}`);
+      expect(c).toHaveClass('self-start');
+      expect((c.firstElementChild as HTMLElement).style.height).toBe('');
+    }
+  });
+
   it('shows a branch chip only when not main, and counts open tickets', () => {
     page([
       mapTask({ id: 'a', title: 'On side', branch: 'two-ball-oval' }),

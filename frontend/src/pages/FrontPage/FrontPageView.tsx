@@ -45,7 +45,7 @@ export function FrontPageView({ tasks, deps, users, onOpen, now }: FrontPageView
         <div
           data-testid="tile-grid"
           className="grid shrink-0 grid-cols-3 content-start"
-          style={{ gap: L.gap, gridAutoRows: L.tile }}
+          style={{ columnGap: L.gap, gridAutoRows: L.row }}
         >
           {open.map((pw) => (
             <PathwayTile key={pw.id} pathway={pw} view={view} />

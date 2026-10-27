@@ -43,7 +43,8 @@ export function openBlockerIdsOf(view: MapView): (id: string) => string[] {
 export const FRONT_LAYOUT = {
   pad: 12,
   mast: 32,
-  tile: 276,
+  /** The tile grid's row track: a tile spans as many as its height needs (PathwayTile). */
+  row: 4,
   gap: 12,
   wallHead: 26,
   /** One inbox card (fixed height). */

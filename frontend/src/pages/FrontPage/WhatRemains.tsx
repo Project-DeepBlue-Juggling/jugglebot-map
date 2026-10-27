@@ -7,10 +7,18 @@ import type { MapView } from './mapView';
 
 export const WHAT_REMAINS_CAP = 4;
 
-/** The remaining stops, capped at four rows plus "+n more". */
-export function WhatRemains({ remaining, view }: { remaining: ProgressUnit[]; view: MapView }) {
+/** The remaining stops, capped (four rows by default) plus "+n more". */
+export function WhatRemains({
+  remaining,
+  view,
+  cap = WHAT_REMAINS_CAP,
+}: {
+  remaining: ProgressUnit[];
+  view: MapView;
+  cap?: number;
+}) {
   if (remaining.length === 0) return null;
-  const shown = remaining.slice(0, WHAT_REMAINS_CAP);
+  const shown = remaining.slice(0, cap);
   const more = remaining.length - shown.length;
   return (
     <ul className="flex min-h-0 flex-col gap-0.5 text-xs" aria-label="What remains">
