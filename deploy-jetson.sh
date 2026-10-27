@@ -33,6 +33,7 @@ mkdir -p "$UNIT_DIR"
 for u in "${UNITS[@]}"; do install -m 0644 "$APP/deploy/jetson/$u" "$UNIT_DIR/$u"; done
 systemctl --user daemon-reload
 systemctl --user enable --now jugglebot-map-pull.timer
+systemctl --user restart jugglebot-map-pull.timer  # a changed OnCalendar takes effect now
 systemctl --user enable --now jugglebot-map.service
 systemctl --user restart jugglebot-map.service
 

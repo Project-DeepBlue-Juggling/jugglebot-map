@@ -74,7 +74,7 @@ All under `/api/v1` (the bare path works too). Every response object carries eve
 | `DELETE /projects/{p}/tasks/{id}` | 204 (file removed) | 409 modified / children or dependencies; 405 plan/phase |
 | `GET\|POST /projects/{p}/dependencies`, `DELETE .../dependencies/{id}` | list; 201 Dependency; 204 | 409 cycle; 405 plan/phase as the blocked side; 404 |
 | `GET /health` | `{"status": "ok"\|"degraded", "errors": [{"path", "message"}], "banner": {"level": "error"\|"warning"\|null, "message", "since"}}` | |
-| `GET /events` | SSE: one `event: invalidate` per burst of changes (API edit or file on disk) | |
+| `GET /events` | SSE: `hello` on connect (data: the frontend `build` id), `ping` every 15 s, one `invalidate` per burst of changes (API edit or file on disk) | |
 
 Quiet stubs: `POST /projects/{p}/undo` 404 "Nothing to undo"; comments `[]`; notifications `[]`;
 `unread_count` `{"count": 0}`; `notifications/stream` 404; `/users/me/tasks` `[]`.
@@ -162,7 +162,7 @@ git clone -b main https://github.com/Project-DeepBlue-Juggling/jugglebot-map.git
 `pip install -e .`, installs `deploy/jetson/*` into `~/.config/systemd/user/`, enables the pull timer and the
 server, restarts the server, prints `is-active` for both and curls `/api/v1/health`.
 
-`jugglebot-map-pull.timer` runs `deploy/jetson/pull.sh` every 2 minutes: `git pull --ff-only` on the data
+`jugglebot-map-pull.timer` runs `deploy/jetson/pull.sh` every 30 seconds: `git pull --ff-only` on the data
 clone (never merges; while an unpushed `map-bot` commit waits it fails until the server's retry lands). When
 the pull changed `mapkit/` it also runs `systemctl --user restart jugglebot-map`, because the server imports
 the checkout's mapkit once at start-up (`tests/test_pull_restart.py`).
@@ -173,7 +173,7 @@ Acceptance checks:
 2. An edit in the browser lands on `main` within 10 s as `map-bot` (`git log -1 --format='%an %s' origin/main`
    after a fetch).
 3. A file edited by hand in `~/map-live/Jugglebot/map/` shows in the open page within 1 s.
-4. `/inbox` from another checkout (commit + push there) appears within about 2 minutes (the pull timer).
+4. `/inbox` from another checkout (commit + push there) appears within about 30 seconds (the pull timer).
 5. A forced conflict (`systemctl --user stop jugglebot-map-pull.timer`, push a title change from another
    checkout, then edit that title in the browser; start the timer again) shows the red banner and keeps the
    edit on disk and in a local commit; resolve by hand in `~/map-live/Jugglebot` and the next edit clears it.

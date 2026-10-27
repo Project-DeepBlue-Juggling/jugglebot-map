@@ -8,6 +8,7 @@ with ``Accept: text/html``) to a non-``/api/`` path is answered with the SPA's
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import re
@@ -30,9 +31,16 @@ from server.models import (Count, Dependency, Glossary, Health, Membership, Proj
 
 log = logging.getLogger("jugglebot_map")
 
+NO_CACHE = {"Cache-Control": "no-cache"}
 BUILD_HINT = "Frontend not built: run `npm run build` in frontend/ (then restart the server)."
 DEFAULT_DIST = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                             "frontend", "dist")
+
+
+def _build_id(dist: str) -> str:
+    """The built frontend's identity: a hash of ``index.html``, which names the hashed bundles."""
+    with open(os.path.join(dist, "index.html"), "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()[:12]
 
 
 def _term_slug(term: str) -> str:
@@ -94,7 +102,9 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     from server.store import (MEMBERSHIPS, PROJECT, PROJECT_ID, USER_BY_NAME, USERS, ApiError,
                               Store)  # after setup(): mapkit is importable now
 
-    broker = Broker()
+    dist = dist_dir if dist_dir is not None else DEFAULT_DIST
+    have_dist = os.path.isfile(os.path.join(dist, "index.html"))
+    broker = Broker(build=_build_id(dist) if have_dist else None)
     banner = Banner()
     store = Store(cfg, on_change=broker.publish)
     store.banner = banner
@@ -113,8 +123,6 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     history = HistoryCache(cfg.repo_root)
     nightly = NightlyCache()
     watcher = Watcher(store, broker.publish, watch_ms=watch_ms) if watch else None
-    dist = dist_dir if dist_dir is not None else DEFAULT_DIST
-    have_dist = os.path.isfile(os.path.join(dist, "index.html"))
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> Any:
@@ -320,9 +328,10 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             if request.method == "GET" and not path.startswith("/api/") \
                     and "text/html" in request.headers.get("accept", ""):
                 candidate = os.path.normpath(os.path.join(dist, path.lstrip("/")))
+                # no-cache: a page opening a newly deployed build must get the new index.html.
                 if candidate.startswith(dist) and os.path.isfile(candidate):
-                    return FileResponse(candidate)
-                return FileResponse(index_html)
+                    return FileResponse(candidate, headers=NO_CACHE)
+                return FileResponse(index_html, headers=NO_CACHE)
             return await call_next(request)
 
         app.mount("/", StaticFiles(directory=dist, html=True), name="frontend")

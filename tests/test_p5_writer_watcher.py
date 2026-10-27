@@ -274,7 +274,8 @@ def test_watcher_one_invalidate_per_burst(repo):
                     for line in resp.iter_lines():
                         if stop.is_set():
                             return
-                        if line.startswith("event:"):
+                        # hello (on connect) and ping (heartbeat) are not change events
+                        if line.startswith("event:") and line not in ("event: hello", "event: ping"):
                             events.append((time.time(), line))
         except Exception:
             pass

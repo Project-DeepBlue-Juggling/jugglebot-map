@@ -1,5 +1,12 @@
 """Server-sent events: one ``invalidate`` event per index change (``GET /events``).
 
+Every connection opens with ``hello`` (data: the frontend ``build`` id, null
+without a built frontend) and gets a ``ping`` event every ``HEARTBEAT_S``. Both
+are named events, not comments, so the page sees them: ``hello`` on a reconnect
+means it may have missed an ``invalidate`` (it refetches) or the app was
+redeployed (a different build: it opens the new one), and a silent gap of three
+heartbeats means the connection is dead (it reopens it).
+
 Each connected client owns an asyncio queue. :meth:`Broker.publish` is safe to
 call from any thread (the write path, later the P5 watcher): it hands the
 event to each client's loop with ``call_soon_threadsafe``.
@@ -7,14 +14,16 @@ event to each client's loop with ``call_soon_threadsafe``.
 from __future__ import annotations
 
 import asyncio
+import json
 import threading
-from typing import AsyncIterator, List, Tuple
+from typing import AsyncIterator, List, Optional, Tuple
 
 HEARTBEAT_S = 15.0
 
 
 class Broker:
-    def __init__(self) -> None:
+    def __init__(self, build: Optional[str] = None) -> None:
+        self.build = build
         self._lock = threading.Lock()
         self._clients: List[Tuple[asyncio.AbstractEventLoop, "asyncio.Queue[str]"]] = []
 
@@ -41,11 +50,12 @@ class Broker:
             self._clients.append(entry)
         try:
             yield ": connected\n\n"
+            yield "event: hello\ndata: %s\n\n" % json.dumps({"build": self.build})
             while True:
                 try:
                     ev = await asyncio.wait_for(q.get(), timeout=HEARTBEAT_S)
                 except asyncio.TimeoutError:
-                    yield ": ping\n\n"
+                    yield "event: ping\ndata: {}\n\n"
                     continue
                 yield "event: %s\ndata: {}\n\n" % ev
         finally:

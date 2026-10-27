@@ -325,6 +325,14 @@ def test_dist_spa_fallback(repo, tmp_path):
         assert "spa" in c.get("/", headers={"accept": "text/html"}).text
         assert "spa" in c.get("/projects/x", headers={"accept": "text/html"}).text
         assert isinstance(c.get(API + "/users", headers={"accept": "text/html"}).json(), list)
+        # An open page must find a newly deployed build: never a cached index.html.
+        assert c.get("/projects/x", headers={"accept": "text/html"}).headers["cache-control"] == "no-cache"
+    # The build id is the index.html hash: hello carries it, and a rebuilt index changes it.
+    from server.app import _build_id
+    first = _build_id(str(dist))
+    assert create_app(repo, dist_dir=str(dist)).state.broker.build == first
+    (dist / "index.html").write_text("<html>spa v2</html>")
+    assert _build_id(str(dist)) != first
 
 
 # --------------------------------------------------------------- events ---
@@ -351,6 +359,10 @@ def test_events_invalidate_after_write(app):
                 assert resp.status_code == 200
                 lines = resp.iter_lines()
                 assert next(lines).startswith(": connected")
+                # hello names the build (null: this app has no built frontend).
+                assert next(lines) == ""
+                assert next(lines) == "event: hello"
+                assert next(lines) == 'data: {"build": null}'
                 for _ in range(100):  # wait until the broker holds this client
                     if app.state.broker.client_count:
                         break
@@ -360,7 +372,7 @@ def test_events_invalidate_after_write(app):
                 got = []
                 for line in lines:
                     got.append(line)
-                    if line.startswith("data:"):
+                    if line.startswith("data:") and "event: invalidate" in got:
                         break
                 assert "event: invalidate" in got
                 assert got.count("event: invalidate") == 1

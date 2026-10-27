@@ -684,7 +684,13 @@ function EditableBody({
           : '';
 
   return (
-    <div ref={wrap} onKeyDown={onKeyDown} className="flex min-h-full flex-col">
+    <div
+      ref={wrap}
+      onKeyDown={onKeyDown}
+      // data-unsaved: the page holds a new app build until this edit is saved (api/eventStream).
+      data-unsaved={dirty || saveState === 'saving' ? 'true' : undefined}
+      className="flex min-h-full flex-col"
+    >
       <div className="flex-1 px-5 pb-4 pt-4" data-testid="editable-body">
         <Title value={title} editable onChange={(v) => set('title', v)} />
         <Props>
