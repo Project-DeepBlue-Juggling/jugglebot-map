@@ -39,27 +39,16 @@ export function openBlockerIdsOf(view: MapView): (id: string) => string[] {
   return (id) => openBlockers(view.ix, id).map((t) => t.id);
 }
 
-/**
- * The Front page's fixed heights in px (inline styles, so the no-scroll test
- * can sum them): mast + two tile rows + gaps + wall heading + vertical
- * padding. The inbox wall band is `flex-1 min-h-0 overflow-y-auto`: it takes
- * whatever viewport height is left (never less than one card, which is what
- * `frontPageHeight()` budgets) and scrolls inside itself.
- */
+/** The Front page's fixed sizes in px (inline styles). The page scrolls as one, so nothing sums them. */
 export const FRONT_LAYOUT = {
   pad: 12,
   mast: 32,
   tile: 276,
   gap: 12,
   wallHead: 26,
-  /** One inbox card (fixed height). The wall band has no fixed height: it takes the rest of the viewport. */
+  /** One inbox card (fixed height). */
   card: 148,
 } as const;
-
-export function frontPageHeight(): number {
-  const L = FRONT_LAYOUT;
-  return 2 * L.pad + L.mast + L.gap + 2 * L.tile + L.gap + L.gap + L.wallHead + L.card;
-}
 
 /** The state a pill shows: an active pathway reads as in progress. */
 export function pillState(task: Task): UnitState {

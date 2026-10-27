@@ -13,7 +13,6 @@ export {
   buildMapView,
   openBlockerIdsOf,
   FRONT_LAYOUT,
-  frontPageHeight,
   linkLabel,
   pillState,
 } from './mapView';

@@ -15,7 +15,10 @@ export interface FrontPageViewProps {
   now?: Date;
 }
 
-/** The Front page from data: masthead, the 3-column tile grid of open Pathways (a complete one is not drawn), the inbox wall. */
+/**
+ * The Front page from data: masthead, the 3-column tile grid of open Pathways (a complete
+ * one is not drawn), the inbox wall. The page scrolls as one: no inner scroll boxes.
+ */
 export function FrontPageView({ tasks, deps, users, onOpen, now }: FrontPageViewProps) {
   const view = useMemo(
     () => buildMapView(tasks, deps, users, onOpen, now),
@@ -30,7 +33,7 @@ export function FrontPageView({ tasks, deps, users, onOpen, now }: FrontPageView
     <HoverProvider openBlockerIds={blockerIds}>
       <div
         data-testid="front-page"
-        className="flex h-full flex-col overflow-hidden"
+        className="flex h-full flex-col overflow-y-auto"
         style={{ padding: L.pad, gap: L.gap }}
       >
         <header className="flex shrink-0 items-baseline justify-between" style={{ height: L.mast }}>
@@ -41,8 +44,8 @@ export function FrontPageView({ tasks, deps, users, onOpen, now }: FrontPageView
         </header>
         <div
           data-testid="tile-grid"
-          className="grid shrink-0 grid-cols-3 content-start overflow-y-auto"
-          style={{ height: 2 * L.tile + L.gap, gap: L.gap, gridAutoRows: L.tile }}
+          className="grid shrink-0 grid-cols-3 content-start"
+          style={{ gap: L.gap, gridAutoRows: L.tile }}
         >
           {open.map((pw) => (
             <PathwayTile key={pw.id} pathway={pw} view={view} />

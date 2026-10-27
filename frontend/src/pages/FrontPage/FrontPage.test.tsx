@@ -7,7 +7,7 @@ import { dep, mapTask, planWithPhases, sixPathwayMap } from '../../test/mapFixtu
 import layoutSrc from '../../layout/AppLayout.tsx?raw';
 import { FrontPageView } from './FrontPageView';
 import { InboxCard } from './InboxCard';
-import { buildMapView, FRONT_LAYOUT, frontPageHeight } from './mapView';
+import { buildMapView, FRONT_LAYOUT } from './mapView';
 import { SegmentedBar } from './SegmentedBar';
 
 function page(tasks: Task[], deps: DependencyEdge[] = [], onOpen = vi.fn()) {
@@ -172,43 +172,32 @@ describe('InboxCard', () => {
   });
 });
 
-describe('Front page CSS contract (no-scroll rule)', () => {
+describe('Front page CSS contract (one-scroll rule)', () => {
   /**
    * CSS CONTRACT ONLY. happy-dom does no layout (every box measures 0), so
-   * this cannot observe a scrollbar; it pins the classes and inline heights
-   * that produce the no-scroll layout, and sums the fixed heights it reads
-   * from the rendered DOM. The real layout check is the Firefox 1500x900
-   * screenshot (`frontend/scripts/screenshot.sh`).
+   * this cannot observe a scrollbar; it pins the classes that make the page
+   * root the one scroll box (owner, 2026-10-27). The real layout check is the
+   * Firefox screenshot (`frontend/scripts/screenshot.sh`).
    */
-  it('pins the overflow classes and fixed heights and their sum', () => {
+  it('scrolls the whole page and nothing inside it', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
 
     expect(layoutSrc).toContain('flex h-full flex-col overflow-hidden');
     const root = screen.getByTestId('front-page');
-    expect(root).toHaveClass('h-full', 'overflow-hidden');
+    expect(root).toHaveClass('h-full', 'overflow-y-auto');
     const grid = screen.getByTestId('tile-grid');
     expect(grid).toHaveClass('grid-cols-3');
-    const tiles = Array.from(grid.children) as HTMLElement[];
-    expect(tiles).toHaveLength(6);
-    const tileH = parseInt(tiles[0].style.height, 10);
-    tiles.forEach((t) => expect(t.style.height).toBe(`${tileH}px`));
+    // Every tile is drawn (no two-row cap) and the grid neither caps its height nor scrolls.
+    expect(Array.from(grid.children)).toHaveLength(6);
+    expect(grid.style.height).toBe('');
+    expect(grid.className).not.toMatch(/overflow/);
     const wall = screen.getByTestId('inbox-wall');
-    expect(wall).toHaveClass('overflow-y-auto');
-    // The band has no fixed height: it takes the rest of the viewport.
-    expect(wall).toHaveClass('flex-1', 'min-h-0');
+    expect(wall.className).not.toMatch(/overflow|flex-1|min-h-0/);
     expect(wall.style.height).toBe('');
-    expect(screen.getByTestId('front-page')).toHaveClass('h-full', 'overflow-hidden');
-    expect(grid.className).toContain('shrink-0');
-    // Sum of the inline heights read from the DOM (two tile rows) plus the
-    // layout's own mast, heading, padding, gaps and one minimum card.
-    const L = FRONT_LAYOUT;
-    const total = 2 * L.pad + L.mast + 3 * L.gap + 2 * tileH + L.wallHead + L.card;
-    expect(total).toBeLessThanOrEqual(900 - 40); // 40 px allowance: health banner
-    expect(total).toBe(frontPageHeight());
   });
 
-  it('gives every inbox card the same fixed height, inside a band that scrolls', () => {
+  it('gives every inbox card the same fixed height', () => {
     const { tasks, deps } = sixPathwayMap();
     page(tasks, deps);
     const wall = screen.getByTestId('inbox-wall');
