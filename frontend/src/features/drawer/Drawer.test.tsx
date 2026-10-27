@@ -158,9 +158,12 @@ describe('five-field new-item modal', () => {
     renderApp('/', <FrontRoute />);
     await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
     const form = await screen.findByTestId('new-item-form');
-    const fields = ['Kind', 'Title', 'One line', 'Priority (optional)', 'Pathway (optional)'];
-    for (const name of fields) {
+    for (const name of ['Title', 'One line', 'Pathway (optional)']) {
       expect(within(form).getByLabelText(name)).toBeEnabled();
+    }
+    // Kind and Priority are pill radio groups (JB-71).
+    for (const name of ['Kind', 'Priority (optional)']) {
+      expect(within(form).getByRole('radiogroup', { name })).toBeInTheDocument();
     }
     // happy-dom does no layout, so toBeVisible() and the viewport width prove
     // nothing here; the 400 px fit is asserted as the CSS contract: one column
@@ -171,10 +174,10 @@ describe('five-field new-item modal', () => {
     expect(form.className).toMatch(/\bmax-h-full\b/);
     expect(form.className).toMatch(/\boverflow-y-auto\b/);
     expect(formSrc).not.toMatch(/grid-cols|\bsm:|\bmd:|\blg:/);
-    await userEvent.selectOptions(within(form).getByLabelText('Kind'), 'bug');
+    await userEvent.click(within(form).getByRole('radio', { name: 'Bug' }));
     await userEvent.type(within(form).getByLabelText('Title'), 'Leg buzz');
     await userEvent.type(within(form).getByLabelText('One line'), 'Leg 3 buzzes at 40 Hz');
-    await userEvent.selectOptions(within(form).getByLabelText('Priority (optional)'), 'high');
+    await userEvent.click(within(form).getByRole('radio', { name: 'High' }));
     await userEvent.selectOptions(within(form).getByLabelText('Pathway (optional)'), 'oval');
     let posted: Record<string, unknown> | null = null;
     server.use(
@@ -209,6 +212,44 @@ describe('five-field new-item modal', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(posted).not.toBeNull());
     expect(posted).toMatchObject({ priority: null });
+  });
+
+  it('Kind and Priority are pills a keyboard can fill: opens on Kind, arrows choose, Tab moves on', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    const kinds = within(within(form).getByRole('radiogroup', { name: 'Kind' })).getAllByRole(
+      'radio',
+    );
+    expect(kinds.map((r) => r.getAttribute('value'))).toEqual(['idea', 'feature', 'bug']);
+    // The form opens with focus on the chosen Kind pill (Idea).
+    expect(kinds[0]).toHaveFocus();
+    expect(kinds[0]).toBeChecked();
+    await userEvent.keyboard('{ArrowRight}');
+    expect(kinds[1]).toBeChecked();
+    expect(kinds[1]).toHaveFocus();
+    await userEvent.tab();
+    expect(within(form).getByLabelText('Title')).toHaveFocus();
+    await userEvent.keyboard('Leg buzz');
+    await userEvent.tab(); // One line
+    await userEvent.tab(); // Priority: lands on the chosen pill (None)
+    const prios = within(
+      within(form).getByRole('radiogroup', { name: 'Priority (optional)' }),
+    ).getAllByRole('radio');
+    expect(prios.map((r) => r.getAttribute('value'))).toEqual(['', 'low', 'medium', 'high']);
+    expect(prios[0]).toHaveFocus();
+    await userEvent.keyboard('{ArrowRight}{ArrowRight}');
+    expect(prios[2]).toBeChecked();
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(mapTask({ id: 'new3', kind: 'feature' }));
+      }),
+    );
+    await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ kind: 'feature', title: 'Leg buzz', priority: 'medium' });
   });
 
   it('is exported as a standalone component', () => {
