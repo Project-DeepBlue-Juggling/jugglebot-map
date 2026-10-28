@@ -1,4 +1,5 @@
 import type { DependencyEdge, Task, User } from '../api/schemas';
+import { DEFAULT_WALL_SORT, wallComparator, type WallSort } from './wallSort';
 
 /**
  * Computed map views (never stored): pathway order, progress units, the
@@ -313,16 +314,9 @@ export function lanes(ix: MapIndex, pathway: Task): Lanes {
   return out;
 }
 
-/** The Front page wall: every inbox-kind item not done, by priority, kind, title. */
-export function wallItems(ix: MapIndex): Task[] {
-  return ix.tasks
-    .filter((t) => INBOX_KINDS.has(t.kind) && !isDone(t))
-    .sort(
-      (a, b) =>
-        priorityRank(a.priority) - priorityRank(b.priority) ||
-        a.kind.localeCompare(b.kind) ||
-        a.title.localeCompare(b.title),
-    );
+/** The Front page wall: every inbox-kind item not done, in the viewer's order (`lib/wallSort`). */
+export function wallItems(ix: MapIndex, sort: WallSort = DEFAULT_WALL_SORT): Task[] {
+  return ix.tasks.filter((t) => INBOX_KINDS.has(t.kind) && !isDone(t)).sort(wallComparator(sort));
 }
 
 /** A phase's step code (`P1`, `R2`, `STAGE`) from its `<plan>.md#<code>` slug. */

@@ -2,7 +2,7 @@
 
 - `FrontPage` (route; `onOpen?(taskId)` from the shell) -> `FrontPageView {tasks, deps, users, onOpen}` -> `HoverProvider` -> masthead, tile grid (3 cols, every open Pathway), `InboxWall` (every card); the page scrolls as one.
 - `PathwayTile {pathway, view}`: `StatusPill`, `PriorityTag`, `BranchChip` (non-main only), Destination (clamped to 3 lines, full text in `title=` and the drawer), `SegmentedBar {units, view}`, "x of y stops done", "n tickets open", `NextBox {pathway, next, hasPlans, view}`, `WhatRemains {remaining, view}` (cap 4 + "+n more"), `Owners`, inbox tokens.
-- `InboxWall {view}` -> `InboxCard {task, view}` (idea/feature/bug, kind hue); `TicketCard {task, view}` (neutral, `ticket_type` label). Both exported for the rail and the lanes.
+- `InboxWall {view}` -> sort control (Type / Age / Severity, `lib/wallSort`, remembered per browser under `WALL_SORT_KEY`, default Severity; JB-77) + `InboxCard {task, view}` (idea/feature/bug, kind hue); `TicketCard {task, view}` (neutral, `ticket_type` label). Both exported for the rail and the lanes.
 - Every card takes one `view: MapView` = `buildMapView(tasks, deps, users, onOpen, now?)` -> `{ix, pathways, hues, onOpen, now}`; ask `lib/derive.ts` (`lanes`, `nextStop`, `progress`, `openBlockers`, ...) with `view.ix`.
 - `Openable {id, view, as?, label?, className?, style?}` is the only clickable: `data-item-id` + hover classes + `onOpen(id)` on click / Enter. `DepTags {task, view, max?}` renders blocked-by / blocks tags as Openables.
 - Hover: wrap a page in `<HoverProvider openBlockerIds={openBlockerIdsOf(view)}>`; any element can opt in with `useItemHover(id)` (`features/hover`).

@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { DependencyEdge, Task } from '../../api/schemas';
 import { progress } from '../../lib/derive';
+import { WALL_SORT_KEY } from '../../lib/wallSort';
 import { STATE_STYLES } from '../../theme/palette';
 import { dep, mapTask, planWithPhases, sixPathwayMap } from '../../test/mapFixtures';
 import layoutSrc from '../../layout/AppLayout.tsx?raw';
@@ -259,5 +260,73 @@ describe('Front page CSS contract (one-scroll rule)', () => {
     const cards = Array.from(wall.children) as HTMLElement[];
     expect(cards.length).toBeGreaterThan(0);
     cards.forEach((c) => expect(c.style.height).toBe(`${FRONT_LAYOUT.card}px`));
+  });
+});
+
+describe('Inbox wall sort (JB-77)', () => {
+  const inbox = [
+    mapTask({
+      id: 'idea-old',
+      kind: 'idea',
+      status: 'inbox',
+      priority: 'high',
+      created_at: '2026-10-01T00:00:00Z',
+    }),
+    mapTask({
+      id: 'bug-new',
+      kind: 'bug',
+      status: 'inbox',
+      priority: 'low',
+      created_at: '2026-10-27T00:00:00Z',
+    }),
+    mapTask({
+      id: 'feature-newest',
+      kind: 'feature',
+      status: 'inbox',
+      priority: 'medium',
+      created_at: '2026-10-28T00:00:00Z',
+    }),
+  ];
+
+  function wallOrder(): string[] {
+    const wall = screen.getByTestId('inbox-wall');
+    return Array.from(wall.children).map(
+      (c) =>
+        ['idea-old', 'bug-new', 'feature-newest'].find((id) => c.textContent?.includes(id)) ?? '?',
+    );
+  }
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('opens on severity, re-sorts on a choice and remembers it', () => {
+    window.localStorage.clear();
+    const { unmount } = render(
+      <FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />,
+    );
+    const group = screen.getByRole('radiogroup', { name: 'Sort' });
+    expect(within(group).getByRole('radio', { name: 'Severity' })).toBeChecked();
+    expect(wallOrder()).toEqual(['idea-old', 'feature-newest', 'bug-new']);
+
+    fireEvent.click(within(group).getByRole('radio', { name: 'Age' }));
+    expect(wallOrder()).toEqual(['feature-newest', 'bug-new', 'idea-old']);
+    fireEvent.click(within(group).getByRole('radio', { name: 'Type' }));
+    expect(wallOrder()).toEqual(['bug-new', 'feature-newest', 'idea-old']);
+    expect(window.localStorage.getItem(WALL_SORT_KEY)).toBe('type');
+
+    unmount();
+    render(<FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />);
+    expect(screen.getByRole('radio', { name: 'Type' })).toBeChecked();
+  });
+
+  it('falls back to severity when the stored value is unknown', () => {
+    window.localStorage.setItem(WALL_SORT_KEY, 'bogus');
+    render(<FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />);
+    expect(screen.getByRole('radio', { name: 'Severity' })).toBeChecked();
+    // The sort control does not push the wall's header past its fixed height.
+    expect(screen.getByRole('heading', { name: /Inbox wall/ }).parentElement?.style.height).toBe(
+      `${FRONT_LAYOUT.wallHead}px`,
+    );
   });
 });
