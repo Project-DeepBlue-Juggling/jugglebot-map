@@ -252,6 +252,55 @@ describe('five-field new-item modal', () => {
     expect(posted).toMatchObject({ kind: 'feature', title: 'Leg buzz', priority: 'medium' });
   });
 
+  it('Ctrl+Enter or Cmd+Enter creates from any field, once; a bare Enter does not (JB-78)', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    let posts = 0;
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        posts += 1;
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(mapTask({ id: 'new4', kind: 'idea' }));
+      }),
+    );
+    // An empty title never files, chord or not.
+    fireEvent.keyDown(within(form).getByLabelText('One line'), { key: 'Enter', ctrlKey: true });
+    await userEvent.type(within(form).getByLabelText('Title'), 'Chorded');
+    await userEvent.type(within(form).getByLabelText('One line'), 'from the last field');
+    // A bare Enter on a field the browser never submits from (the Pathway select).
+    fireEvent.keyDown(within(form).getByLabelText('Pathway (optional)'), { key: 'Enter' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(0);
+    // Two chords before the first answers still file one item.
+    const line = within(form).getByLabelText('One line');
+    expect(fireEvent.keyDown(line, { key: 'Enter', ctrlKey: true })).toBe(false); // default prevented
+    fireEvent.keyDown(line, { key: 'Enter', metaKey: true });
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ title: 'Chorded', description: 'from the last field' });
+    await waitFor(() => expect(screen.queryByTestId('new-item-form')).toBeNull());
+    expect(posts).toBe(1);
+  });
+
+  it('Cmd+Enter on a Kind pill creates too (the chord works from any control)', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    await userEvent.type(within(form).getByLabelText('Title'), 'From a pill');
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(mapTask({ id: 'new5', kind: 'bug' }));
+      }),
+    );
+    const bug = within(form).getByRole('radio', { name: 'Bug' });
+    await userEvent.click(bug);
+    fireEvent.keyDown(bug, { key: 'Enter', metaKey: true });
+    await waitFor(() => expect(posted).toMatchObject({ kind: 'bug', title: 'From a pill' }));
+  });
+
   it('is exported as a standalone component', () => {
     expect(typeof NewItemModal).toBe('function');
   });

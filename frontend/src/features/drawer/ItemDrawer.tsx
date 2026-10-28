@@ -27,7 +27,7 @@ import TaskDependenciesSection from '../../tasks/TaskDependenciesSection';
 import { PRIORITY_LABELS, PRIORITY_OPTIONS } from '../../tasks/priority';
 import { NNL } from '../../theme/nnl';
 import { KIND_LABELS, STATUSES_BY_KIND, statusLabel } from '../../theme/palette';
-import { hasModifier, isShortcutTarget, modalIsOpen } from '../../ui/keyboard';
+import { hasModifier, isShortcutTarget, isSubmitChord, modalIsOpen } from '../../ui/keyboard';
 import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
 import { useDrawer } from './drawerContext';
@@ -661,7 +661,7 @@ function EditableBody({
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (modalIsOpen(wrap.current)) return;
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    if (isSubmitChord(e)) {
       e.preventDefault();
       if (dirty && !patch.isPending) void save(body, task.updated_at, form);
     } else if (e.key === 'e' && !hasModifier(e.nativeEvent) && isShortcutTarget()) {

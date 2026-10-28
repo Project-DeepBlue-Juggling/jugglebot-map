@@ -28,7 +28,12 @@ describe('AppLayout', () => {
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
     const links = await screen.findAllByRole('link');
     expect(nav).toBeInTheDocument();
-    expect(links.map((l) => l.textContent)).toEqual(['Front page', 'Now / Next / Later', 'Done', 'Dictionary']);
+    expect(links.map((l) => l.textContent)).toEqual([
+      'Front page',
+      'Now / Next / Later',
+      'Done',
+      'Dictionary',
+    ]);
   });
 
   it('does not show a signed-in block (single-user map)', async () => {
@@ -42,7 +47,15 @@ describe('AppLayout', () => {
     state.tasks = [mapTask({ id: 'idea1', kind: 'idea', title: 'Wobbly idea', status: 'inbox' })];
     renderApp('/', <FrontRoute />);
     await screen.findByRole('navigation', { name: 'Primary' });
-    expect(SHORTCUT_ROWS.map((r) => r.keys[0])).toEqual(['n', '/', 's', 'Enter', 'e', 'Esc']);
+    expect(SHORTCUT_ROWS.map((r) => r.keys.join('+'))).toEqual([
+      'n',
+      '/',
+      's',
+      'Enter',
+      'e',
+      'Ctrl+Enter',
+      'Esc',
+    ]);
 
     // / focuses the header search.
     fireEvent.keyDown(document.body, { key: '/' });
@@ -78,5 +91,15 @@ describe('AppLayout', () => {
     await waitFor(() =>
       expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
     );
+
+    // Ctrl+Enter in the new-item modal creates the item (JB-78; the drawer's
+    // Ctrl+Enter save is covered in DrawerReading.test.tsx).
+    fireEvent.keyDown(document.body, { key: 'n' });
+    const modal = await screen.findByRole('dialog', { name: 'New item' });
+    const title = within(modal).getByLabelText('Title');
+    fireEvent.change(title, { target: { value: 'Filed by chord' } });
+    fireEvent.keyDown(title, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(state.tasks.some((t) => t.title === 'Filed by chord')).toBe(true);
   });
 });

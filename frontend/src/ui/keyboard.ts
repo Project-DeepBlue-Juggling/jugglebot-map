@@ -26,6 +26,14 @@ export function hasModifier(e: KeyboardEvent): boolean {
   return e.ctrlKey || e.metaKey || e.altKey;
 }
 
+/** True for Ctrl+Enter or Cmd+Enter: "save" in the drawer and "create" in
+ *  the new-item modal (JB-78). Unlike the plain-letter shortcuts it fires
+ *  from inside inputs and textareas, where a bare Enter stays text or the
+ *  browser's own implicit submit. */
+export function isSubmitChord(e: { key: string; ctrlKey: boolean; metaKey: boolean }): boolean {
+  return e.key === 'Enter' && (e.ctrlKey || e.metaKey);
+}
+
 /** True when a modal-mode dialog is currently mounted somewhere on the
  *  page. Non-modal panels (the task-detail aside, the profile popover)
  *  use this to ignore Esc while something more focused is in front of
