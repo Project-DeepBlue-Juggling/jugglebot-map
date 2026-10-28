@@ -382,7 +382,7 @@ describe('Inbox wall metrics', () => {
   it('cards show effort and hardware tags', () => {
     render(<FrontPageView tasks={rated} deps={[]} users={[]} onOpen={vi.fn()} />);
     expect(screen.getAllByTestId('tag-effort').map((e) => e.textContent)).toEqual(
-      expect.arrayContaining(['s', 'l']),
+      expect.arrayContaining(['S', 'L']),
     );
     expect(screen.getAllByTestId('tag-hardware').map((e) => e.textContent)).toContain('robot');
   });

@@ -188,6 +188,7 @@
 /* Hover-highlight (features/hover): every element of the hovered item glows;
    the hovered item's open blockers are outlined red. Nothing else dims. */
 @layer components {
+
   .is-hovered {
     box-shadow:
       0 0 0 2px rgba(231, 236, 243, 0.85),
@@ -197,4 +198,23 @@
     outline: 2px solid #ef4444;
     outline-offset: 1px;
   }
+}
+
+/* Unlayered on purpose: it must beat the GHOST utilities on the same element.
+   The drawer's metric selects: explicit theme-token colours so the closed
+   value and (where the browser honours it) the options list contrast in both
+   themes. The unrated state is italic in the low-emphasis token. */
+select.metric-select {
+  color: var(--dr-text-hi);
+  background-color: var(--dr-bg);
+  border-color: var(--dr-border-strong);
+}
+select.metric-select.is-unrated {
+  font-style: italic;
+  color: var(--dr-text-lo);
+}
+select.metric-select option {
+  color: var(--dr-text-hi);
+  background-color: var(--dr-bg);
+  font-style: normal;
 }

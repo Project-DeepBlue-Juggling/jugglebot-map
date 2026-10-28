@@ -26,6 +26,7 @@ import {
   METRIC_ENUMS,
   METRIC_KEYS,
   METRIC_LABELS,
+  metricValueLabel,
   metricKeysFor,
   type MetricKey,
 } from '../../lib/metrics';
@@ -763,8 +764,8 @@ function EditableBody({
                     id={`drawer-${k}`}
                     className={clsx(
                       GHOST,
-                      'text-xs',
-                      metrics[k] === '' && 'italic text-slate-400 dark:text-slate-400',
+                      'metric-select text-xs',
+                      metrics[k] === '' && 'is-unrated',
                     )}
                     value={metrics[k]}
                     onChange={(e) => set('metrics', { ...metrics, [k]: e.target.value })}
@@ -772,7 +773,7 @@ function EditableBody({
                     <option value="">unrated</option>
                     {METRIC_ENUMS[k].map((v) => (
                       <option key={v} value={v}>
-                        {v}
+                        {metricValueLabel(k, v)}
                       </option>
                     ))}
                   </select>

@@ -6,6 +6,7 @@ import { Openable, Owners, PriorityTag, StaleBadge } from './bits';
 import { DepTags } from './DepTags';
 import { FRONT_LAYOUT, linkLabel, type MapView } from './mapView';
 import ShortId from '../../ui/ShortId';
+import { metricValueLabel } from '../../lib/metrics';
 
 function LinkChips({ links }: { links: readonly string[] }) {
   if (links.length === 0) return null;
@@ -69,7 +70,7 @@ function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
             data-testid="tag-effort"
             className="rounded border border-slate-300 px-1 font-semibold uppercase dark:border-slate-600"
           >
-            {task.effort}
+            {metricValueLabel('effort', task.effort)}
           </span>
         )}
         {task.hardware !== null && (

@@ -6,7 +6,7 @@ import type { TaskCreateBody, TaskPriority } from '../../api/schemas';
 import { PRIORITY_LABELS, PRIORITY_OPTIONS, PRIORITY_STYLES } from '../../tasks/priority';
 import { KIND_LABELS, kindHue } from '../../theme/palette';
 import { LABEL, Pills } from '../../ui/Pills';
-import { METRIC_ENUMS, METRIC_LABELS } from '../../lib/metrics';
+import { METRIC_ENUMS, METRIC_LABELS, metricValueLabel } from '../../lib/metrics';
 import { isSubmitChord } from '../../ui/keyboard';
 import { useToast } from '../../ui/useToast';
 
@@ -149,7 +149,7 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
           options={EFFORT_PILLS}
           value={effort}
           onChange={setEffort}
-          text={(e) => (e === '' ? 'None' : e)}
+          text={(e) => (e === '' ? 'None' : metricValueLabel('effort', e))}
           tone={() => NEUTRAL_PILL}
         />
         <Pills

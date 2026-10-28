@@ -36,12 +36,17 @@ export const METRIC_LABELS: Record<MetricKey, string> = {
   effort: 'Effort',
   hardware: 'Hardware',
   owner: 'Owner needed',
-  radius: 'Radius',
+  radius: 'Blast radius',
   diagnosis: 'Diagnosis',
   area: 'Area',
 };
 
 export const EFFORT_VALUES = METRIC_ENUMS.effort;
+
+/** Display text of a metric value: effort shows in capitals (XS S M L XL); the stored value stays lowercase. */
+export function metricValueLabel(key: MetricKey, value: string): string {
+  return key === 'effort' ? value.toUpperCase() : value;
+}
 
 /** Rank of an effort (xs = 0); unrated or unknown sorts after xl. */
 export function effortRank(e: string | null): number {

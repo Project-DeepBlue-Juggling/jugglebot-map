@@ -352,6 +352,13 @@ describe('P4 audit fixes (drawer)', () => {
     const d = await openIdea();
     const effort = await within(d).findByRole('combobox', { name: 'Effort' });
     expect(effort).toHaveValue('s');
+    // capitals on screen, lowercase on the wire
+    expect(
+      within(effort)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['unrated', 'XS', 'S', 'M', 'L', 'XL']);
+    expect(within(d).getByRole('combobox', { name: 'Blast radius' })).toBeInTheDocument();
     const hardware = within(d).getByRole('combobox', { name: 'Hardware' });
     expect(hardware).toHaveValue('');
     // one compact row of six-or-fewer selects; diagnosis is for bugs only
@@ -370,7 +377,7 @@ describe('P4 audit fixes (drawer)', () => {
     await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
     const form = await screen.findByTestId('new-item-form');
     await userEvent.type(within(form).getByLabelText('Title'), 'Rated');
-    await userEvent.click(within(form).getByRole('radio', { name: 'xs' }));
+    await userEvent.click(within(form).getByRole('radio', { name: 'XS' }));
     let posted: Record<string, unknown> | null = null;
     server.use(
       http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
