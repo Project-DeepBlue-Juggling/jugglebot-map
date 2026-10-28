@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Task } from '../api/schemas';
 import { mapTask } from '../test/mapFixtures';
-import { isWallSort, wallComparator, type WallSort } from './wallSort';
+import { effortRank, isBreakSized } from './metrics';
+import {
+  isWallSort,
+  matchesWallFilter,
+  NO_WALL_FILTER,
+  wallComparator,
+  type WallSort,
+} from './wallSort';
 
 const items: Task[] = [
   mapTask({ id: 'i-old', kind: 'idea', priority: 'high', created_at: '2026-10-01T00:00:00Z' }),
@@ -42,9 +49,53 @@ describe('wallComparator', () => {
 });
 
 describe('isWallSort', () => {
-  it('accepts the three orders and nothing else', () => {
-    expect(['type', 'age', 'severity'].every(isWallSort)).toBe(true);
+  it('accepts the four orders and nothing else', () => {
+    expect(['type', 'age', 'severity', 'effort'].every(isWallSort)).toBe(true);
     expect(isWallSort('priority')).toBe(false);
     expect(isWallSort(null)).toBe(false);
+  });
+});
+
+describe('effort sort and the metric filters', () => {
+  const rated = [
+    mapTask({ id: 'u', kind: 'idea', created_at: '2026-10-27T00:00:00Z' }),
+    mapTask({ id: 'm', kind: 'idea', effort: 'm', created_at: '2026-10-01T00:00:00Z' }),
+    mapTask({ id: 'xs-old', kind: 'idea', effort: 'xs', created_at: '2026-10-01T00:00:00Z' }),
+    mapTask({ id: 'xs-new', kind: 'idea', effort: 'xs', created_at: '2026-10-20T00:00:00Z' }),
+    mapTask({ id: 'xl', kind: 'idea', effort: 'xl', created_at: '2026-10-28T00:00:00Z' }),
+  ];
+
+  it('effort: xs first, unrated last, newest first within an effort', () => {
+    expect(order('effort', rated)).toEqual(['xs-new', 'xs-old', 'm', 'xl', 'u']);
+    expect(effortRank(null)).toBeGreaterThan(effortRank('xl'));
+  });
+
+  const free = { hardware: 'none', owner: 'none' } as const;
+
+  it('break-sized: effort <= s, hardware none, owner none', () => {
+    expect(isBreakSized(mapTask({ id: 'a', kind: 'idea', effort: 's', ...free }))).toBe(true);
+    expect(isBreakSized(mapTask({ id: 'a', kind: 'idea', effort: 'm', ...free }))).toBe(false);
+    expect(
+      isBreakSized(mapTask({ id: 'a', kind: 'idea', effort: 'xs', ...free, hardware: 'robot' })),
+    ).toBe(false);
+    expect(
+      isBreakSized(mapTask({ id: 'a', kind: 'idea', effort: 'xs', ...free, owner: 'hands' })),
+    ).toBe(false);
+    // Unrated never qualifies.
+    expect(isBreakSized(mapTask({ id: 'a', kind: 'idea', effort: 'xs' }))).toBe(false);
+  });
+
+  it('break-sized: a bug also needs a confirmed diagnosis', () => {
+    const bug = { id: 'b', kind: 'bug', effort: 'xs', ...free } as const;
+    expect(isBreakSized(mapTask({ ...bug, diagnosis: 'hypothesis' }))).toBe(false);
+    expect(isBreakSized(mapTask({ ...bug, diagnosis: null }))).toBe(false);
+    expect(isBreakSized(mapTask({ ...bug, diagnosis: 'confirmed' }))).toBe(true);
+  });
+
+  it('the area filter keeps one area; null keeps all', () => {
+    const t = mapTask({ id: 'g', kind: 'idea', area: 'gui' });
+    expect(matchesWallFilter(t, { ...NO_WALL_FILTER, area: 'gui' })).toBe(true);
+    expect(matchesWallFilter(t, { ...NO_WALL_FILTER, area: 'docs' })).toBe(false);
+    expect(matchesWallFilter(t, NO_WALL_FILTER)).toBe(true);
   });
 });

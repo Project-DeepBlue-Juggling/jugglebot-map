@@ -22,12 +22,20 @@ import {
   plansOf,
   type MapIndex,
 } from '../../lib/derive';
+import {
+  METRIC_ENUMS,
+  METRIC_KEYS,
+  METRIC_LABELS,
+  metricKeysFor,
+  type MetricKey,
+} from '../../lib/metrics';
 import ConflictDialog from '../../tasks/ConflictDialog';
 import TaskDependenciesSection from '../../tasks/TaskDependenciesSection';
 import { PRIORITY_LABELS, PRIORITY_OPTIONS } from '../../tasks/priority';
 import { NNL } from '../../theme/nnl';
 import { KIND_LABELS, STATUSES_BY_KIND, statusLabel } from '../../theme/palette';
 import { hasModifier, isShortcutTarget, isSubmitChord, modalIsOpen } from '../../ui/keyboard';
+import { Pills } from '../../ui/Pills';
 import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
 import { useDrawer } from './drawerContext';
@@ -431,10 +439,17 @@ interface FormState {
   body: string;
   status: string;
   priority: TaskPriority | '';
+  metrics: Record<MetricKey, string>;
   branch: string;
   parentId: string;
   links: string[];
   owners: string[];
+}
+
+function metricsOf(task: Task): Record<MetricKey, string> {
+  const m = {} as Record<MetricKey, string>;
+  for (const k of METRIC_KEYS) m[k] = task[k] ?? '';
+  return m;
 }
 
 function formOf(task: TaskDetail): FormState {
@@ -444,6 +459,7 @@ function formOf(task: TaskDetail): FormState {
     body: task.description,
     status: task.status,
     priority: task.priority ?? '',
+    metrics: metricsOf(task),
     branch: task.branch ?? '',
     parentId: task.parent_id ?? '',
     links: task.links,
@@ -529,6 +545,7 @@ function EditableBody({
     body: bodyText,
     status,
     priority,
+    metrics,
     branch,
     parentId,
     links,
@@ -584,6 +601,11 @@ function EditableBody({
     if (isPathway && f.branch !== base.branch) b.branch = f.branch === '' ? null : f.branch;
     if (f.status !== base.status) b.status = f.status;
     if (f.priority !== base.priority) b.priority = f.priority === '' ? null : f.priority;
+    for (const k of METRIC_KEYS) {
+      if (f.metrics[k] !== base.metrics[k]) {
+        (b as Record<string, unknown>)[k] = f.metrics[k] === '' ? null : f.metrics[k];
+      }
+    }
     if (!isPathway && f.parentId !== base.parentId)
       b.parent_id = f.parentId === '' ? null : f.parentId;
     if (hasLinks && !sameList(f.links, base.links)) b.links = f.links;
@@ -729,6 +751,25 @@ function EditableBody({
               ))}
             </select>
           </Row>
+          {metricKeysFor(task.kind).map((k) => (
+            <Row key={k} label={METRIC_LABELS[k]} testId={`metric-${k}`}>
+              <Pills
+                id={`drawer-${k}`}
+                label={METRIC_LABELS[k]}
+                hideLabel
+                small
+                options={['', ...METRIC_ENUMS[k]] as readonly string[]}
+                value={metrics[k]}
+                onChange={(v) => set('metrics', { ...metrics, [k]: v })}
+                text={(v) => (v === '' ? 'unrated' : v)}
+                tone={(v) =>
+                  v === ''
+                    ? 'bg-slate-100 text-slate-400 italic dark:bg-slate-700 dark:text-slate-400'
+                    : 'bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900'
+                }
+              />
+            </Row>
+          ))}
           {!isPathway && (
             <Row label="Pathway" htmlFor="drawer-pathway">
               <select

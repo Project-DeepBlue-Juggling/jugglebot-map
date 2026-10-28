@@ -347,6 +347,42 @@ describe('P4 audit fixes (drawer)', () => {
     expect(patchBodies[0]).toMatchObject({ priority: null });
   });
 
+  it('shows the metrics as pills (unrated is a muted pill) and PATCHes an edit as an enum or null', async () => {
+    state.tasks = state.tasks.map((t) => (t.id === 'idea1' ? { ...t, effort: 's' as const } : t));
+    const d = await openIdea();
+    const effort = await within(d).findByRole('radiogroup', { name: 'Effort' });
+    expect(within(effort).getByRole('radio', { name: 's' })).toBeChecked();
+    const hardware = within(d).getByRole('radiogroup', { name: 'Hardware' });
+    expect(within(hardware).getByRole('radio', { name: 'unrated' })).toBeChecked();
+    // diagnosis is for bugs only
+    expect(within(d).queryByRole('radiogroup', { name: 'Diagnosis' })).toBeNull();
+    await userEvent.click(within(hardware).getByRole('radio', { name: 'bench-leg' }));
+    await userEvent.click(within(effort).getByRole('radio', { name: 'unrated' }));
+    await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(patchBodies).toHaveLength(1));
+    expect(patchBodies[0]).toMatchObject({ hardware: 'bench-leg', effort: null });
+    expect(patchBodies[0]).not.toHaveProperty('radius');
+  });
+
+  it('the new-item modal sends effort and hardware only when chosen', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    await userEvent.type(within(form).getByLabelText('Title'), 'Rated');
+    await userEvent.click(within(form).getByRole('radio', { name: 'xs' }));
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(mapTask({ id: 'new6', kind: 'idea' }));
+      }),
+    );
+    await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ effort: 'xs' });
+    expect(posted).not.toHaveProperty('hardware');
+  });
+
   it('N3: promoted is not a status option; Promote saves dirty edits first', async () => {
     const d = await openIdea();
     const status = await within(d).findByLabelText('Status');

@@ -330,3 +330,51 @@ describe('Inbox wall sort (JB-77)', () => {
     );
   });
 });
+
+describe('Inbox wall metrics', () => {
+  const rated = [
+    mapTask({
+      id: 'quick',
+      kind: 'idea',
+      status: 'inbox',
+      effort: 's',
+      hardware: 'none',
+      owner: 'none',
+      area: 'gui',
+    }),
+    mapTask({
+      id: 'big',
+      kind: 'idea',
+      status: 'inbox',
+      effort: 'l',
+      hardware: 'robot',
+      owner: 'hands',
+      area: 'skill-stack',
+    }),
+  ];
+
+  afterEach(() => {
+    window.localStorage.clear();
+  });
+
+  it('cards show effort and hardware tags', () => {
+    render(<FrontPageView tasks={rated} deps={[]} users={[]} onOpen={vi.fn()} />);
+    expect(screen.getAllByTestId('tag-effort').map((e) => e.textContent)).toEqual(
+      expect.arrayContaining(['s', 'l']),
+    );
+    expect(screen.getAllByTestId('tag-hardware').map((e) => e.textContent)).toContain('robot');
+  });
+
+  it('Break-sized and the area select narrow the wall', () => {
+    render(<FrontPageView tasks={rated} deps={[]} users={[]} onOpen={vi.fn()} />);
+    const wall = screen.getByTestId('inbox-wall');
+    expect(wall.children).toHaveLength(2);
+    fireEvent.click(screen.getByRole('button', { name: 'Break-sized' }));
+    expect(wall.children).toHaveLength(1);
+    expect(wall.textContent).toContain('quick');
+    fireEvent.click(screen.getByRole('button', { name: 'Break-sized' }));
+    fireEvent.change(screen.getByLabelText('Area filter'), { target: { value: 'skill-stack' } });
+    expect(wall.children).toHaveLength(1);
+    expect(wall.textContent).toContain('big');
+  });
+});

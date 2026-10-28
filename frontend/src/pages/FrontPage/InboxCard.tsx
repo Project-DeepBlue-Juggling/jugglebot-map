@@ -63,6 +63,24 @@ function CardShell({ task, view, edgeHex, label, labelClass }: CardShellProps) {
         <span className={`rounded px-1 font-semibold ${labelClass}`}>{label}</span>
         <span>{statusLabel(task.status)}</span>
         <PriorityTag priority={task.priority} />
+        {task.effort !== null && (
+          <span
+            title="Effort"
+            data-testid="tag-effort"
+            className="rounded border border-slate-300 px-1 font-semibold uppercase dark:border-slate-600"
+          >
+            {task.effort}
+          </span>
+        )}
+        {task.hardware !== null && (
+          <span
+            title="Hardware"
+            data-testid="tag-hardware"
+            className="rounded border border-slate-300 px-1 dark:border-slate-600"
+          >
+            {task.hardware}
+          </span>
+        )}
         <ShortId task={task} />
         {isStale(task, view.now) && <StaleBadge days={staleAge(task, view.now)} item={task} />}
         <span className="ml-auto" title={`Filed ${task.created_at}`}>

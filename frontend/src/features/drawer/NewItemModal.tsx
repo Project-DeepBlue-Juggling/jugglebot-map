@@ -5,6 +5,8 @@ import { useCreateTask, useTasks } from '../../api/hooks';
 import type { TaskCreateBody, TaskPriority } from '../../api/schemas';
 import { PRIORITY_LABELS, PRIORITY_OPTIONS, PRIORITY_STYLES } from '../../tasks/priority';
 import { KIND_LABELS, kindHue } from '../../theme/palette';
+import { LABEL, Pills } from '../../ui/Pills';
+import { METRIC_ENUMS, METRIC_LABELS } from '../../lib/metrics';
 import { isSubmitChord } from '../../ui/keyboard';
 import { useToast } from '../../ui/useToast';
 
@@ -13,72 +15,14 @@ const NEW_ITEM_KINDS = ['idea', 'feature', 'bug'] as const;
 
 const FIELD =
   'w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100';
-const LABEL = 'mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400';
-const UNCHOSEN =
-  'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700';
-
-/**
- * One choice as a row of pill buttons (owner, 2026-10-27, JB-71). Native radios
- * under the pills keep the keyboard behaviour: Tab lands on the chosen pill, the
- * arrow keys move and choose, Tab moves on.
- */
-function Pills<T extends string>({
-  id,
-  label,
-  options,
-  value,
-  onChange,
-  text,
-  tone,
-  autoFocus = false,
-}: {
-  id: string;
-  label: string;
-  options: readonly T[];
-  value: T;
-  onChange: (v: T) => void;
-  text: (v: T) => string;
-  /** Classes for the chosen pill. */
-  tone: (v: T) => string;
-  autoFocus?: boolean;
-}) {
-  return (
-    <div>
-      <span id={`${id}-label`} className={LABEL}>
-        {label}
-      </span>
-      <div role="radiogroup" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-1.5">
-        {options.map((o) => (
-          <label key={o} className="cursor-pointer">
-            <input
-              type="radio"
-              name={id}
-              value={o}
-              checked={o === value}
-              onChange={() => onChange(o)}
-              autoFocus={autoFocus && o === value}
-              className="peer sr-only"
-            />
-            <span
-              className={clsx(
-                'inline-block rounded-full border px-3 py-1 text-sm',
-                'peer-focus-visible:ring-2 peer-focus-visible:ring-sky-500 peer-focus-visible:ring-offset-1 dark:peer-focus-visible:ring-offset-slate-800',
-                o === value ? clsx('border-transparent font-medium', tone(o)) : UNCHOSEN,
-              )}
-            >
-              {text(o)}
-            </span>
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
+const EFFORT_PILLS = ['', ...METRIC_ENUMS.effort] as const;
+const HARDWARE_PILLS = ['', ...METRIC_ENUMS.hardware] as const;
+const NEUTRAL_PILL = 'bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-100';
 
 const PRIORITY_PILLS = ['', ...PRIORITY_OPTIONS] as const;
 
 /**
- * The new-item modal: five fields (kind, title, one line, priority, pathway).
+ * The new-item modal: seven fields (kind, title, one line, priority, effort, hardware, pathway).
  * Kind and Priority are pill buttons; the form opens on the Kind pills.
  * One column at every width (no responsive breakpoints), `w-full max-w-md` plus a
  * viewport-bounded scrolling body, so it fits a 400 px window.
@@ -91,6 +35,8 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState('');
   const [line, setLine] = useState('');
   const [priority, setPriority] = useState<TaskPriority | ''>('');
+  const [effort, setEffort] = useState<(typeof EFFORT_PILLS)[number]>('');
+  const [hardware, setHardware] = useState<(typeof HARDWARE_PILLS)[number]>('');
   const [pathway, setPathway] = useState('');
   const pathways = tasks.filter((t) => t.kind === 'pathway');
 
@@ -110,6 +56,8 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
     inFlight.current = true;
     const body: TaskCreateBody = { kind, title: title.trim(), description: line.trim() };
     body.priority = priority === '' ? null : priority;
+    if (effort !== '') body.effort = effort;
+    if (hardware !== '') body.hardware = hardware;
     if (pathway !== '') body.parent_id = pathway;
     try {
       await create.mutateAsync(body);
@@ -194,6 +142,24 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
               ? 'bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-100'
               : clsx(PRIORITY_STYLES[p].pillBg, PRIORITY_STYLES[p].pillText)
           }
+        />
+        <Pills
+          id="new-effort"
+          label={`${METRIC_LABELS.effort} (optional)`}
+          options={EFFORT_PILLS}
+          value={effort}
+          onChange={setEffort}
+          text={(e) => (e === '' ? 'None' : e)}
+          tone={() => NEUTRAL_PILL}
+        />
+        <Pills
+          id="new-hardware"
+          label={`${METRIC_LABELS.hardware} (optional)`}
+          options={HARDWARE_PILLS}
+          value={hardware}
+          onChange={setHardware}
+          text={(h) => (h === '' ? 'None' : h)}
+          tone={() => NEUTRAL_PILL}
         />
         <div>
           <label className={LABEL} htmlFor="new-pathway">

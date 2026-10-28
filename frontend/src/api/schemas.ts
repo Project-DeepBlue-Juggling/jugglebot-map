@@ -12,6 +12,29 @@ export type TaskStatus = z.infer<typeof TaskStatus>;
 
 // ADR 0052: optional triage level. The field is nullable on the wire — `null`
 // means "no priority" (the default). These are the only non-null values.
+// Item metrics (spec: the Jugglebot checkout's metrics/spec.md); null = unrated.
+export const EffortValue = z.enum(['xs', 's', 'm', 'l', 'xl']);
+export const HardwareValue = z.enum(['none', 'bench-leg', 'robot']);
+export const OwnerNeedValue = z.enum(['none', 'decision', 'hands']);
+export const RadiusValue = z.enum(['local', 'subsystem', 'cross-cutting', 'normative']);
+export const DiagnosisValue = z.enum(['unknown', 'hypothesis', 'confirmed']);
+export const AreaValue = z.enum([
+  'firmware',
+  'can-bridge',
+  'legs',
+  'hand',
+  'platform-teensy',
+  'tracking',
+  'ball-butler',
+  'skill-stack',
+  'learner',
+  'gui',
+  'map-app',
+  'tests-tooling',
+  'docs',
+  'sim',
+]);
+
 export const TaskPriority = z.enum(['low', 'medium', 'high']);
 export type TaskPriority = z.infer<typeof TaskPriority>;
 
@@ -85,6 +108,13 @@ export const Task = z.object({
   status: TaskStatus,
   // ADR 0052: optional triage level; null = no priority.
   priority: TaskPriority.nullable(),
+  effort: EffortValue.nullable(),
+  hardware: HardwareValue.nullable(),
+  owner: OwnerNeedValue.nullable(),
+  radius: RadiusValue.nullable(),
+  // Bugs only; null on every other kind.
+  diagnosis: DiagnosisValue.nullable(),
+  area: AreaValue.nullable(),
   // ADR 0048: true = this node is a grouping "section", not a real task.
   // When true the UI ignores the stored `status` above and renders a status
   // inferred from the section's descendants (see `sectionStatus`); the stored
@@ -206,6 +236,12 @@ export interface TaskCreateBody {
   status?: TaskStatus;
   // ADR 0052: optional triage level; omit or pass null for no priority.
   priority?: TaskPriority | null;
+  effort?: z.infer<typeof EffortValue> | null;
+  hardware?: z.infer<typeof HardwareValue> | null;
+  owner?: z.infer<typeof OwnerNeedValue> | null;
+  radius?: z.infer<typeof RadiusValue> | null;
+  diagnosis?: z.infer<typeof DiagnosisValue> | null;
+  area?: z.infer<typeof AreaValue> | null;
   // ADR 0048: create a node directly as a section (default: a normal task).
   is_section?: boolean;
   color?: string | null;
@@ -235,6 +271,12 @@ export interface TaskUpdateBody {
   status?: TaskStatus;
   // ADR 0052: set/change/clear the triage level. Omit = unchanged; null = clear.
   priority?: TaskPriority | null;
+  effort?: z.infer<typeof EffortValue> | null;
+  hardware?: z.infer<typeof HardwareValue> | null;
+  owner?: z.infer<typeof OwnerNeedValue> | null;
+  radius?: z.infer<typeof RadiusValue> | null;
+  diagnosis?: z.infer<typeof DiagnosisValue> | null;
+  area?: z.infer<typeof AreaValue> | null;
   // ADR 0057: set the manual backlog position (a reorder drag's midpoint rank).
   // A cross-band drag sends this together with `priority`; a bare priority
   // change (no rank) is re-homed to the new band's bottom server-side.

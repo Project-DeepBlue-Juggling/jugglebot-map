@@ -1,4 +1,5 @@
 import type { Task } from '../api/schemas';
+import { effortRank, isBreakSized } from './metrics';
 
 /**
  * Inbox wall orders (owner, 2026-10-28, JB-77). The viewer picks one in the
@@ -7,14 +8,16 @@ import type { Task } from '../api/schemas';
  * - `type`: bug, feature, idea, then newest filed first within a kind.
  * - `age`: newest filed first (`created_at`), ties by id.
  * - `severity`: priority high > medium > low > none, then newest first.
+ * - `effort`: xs first, unrated last, then newest first.
  */
-export const WALL_SORTS = ['type', 'age', 'severity'] as const;
+export const WALL_SORTS = ['type', 'age', 'severity', 'effort'] as const;
 export type WallSort = (typeof WALL_SORTS)[number];
 
 export const WALL_SORT_LABELS: Record<WallSort, string> = {
   type: 'Type',
   age: 'Age',
   severity: 'Severity',
+  effort: 'Effort',
 };
 
 /** localStorage key for the viewer's choice (a per-browser convenience). */
@@ -61,5 +64,22 @@ export function wallComparator(sort: WallSort): (a: Task, b: Task) => number {
       return byAge;
     case 'severity':
       return (a, b) => severityRank(a.priority) - severityRank(b.priority) || byAge(a, b);
+    case 'effort':
+      return (a, b) => effortRank(a.effort) - effortRank(b.effort) || byAge(a, b);
   }
+}
+
+/** The wall's optional filters (JB-77 follow-on: item metrics). */
+export interface WallFilter {
+  /** Only effort <= s, hardware none, owner none (and a confirmed diagnosis for a bug). */
+  breakSized: boolean;
+  /** Only this `area`; null = every area. */
+  area: string | null;
+}
+
+export const NO_WALL_FILTER: WallFilter = { breakSized: false, area: null };
+
+export function matchesWallFilter(t: Task, f: WallFilter): boolean {
+  if (f.breakSized && !isBreakSized(t)) return false;
+  return f.area === null || t.area === f.area;
 }
