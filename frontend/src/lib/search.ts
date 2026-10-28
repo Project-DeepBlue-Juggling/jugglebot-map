@@ -127,7 +127,8 @@ export function searchMap(
   const q = query.trim().toLowerCase();
   if (q === '') return [];
   const tokens = q.split(/\s+/);
-  const idQuery = parseShortId(q);
+  // A bare number (`12`) names JB-12 too; exact match only, so `1` never finds JB-12.
+  const idQuery = parseShortId(q) ?? (/^[1-9]\d*$/.test(q.trim()) ? Number(q.trim()) : null);
   const hits: SearchHit[] = [];
   for (const task of tasks) {
     if (!ITEM_GROUPS.has(task.kind)) continue;

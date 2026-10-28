@@ -185,12 +185,17 @@ describe('short IDs', () => {
   ];
 
   it('an exact ID ranks first, its group leads, and JB-120 is not a match for JB-12', () => {
-    for (const q of ['JB-12', 'jb12', 'jb-12']) {
+    for (const q of ['JB-12', 'jb12', 'jb-12', '12', ' 12 ']) {
       const groups = searchMap(tasks, undefined, q);
       expect(groups[0]?.key).toBe('bug');
       expect(groups[0]?.hits[0]).toMatchObject({ id: 'a', tier: -1, shortId: 'JB-12' });
       expect(groups.some((g) => g.hits.some((h) => h.id === 'c'))).toBe(false);
     }
+  });
+
+  it('a bare 1 does not ID-match JB-12', () => {
+    const hits = searchMap(tasks, undefined, '1').flatMap((g) => g.hits);
+    expect(hits.some((h) => h.tier === -1)).toBe(false);
   });
 
   it('a closed Item named by its ID still comes first', () => {
