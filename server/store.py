@@ -247,7 +247,9 @@ class Index:
         pathway = self.pathway_of(node) if node.kind != "pathway" else None
         base = {
             "id": node.id, "project_id": PROJECT_ID, "parent_id": _pid(parent),
-            "assignee_ids": [], "priority": None, "is_section": False, "color": None,
+            "assignee_ids": [], "priority": None, "is_section": False,
+            "effort": None, "hardware": None, "owner": None, "radius": None,
+            "diagnosis": None, "area": None, "color": None,
             "canvas_x": 0.0, "canvas_y": 0.0, "canvas_collapsed": False,
             "work_days": None, "start_date": None, "due_date": None, "reviewer_id": None,
             "effective_start_date": None, "created_by": OWNER, "updated_by": OWNER,
@@ -280,6 +282,12 @@ class Index:
             "title": str(m.get("title") or item.slug), "description": item.body.strip(),
             "assignee_ids": owners, "status": str(m.get("status")),
             "priority": m.get("priority"), "is_section": bool(m.get("section", False)),
+            "effort": _metric(m.get("effort"), "effort"),
+            "hardware": _metric(m.get("hardware"), "hardware"),
+            "owner": _metric(m.get("owner"), "owner"),
+            "radius": _metric(m.get("radius"), "radius"),
+            "diagnosis": _metric(m.get("diagnosis"), "diagnosis") if item.kind == "bug" else None,
+            "area": _metric(m.get("area"), "area"),
             "backlog_rank": rank if rank is not None else 0.0, "color": m.get("color"),
             "canvas_x": float(canvas.get("x", 0) or 0), "canvas_y": float(canvas.get("y", 0) or 0),
             "canvas_collapsed": bool(canvas.get("collapsed", False)),
@@ -317,13 +325,53 @@ class Index:
                 summary = h.summary
                 break
         created = _to_iso(p.meta.get("created")) or T0
+        raw = next((d for d in (p.meta.get("steps") or []) if isinstance(d, dict)
+                    and str(d.get("id")) in (str(step.id), str(step.norm_id))), {})
         return {
+            "effort": _metric(raw.get("effort"), "effort"),
+            "hardware": _metric(raw.get("hardware"), "hardware"),
             "title": step.title or step.id, "description": summary,
             "status": step.status or "not_started", "backlog_rank": float(node.step_index),
             "created_at": created,
             "updated_at": _to_iso(step.date) or _to_iso(p.meta.get("last_updated")) or created,
             "slug": "%s#%s" % (p.filename, step.norm_id), "rank": float(node.step_index),
         }
+
+
+#: The six item-metric frontmatter keys, in canonical order (they follow ``priority``).
+METRIC_ENUMS: Dict[str, Tuple[str, ...]] = {
+    "effort": ("xs", "s", "m", "l", "xl"),
+    "hardware": ("none", "bench-leg", "robot"),
+    "owner": ("none", "decision", "hands"),
+    "radius": ("local", "subsystem", "cross-cutting", "normative"),
+    "diagnosis": ("unknown", "hypothesis", "confirmed"),
+    "area": ("firmware", "can-bridge", "legs", "hand", "platform-teensy", "tracking",
+             "ball-butler", "skill-stack", "learner", "gui", "map-app", "tests-tooling",
+             "docs", "sim"),
+}
+METRIC_KEYS = tuple(METRIC_ENUMS)
+
+
+def _metric(value: Any, key: str) -> Optional[str]:
+    """A stored metric as the API shows it: a valid enum value, else null."""
+    return value if isinstance(value, str) and value in METRIC_ENUMS[key] else None
+
+
+def _with_metric_order(meta: Dict[str, Any]) -> Dict[str, Any]:
+    """``meta`` with the metric keys directly after ``priority`` (else appended)."""
+    metrics = [(k, meta[k]) for k in METRIC_KEYS if k in meta]
+    out: Dict[str, Any] = {}
+    placed = False
+    for k, v in meta.items():
+        if k in METRIC_ENUMS:
+            continue
+        out[k] = v
+        if k == "priority":
+            out.update(metrics)
+            placed = True
+    if not placed:
+        out.update(metrics)
+    return out
 
 
 def _pid(node: Optional[Node]) -> Optional[str]:
@@ -686,6 +734,19 @@ class Store:
                          ("ticket_type", "type"), ("links", "links")):
             if src in b:
                 meta[dst] = b[src]
+        for key, allowed in METRIC_ENUMS.items():
+            if key not in b:
+                continue
+            v = b[key]
+            if v is None:
+                meta.pop(key, None)
+            elif not isinstance(v, str) or v not in allowed:
+                raise ApiError(422, {"detail": "%s %r not in %s" % (key, v, list(allowed))})
+            elif key == "diagnosis" and kind != "bug":
+                raise ApiError(422, {"detail": "diagnosis is only for bug items"})
+            else:
+                meta[key] = v
+        meta = _with_metric_order(meta)
         if "promoted_to" in b:
             if kind not in INBOX_KINDS:
                 raise ApiError(422, {"detail": "promoted_to is only for idea, feature and bug items"})

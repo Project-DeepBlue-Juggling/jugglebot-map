@@ -54,6 +54,13 @@ class Task(_Strict):
     kind: str
     status: str
     priority: Optional[str]
+    # item metrics (null = unrated; diagnosis is bugs only)
+    effort: Optional[str]
+    hardware: Optional[str]
+    owner: Optional[str]
+    radius: Optional[str]
+    diagnosis: Optional[str]
+    area: Optional[str]
     is_section: bool
     backlog_rank: float
     color: Optional[str]
