@@ -35,7 +35,6 @@ import { PRIORITY_LABELS, PRIORITY_OPTIONS } from '../../tasks/priority';
 import { NNL } from '../../theme/nnl';
 import { KIND_LABELS, STATUSES_BY_KIND, statusLabel } from '../../theme/palette';
 import { hasModifier, isShortcutTarget, isSubmitChord, modalIsOpen } from '../../ui/keyboard';
-import { Pills } from '../../ui/Pills';
 import { useToast } from '../../ui/useToast';
 import { parseConflict } from './conflict';
 import { useDrawer } from './drawerContext';
@@ -751,25 +750,36 @@ function EditableBody({
               ))}
             </select>
           </Row>
-          {metricKeysFor(task.kind).map((k) => (
-            <Row key={k} label={METRIC_LABELS[k]} testId={`metric-${k}`}>
-              <Pills
-                id={`drawer-${k}`}
-                label={METRIC_LABELS[k]}
-                hideLabel
-                small
-                options={['', ...METRIC_ENUMS[k]] as readonly string[]}
-                value={metrics[k]}
-                onChange={(v) => set('metrics', { ...metrics, [k]: v })}
-                text={(v) => (v === '' ? 'unrated' : v)}
-                tone={(v) =>
-                  v === ''
-                    ? 'bg-slate-100 text-slate-400 italic dark:bg-slate-700 dark:text-slate-400'
-                    : 'bg-slate-700 text-white dark:bg-slate-200 dark:text-slate-900'
-                }
-              />
-            </Row>
-          ))}
+          <Row label="Metrics" testId="metrics">
+            <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+              {metricKeysFor(task.kind).map((k) => (
+                <label
+                  key={k}
+                  data-testid={`metric-${k}`}
+                  className="flex min-w-0 flex-col gap-0.5 text-[11px] text-dr-lo"
+                >
+                  {METRIC_LABELS[k]}
+                  <select
+                    id={`drawer-${k}`}
+                    className={clsx(
+                      GHOST,
+                      'text-xs',
+                      metrics[k] === '' && 'italic text-slate-400 dark:text-slate-400',
+                    )}
+                    value={metrics[k]}
+                    onChange={(e) => set('metrics', { ...metrics, [k]: e.target.value })}
+                  >
+                    <option value="">unrated</option>
+                    {METRIC_ENUMS[k].map((v) => (
+                      <option key={v} value={v}>
+                        {v}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </Row>
           {!isPathway && (
             <Row label="Pathway" htmlFor="drawer-pathway">
               <select

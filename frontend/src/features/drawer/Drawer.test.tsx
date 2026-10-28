@@ -347,17 +347,18 @@ describe('P4 audit fixes (drawer)', () => {
     expect(patchBodies[0]).toMatchObject({ priority: null });
   });
 
-  it('shows the metrics as pills (unrated is a muted pill) and PATCHes an edit as an enum or null', async () => {
+  it('shows the metrics as selects (unrated is the empty option) and PATCHes an edit as an enum or null', async () => {
     state.tasks = state.tasks.map((t) => (t.id === 'idea1' ? { ...t, effort: 's' as const } : t));
     const d = await openIdea();
-    const effort = await within(d).findByRole('radiogroup', { name: 'Effort' });
-    expect(within(effort).getByRole('radio', { name: 's' })).toBeChecked();
-    const hardware = within(d).getByRole('radiogroup', { name: 'Hardware' });
-    expect(within(hardware).getByRole('radio', { name: 'unrated' })).toBeChecked();
-    // diagnosis is for bugs only
-    expect(within(d).queryByRole('radiogroup', { name: 'Diagnosis' })).toBeNull();
-    await userEvent.click(within(hardware).getByRole('radio', { name: 'bench-leg' }));
-    await userEvent.click(within(effort).getByRole('radio', { name: 'unrated' }));
+    const effort = await within(d).findByRole('combobox', { name: 'Effort' });
+    expect(effort).toHaveValue('s');
+    const hardware = within(d).getByRole('combobox', { name: 'Hardware' });
+    expect(hardware).toHaveValue('');
+    // one compact row of six-or-fewer selects; diagnosis is for bugs only
+    expect(within(within(d).getByTestId('metrics')).getAllByRole('combobox')).toHaveLength(5);
+    expect(within(d).queryByRole('combobox', { name: 'Diagnosis' })).toBeNull();
+    await userEvent.selectOptions(hardware, 'bench-leg');
+    await userEvent.selectOptions(effort, '');
     await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(patchBodies).toHaveLength(1));
     expect(patchBodies[0]).toMatchObject({ hardware: 'bench-leg', effort: null });
