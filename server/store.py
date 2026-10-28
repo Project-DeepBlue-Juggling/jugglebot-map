@@ -733,6 +733,8 @@ class Store:
                          ("is_section", "section"), ("branch", "branch"), ("filed_by", "filed_by"),
                          ("ticket_type", "type"), ("links", "links")):
             if src in b:
+                if src == "priority" and b[src] in (None, ""):
+                    continue  # the modal may send null; mapkit requires one, so the default stands
                 meta[dst] = b[src]
         for key, allowed in METRIC_ENUMS.items():
             if key not in b:

@@ -333,3 +333,13 @@ def test_a_file_left_uncommitted_by_a_dead_process_is_committed_at_restart(id_re
     assert git(repo, "status", "--porcelain", "--", "map").strip() == ""
     assert "JB-6" in remote_ids(bare)
     assert "Wobbly leg, edited" in git(bare, "show", "main:map/bug-wobbly-leg.md")
+
+
+def test_create_with_null_priority_keeps_the_default(c):
+    """The new-item modal lets Priority go unselected and sends null; mapkit requires a
+    priority on every item, so the server keeps its default instead of writing null."""
+    pid = c.get(API + "/projects").json()[0]["id"]
+    r = c.post("%s/projects/%s/tasks" % (API, pid),
+               json={"kind": "idea", "title": "null priority", "priority": None})
+    assert r.status_code == 201, r.text
+    assert r.json()["priority"] == "medium"
