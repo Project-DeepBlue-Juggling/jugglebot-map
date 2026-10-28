@@ -313,11 +313,33 @@ describe('Inbox wall sort (JB-77)', () => {
     expect(wallOrder()).toEqual(['feature-newest', 'bug-new', 'idea-old']);
     fireEvent.click(within(group).getByRole('radio', { name: 'Type' }));
     expect(wallOrder()).toEqual(['bug-new', 'feature-newest', 'idea-old']);
-    expect(window.localStorage.getItem(WALL_SORT_KEY)).toBe('type');
+    expect(window.localStorage.getItem(WALL_SORT_KEY)).toBe('{"sort":"type","reversed":false}');
 
     unmount();
     render(<FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />);
     expect(screen.getByRole('radio', { name: 'Type' })).toBeChecked();
+  });
+
+  it('clicking the active sort again reverses it, and the direction is remembered', () => {
+    window.localStorage.clear();
+    const { unmount } = render(
+      <FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />,
+    );
+    const group = screen.getByRole('radiogroup', { name: 'Sort' });
+    fireEvent.click(within(group).getByRole('radio', { name: /Age/ }));
+    expect(wallOrder()).toEqual(['feature-newest', 'bug-new', 'idea-old']);
+    fireEvent.click(within(group).getByRole('radio', { name: /Age/ }));
+    expect(wallOrder()).toEqual(['idea-old', 'bug-new', 'feature-newest']);
+    expect(screen.getByTestId('wall-sort-dir').textContent).toBe('\u25B2');
+    unmount();
+    render(<FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />);
+    expect(wallOrder()).toEqual(['idea-old', 'bug-new', 'feature-newest']);
+  });
+
+  it('migrates a bare stored key to its default direction', () => {
+    window.localStorage.setItem(WALL_SORT_KEY, 'age');
+    render(<FrontPageView tasks={inbox} deps={[]} users={[]} onOpen={vi.fn()} />);
+    expect(wallOrder()).toEqual(['feature-newest', 'bug-new', 'idea-old']);
   });
 
   it('falls back to severity when the stored value is unknown', () => {

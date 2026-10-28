@@ -3,7 +3,11 @@ import type { Task } from '../api/schemas';
 import { mapTask } from '../test/mapFixtures';
 import { effortRank, isBreakSized } from './metrics';
 import {
+  chooseWallSort,
+  DEFAULT_WALL_ORDER,
   isWallSort,
+  parseWallOrder,
+  serializeWallOrder,
   matchesWallFilter,
   NO_WALL_FILTER,
   wallComparator,
@@ -18,8 +22,8 @@ const items: Task[] = [
   mapTask({ id: 'i-mid', kind: 'idea', priority: 'medium', created_at: '2026-10-15T00:00:00Z' }),
 ];
 
-function order(sort: WallSort, tasks: readonly Task[] = items): string[] {
-  return [...tasks].sort(wallComparator(sort)).map((t) => t.id);
+function order(sort: WallSort, tasks: readonly Task[] = items, reversed = false): string[] {
+  return [...tasks].sort(wallComparator(sort, reversed)).map((t) => t.id);
 }
 
 describe('wallComparator', () => {
@@ -97,5 +101,48 @@ describe('effort sort and the metric filters', () => {
     expect(matchesWallFilter(t, { ...NO_WALL_FILTER, area: 'gui' })).toBe(true);
     expect(matchesWallFilter(t, { ...NO_WALL_FILTER, area: 'docs' })).toBe(false);
     expect(matchesWallFilter(t, NO_WALL_FILTER)).toBe(true);
+  });
+});
+
+describe('reversed orders', () => {
+  it('age: oldest filed first', () => {
+    expect(order('age', items, true)).toEqual(['i-old', 'b-mid', 'i-mid', 'b-new', 'f-new']);
+  });
+
+  it('type: idea, feature, bug, newest first within a kind', () => {
+    expect(order('type', items, true)).toEqual(['i-mid', 'i-old', 'f-new', 'b-new', 'b-mid']);
+  });
+
+  it('severity: low first, unrated still last', () => {
+    expect(order('severity', items, true)).toEqual(['b-mid', 'b-new', 'i-mid', 'i-old', 'f-new']);
+  });
+
+  it('effort: xl first, unrated still last under both directions', () => {
+    const rated = [
+      mapTask({ id: 'u', kind: 'idea', created_at: '2026-10-27T00:00:00Z' }),
+      mapTask({ id: 'xs', kind: 'idea', effort: 'xs', created_at: '2026-10-01T00:00:00Z' }),
+      mapTask({ id: 'xl', kind: 'idea', effort: 'xl', created_at: '2026-10-28T00:00:00Z' }),
+    ];
+    expect(order('effort', rated)).toEqual(['xs', 'xl', 'u']);
+    expect(order('effort', rated, true)).toEqual(['xl', 'xs', 'u']);
+  });
+});
+
+describe('wall order choice and persistence', () => {
+  it('choosing the active sort flips it; another sort starts un-reversed', () => {
+    const a = chooseWallSort({ sort: 'age', reversed: false }, 'age');
+    expect(a).toEqual({ sort: 'age', reversed: true });
+    expect(chooseWallSort(a, 'age')).toEqual({ sort: 'age', reversed: false });
+    expect(chooseWallSort(a, 'type')).toEqual({ sort: 'type', reversed: false });
+  });
+
+  it('round-trips, migrates a bare key and falls back on junk', () => {
+    const o = { sort: 'effort', reversed: true } as const;
+    expect(parseWallOrder(serializeWallOrder(o))).toEqual(o);
+    expect(serializeWallOrder(o)).toBe('{"sort":"effort","reversed":true}');
+    expect(parseWallOrder('type')).toEqual({ sort: 'type', reversed: false });
+    expect(parseWallOrder('bogus')).toEqual(DEFAULT_WALL_ORDER);
+    expect(parseWallOrder('{"sort":"nope"}')).toEqual(DEFAULT_WALL_ORDER);
+    expect(parseWallOrder(null)).toEqual(DEFAULT_WALL_ORDER);
   });
 });

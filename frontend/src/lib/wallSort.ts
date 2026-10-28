@@ -55,18 +55,73 @@ function byAge(a: Task, b: Task): number {
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
-/** The comparator for one wall order. */
-export function wallComparator(sort: WallSort): (a: Task, b: Task) => number {
+/** A wall order plus its direction; `reversed` flips the order's own key (Age: oldest first). */
+export interface WallOrder {
+  sort: WallSort;
+  reversed: boolean;
+}
+
+export const DEFAULT_WALL_ORDER: WallOrder = { sort: DEFAULT_WALL_SORT, reversed: false };
+
+/**
+ * Read the stored choice. A bare key (the shape before directions existed)
+ * means that key in its default direction; anything unknown means the default.
+ */
+export function parseWallOrder(raw: string | null): WallOrder {
+  if (raw === null) return DEFAULT_WALL_ORDER;
+  if (isWallSort(raw)) return { sort: raw, reversed: false };
+  try {
+    const o: unknown = JSON.parse(raw);
+    if (typeof o === 'object' && o !== null) {
+      const { sort, reversed } = o as { sort?: unknown; reversed?: unknown };
+      if (isWallSort(sort)) return { sort, reversed: reversed === true };
+    }
+  } catch {
+    // Not JSON: fall through to the default.
+  }
+  return DEFAULT_WALL_ORDER;
+}
+
+export function serializeWallOrder(o: WallOrder): string {
+  return JSON.stringify({ sort: o.sort, reversed: o.reversed });
+}
+
+/** Choosing a sort: the active one flips direction, another starts in its default direction. */
+export function chooseWallSort(current: WallOrder, sort: WallSort): WallOrder {
+  return sort === current.sort ? { sort, reversed: !current.reversed } : { sort, reversed: false };
+}
+
+/**
+ * The comparator for one wall order. `reversed` flips the primary key only:
+ * age oldest first; severity low first and effort xl first; type idea,
+ * feature, bug. Unrated severity / effort stay last in both directions, and
+ * the newest-first tie-break inside a group is unchanged.
+ */
+export function wallComparator(sort: WallSort, reversed = false): (a: Task, b: Task) => number {
+  const dir = reversed ? -1 : 1;
   switch (sort) {
     case 'type':
-      return (a, b) => kindRank(a.kind) - kindRank(b.kind) || byAge(a, b);
+      return (a, b) => dir * (kindRank(a.kind) - kindRank(b.kind)) || byAge(a, b);
     case 'age':
-      return byAge;
+      return (a, b) => {
+        const da = filedAt(a);
+        const db = filedAt(b);
+        if (da !== db) return dir * (da < db ? 1 : -1);
+        return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+      };
     case 'severity':
-      return (a, b) => severityRank(a.priority) - severityRank(b.priority) || byAge(a, b);
+      return (a, b) =>
+        rated(severityRank(a.priority), severityRank(b.priority), 3, dir) || byAge(a, b);
     case 'effort':
-      return (a, b) => effortRank(a.effort) - effortRank(b.effort) || byAge(a, b);
+      return (a, b) =>
+        rated(effortRank(a.effort), effortRank(b.effort), effortRank(null), dir) || byAge(a, b);
   }
+}
+
+/** Compare two ranks; the unrated rank sorts last whichever way `dir` points. */
+function rated(ra: number, rb: number, unrated: number, dir: number): number {
+  if (ra === unrated || rb === unrated) return (ra === unrated ? 1 : 0) - (rb === unrated ? 1 : 0);
+  return dir * (ra - rb);
 }
 
 /** The wall's optional filters (JB-77 follow-on: item metrics). */

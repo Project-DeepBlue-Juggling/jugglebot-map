@@ -326,10 +326,11 @@ export function wallItems(
   ix: MapIndex,
   sort: WallSort = DEFAULT_WALL_SORT,
   filter: WallFilter = NO_WALL_FILTER,
+  reversed = false,
 ): Task[] {
   return ix.tasks
     .filter((t) => INBOX_KINDS.has(t.kind) && !isDone(t) && matchesWallFilter(t, filter))
-    .sort(wallComparator(sort));
+    .sort(wallComparator(sort, reversed));
 }
 
 /** A phase's step code (`P1`, `R2`, `STAGE`) from its `<plan>.md#<code>` slug. */

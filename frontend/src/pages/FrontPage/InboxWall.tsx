@@ -3,8 +3,11 @@ import clsx from 'clsx';
 import { wallItems } from '../../lib/derive';
 import { METRIC_ENUMS } from '../../lib/metrics';
 import {
-  DEFAULT_WALL_SORT,
-  isWallSort,
+  chooseWallSort,
+  DEFAULT_WALL_ORDER,
+  parseWallOrder,
+  serializeWallOrder,
+  type WallOrder,
   WALL_SORT_KEY,
   WALL_SORT_LABELS,
   WALL_SORTS,
@@ -15,18 +18,17 @@ import {
 import { InboxCard } from './InboxCard';
 import { FRONT_LAYOUT, type MapView } from './mapView';
 
-function loadSort(): WallSort {
+function loadSort(): WallOrder {
   try {
-    const v = window.localStorage.getItem(WALL_SORT_KEY);
-    return isWallSort(v) ? v : DEFAULT_WALL_SORT;
+    return parseWallOrder(window.localStorage.getItem(WALL_SORT_KEY));
   } catch {
-    return DEFAULT_WALL_SORT;
+    return DEFAULT_WALL_ORDER;
   }
 }
 
-function saveSort(v: WallSort): void {
+function saveSort(v: WallOrder): void {
   try {
-    window.localStorage.setItem(WALL_SORT_KEY, v);
+    window.localStorage.setItem(WALL_SORT_KEY, serializeWallOrder(v));
   } catch {
     // Storage blocked: the choice still holds for this visit.
   }
@@ -37,7 +39,7 @@ function saveSort(v: WallSort): void {
  * segments keep the keyboard behaviour of the new-item pills: Tab lands on the
  * chosen segment, the arrow keys move and choose.
  */
-function SortControl({ value, onChange }: { value: WallSort; onChange: (v: WallSort) => void }) {
+function SortControl({ value, onChange }: { value: WallOrder; onChange: (v: WallSort) => void }) {
   return (
     <div className="flex items-center gap-1.5 text-[11px] font-normal">
       <span id="wall-sort-label" className="text-slate-500 dark:text-slate-400">
@@ -54,20 +56,26 @@ function SortControl({ value, onChange }: { value: WallSort; onChange: (v: WallS
               type="radio"
               name="wall-sort"
               value={o}
-              checked={o === value}
-              onChange={() => onChange(o)}
+              checked={o === value.sort}
+              onChange={() => undefined}
+              onClick={() => onChange(o)}
               className="peer sr-only"
             />
             <span
               className={clsx(
                 'inline-block px-2 py-0.5',
                 'peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-sky-500',
-                o === value
+                o === value.sort
                   ? 'bg-slate-900 font-medium text-white dark:bg-slate-100 dark:text-slate-900'
                   : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700',
               )}
             >
               {WALL_SORT_LABELS[o]}
+              {o === value.sort && (
+                <span aria-hidden="true" data-testid="wall-sort-dir" className="ml-1">
+                  {value.reversed ? '\u25B2' : '\u25BC'}
+                </span>
+              )}
             </span>
           </label>
         ))}
@@ -124,12 +132,13 @@ function FilterControls({
 
 /** Every open idea / feature / bug, at full height (the page scrolls, not the wall). */
 export function InboxWall({ view }: { view: MapView }) {
-  const [sort, setSort] = useState<WallSort>(loadSort);
+  const [order, setOrder] = useState<WallOrder>(loadSort);
   const [filter, setFilter] = useState<WallFilter>(NO_WALL_FILTER);
-  const items = wallItems(view.ix, sort, filter);
+  const items = wallItems(view.ix, order.sort, filter, order.reversed);
   const choose = (v: WallSort) => {
-    setSort(v);
-    saveSort(v);
+    const next = chooseWallSort(order, v);
+    setOrder(next);
+    saveSort(next);
   };
   return (
     <section aria-label="Inbox wall" className="flex shrink-0 flex-col">
@@ -142,7 +151,7 @@ export function InboxWall({ view }: { view: MapView }) {
         </h2>
         <div className="ml-auto flex items-center gap-3">
           <FilterControls filter={filter} onChange={setFilter} />
-          <SortControl value={sort} onChange={choose} />
+          <SortControl value={order} onChange={choose} />
         </div>
       </div>
       <div
