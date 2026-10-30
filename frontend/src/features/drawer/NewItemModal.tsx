@@ -9,6 +9,7 @@ import { LABEL, Pills } from '../../ui/Pills';
 import { METRIC_ENUMS, METRIC_LABELS, metricValueLabel } from '../../lib/metrics';
 import { isSubmitChord } from '../../ui/keyboard';
 import { useToast } from '../../ui/useToast';
+import { matchLabel, titleConflict, type TitleConflict } from './titleConflict';
 
 /** Kinds a person can file from the app; plans and phases come from plan files. */
 const NEW_ITEM_KINDS = ['idea', 'feature', 'bug'] as const;
@@ -26,6 +27,11 @@ const PRIORITY_PILLS = ['', ...PRIORITY_OPTIONS] as const;
  * Kind and Priority are pill buttons; the form opens on the Kind pills.
  * One column at every width (no responsive breakpoints), `w-full max-w-md` plus a
  * viewport-bounded scrolling body, so it fits a 400 px window.
+ *
+ * Title screen (mapkit.similar, enforced by the server's create): a 409 `duplicate`
+ * shows the open Item that already has this title and files nothing; a 409 `similar`
+ * lists the near Items and turns Create into "File anyway", which resends with
+ * `allow_similar`. Editing the title clears the warning, so a new title is screened anew.
  */
 export default function NewItemModal({ onClose }: { onClose: () => void }) {
   const create = useCreateTask();
@@ -38,6 +44,8 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
   const [effort, setEffort] = useState<(typeof EFFORT_PILLS)[number]>('');
   const [hardware, setHardware] = useState<(typeof HARDWARE_PILLS)[number]>('');
   const [pathway, setPathway] = useState('');
+  const [conflict, setConflict] = useState<TitleConflict | null>(null);
+  const allowSimilar = conflict?.code === 'similar';
   const pathways = tasks.filter((t) => t.kind === 'pathway');
 
   useEffect(() => {
@@ -52,9 +60,10 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
   // answers must not file the item twice (isPending lags by a render).
   const inFlight = useRef(false);
   const submit = async () => {
-    if (title.trim() === '' || inFlight.current) return;
+    if (title.trim() === '' || inFlight.current || conflict?.code === 'duplicate') return;
     inFlight.current = true;
     const body: TaskCreateBody = { kind, title: title.trim(), description: line.trim() };
+    if (allowSimilar) body.allow_similar = true;
     body.priority = priority === '' ? null : priority;
     if (effort !== '') body.effort = effort;
     if (hardware !== '') body.hardware = hardware;
@@ -63,7 +72,9 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
       await create.mutateAsync(body);
       onClose();
     } catch (err) {
-      toast.error('Could not file the item', err instanceof ApiError ? err.message : String(err));
+      const c = titleConflict(err);
+      if (c !== null) setConflict(c);
+      else toast.error('Could not file the item', err instanceof ApiError ? err.message : String(err));
     } finally {
       inFlight.current = false;
     }
@@ -116,9 +127,35 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
             id="new-title"
             className={FIELD}
             value={title}
-            onChange={(e) => setTitle(e.target.value)}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              setConflict(null);
+            }}
           />
         </div>
+        {conflict !== null && (
+          <div
+            role="alert"
+            data-testid="title-conflict"
+            className="rounded border border-amber-400 bg-amber-50 p-2 text-sm text-amber-900 dark:border-amber-500 dark:bg-amber-950 dark:text-amber-100"
+          >
+            {conflict.code === 'duplicate' ? (
+              <p>
+                Already filed as {matchLabel(conflict.duplicate)}. Not filed again: edit that
+                Item, or change this title.
+              </p>
+            ) : (
+              <>
+                <p>Similar items already exist. Check them before filing:</p>
+                <ul className="mt-1 list-disc pl-5">
+                  {conflict.similar.map((m) => (
+                    <li key={m.id}>{matchLabel(m)}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
         <div>
           <label className={LABEL} htmlFor="new-line">
             One line
@@ -190,10 +227,10 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
           <button
             type="submit"
             title="Create (Ctrl+Enter)"
-            disabled={title.trim() === '' || create.isPending}
+            disabled={title.trim() === '' || create.isPending || conflict?.code === 'duplicate'}
             className="rounded bg-slate-900 px-3 py-1 text-sm text-white disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
           >
-            Create
+            {allowSimilar ? 'File anyway' : 'Create'}
           </button>
         </div>
       </form>

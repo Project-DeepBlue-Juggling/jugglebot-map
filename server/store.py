@@ -33,7 +33,7 @@ import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from mapkit import ids
+from mapkit import ids, similar
 from mapkit.items import (INBOX_KINDS, KINDS, Item, ItemError, item_uuid,
                           load_item, write_item)
 from mapkit.plans import Plan, PlanError, load_plan
@@ -609,6 +609,7 @@ class Store:
                 slug, n = "%s-%d" % (base, n), n + 1
             if body.get("id") not in (None, "") or body.get("short_id") not in (None, ""):
                 raise ApiError(422, {"detail": "the short ID is allocated by the server"})
+            self._screen_title(ix, body)
             meta: Dict[str, Any] = {
                 "id": self._next_id(ix),
                 "kind": kind, "title": body.get("title") or slug,
@@ -628,6 +629,29 @@ class Store:
             self._write(path, meta, new_body)
             self._commit(path, meta["title"], created=True)
             return self.task(uid(slug))
+
+    @staticmethod
+    def _screen_title(ix: Index, body: Dict[str, Any]) -> None:
+        """409 before a create writes anything: ``code`` ``duplicate`` (an open Item
+        has this title; never overridable, so a retry after a client timeout is
+        answered, not filed twice) or ``similar`` (near Items; the client shows them
+        and may resend with ``allow_similar: true``). Rules: ``mapkit.similar``."""
+        title = str(body.get("title") or "").strip()
+        if not title:
+            return
+        dup, near = similar.screen(ix.items.values(), title)
+
+        def wire(m: Any) -> Dict[str, Any]:
+            return dict(similar.as_dict(m), id=uid(m.item.slug))
+
+        if dup is not None:
+            raise ApiError(409, {"detail": "Already filed as %s: %s" % (
+                dup.item.short_id or stem(dup.item), dup.item.title),
+                "code": "duplicate", "duplicate": wire(dup), "similar": []})
+        if near and body.get("allow_similar") is not True:
+            raise ApiError(409, {"detail": "Similar items exist: %s" % "; ".join(
+                m.describe() for m in near),
+                "code": "similar", "duplicate": None, "similar": [wire(m) for m in near]})
 
     def update(self, task_id: str, body: Dict[str, Any], token: Any = None) -> Dict[str, Any]:
         with self._lock:

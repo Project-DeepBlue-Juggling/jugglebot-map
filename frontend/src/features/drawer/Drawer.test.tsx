@@ -468,3 +468,79 @@ describe('P4 audit fixes (drawer)', () => {
     expect(within(d).getByText('plans/active/oval-plan.md').closest('a')).toBeNull();
   });
 });
+
+describe('new-item title screen (mapkit.similar via the server 409)', () => {
+  const match = (over: Record<string, unknown> = {}) => ({
+    id: 'u103',
+    short_id: 'JB-103',
+    stem: 'bug-records',
+    kind: 'bug',
+    title: 'Records window stays floating',
+    status: 'inbox',
+    exact: false,
+    score: 0.6,
+    ...over,
+  });
+
+  it('a 409 similar lists the matches; File anyway resends with allow_similar; editing the title re-screens', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    await userEvent.type(within(form).getByLabelText('Title'), 'Records floats');
+    const bodies: Array<Record<string, unknown>> = [];
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        const b = (await request.json()) as Record<string, unknown>;
+        bodies.push(b);
+        if (b.allow_similar === true) return HttpResponse.json(mapTask({ id: 'new5', kind: 'idea' }));
+        return HttpResponse.json(
+          { detail: 'Similar items exist', code: 'similar', duplicate: null, similar: [match()] },
+          { status: 409 },
+        );
+      }),
+    );
+    await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
+    const alert = await within(form).findByTestId('title-conflict');
+    expect(alert).toHaveTextContent('Similar items already exist');
+    expect(alert).toHaveTextContent('JB-103 (inbox) Records window stays floating');
+    expect(bodies[0]).not.toHaveProperty('allow_similar');
+    // Editing the title drops the warning: the new title is screened anew.
+    await userEvent.type(within(form).getByLabelText('Title'), '!');
+    expect(within(form).queryByTestId('title-conflict')).toBeNull();
+    await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
+    await within(form).findByTestId('title-conflict');
+    expect(bodies[1]).not.toHaveProperty('allow_similar');
+    await userEvent.click(within(form).getByRole('button', { name: 'File anyway' }));
+    await waitFor(() => expect(screen.queryByTestId('new-item-form')).toBeNull());
+    expect(bodies[2]).toMatchObject({ title: 'Records floats!', allow_similar: true });
+  });
+
+  it('a 409 duplicate names the open Item and files nothing more', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    await userEvent.type(within(form).getByLabelText('Title'), 'Records window stays floating');
+    let posts = 0;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', () => {
+        posts += 1;
+        return HttpResponse.json(
+          {
+            detail: 'Already filed as JB-103: Records window stays floating',
+            code: 'duplicate',
+            duplicate: match({ exact: true, score: 1 }),
+            similar: [],
+          },
+          { status: 409 },
+        );
+      }),
+    );
+    await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
+    const alert = await within(form).findByTestId('title-conflict');
+    expect(alert).toHaveTextContent('Already filed as JB-103 (inbox) Records window stays floating');
+    expect(within(form).getByRole('button', { name: 'Create' })).toBeDisabled();
+    fireEvent.keyDown(within(form).getByLabelText('Title'), { key: 'Enter', ctrlKey: true });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(1);
+  });
+});

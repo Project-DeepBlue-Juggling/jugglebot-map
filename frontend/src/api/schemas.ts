@@ -226,6 +226,9 @@ export type TaskUpdateConflict = z.infer<typeof TaskUpdateConflict>;
 export interface TaskCreateBody {
   title: string;
   kind: string;
+  // File even though the server answered 409 `similar` (the person saw the list);
+  // never overrides a 409 `duplicate` (an open Item with this title).
+  allow_similar?: boolean;
   parent_id?: string | null;
   description?: string;
   // ADR 0060: optional completion criteria; omit for empty (like description).
