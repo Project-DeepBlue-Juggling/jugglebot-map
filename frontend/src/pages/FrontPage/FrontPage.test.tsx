@@ -3,7 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { DependencyEdge, Task } from '../../api/schemas';
 import { progress } from '../../lib/derive';
 import { WALL_SORT_KEY } from '../../lib/wallSort';
-import { STATE_STYLES } from '../../theme/palette';
+import { RETIRED_STYLE, STATE_STYLES } from '../../theme/palette';
 import { dep, mapTask, planWithPhases, sixPathwayMap } from '../../test/mapFixtures';
 import layoutSrc from '../../layout/AppLayout.tsx?raw';
 import { FrontPageView } from './FrontPageView';
@@ -184,11 +184,20 @@ describe('SegmentedBar', () => {
       'excluded',
       'parked',
     ]);
+    // A retired phase is `excluded` but drawn in the faded retired green, not the dropped grey.
+    const hexes = [
+      STATE_STYLES.done.hex,
+      STATE_STYLES.in_progress.hex,
+      STATE_STYLES.queued.hex,
+      RETIRED_STYLE.hex,
+      STATE_STYLES.parked.hex,
+    ];
     const probe = document.createElement('i');
-    for (const s of segs) {
-      probe.style.backgroundColor = STATE_STYLES[s.dataset.state as keyof typeof STATE_STYLES].hex;
+    segs.forEach((s, i) => {
+      probe.style.backgroundColor = hexes[i];
       expect(s.style.backgroundColor).toBe(probe.style.backgroundColor);
-    }
+    });
+    expect(segs[3].style.opacity).toBe('0.5');
   });
 });
 

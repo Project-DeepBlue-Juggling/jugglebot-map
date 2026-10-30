@@ -1,6 +1,6 @@
 import type { ProgressUnit } from '../../lib/derive';
 import { displayTitle, taskState } from '../../lib/derive';
-import { STATE_STYLES, statusLabel } from '../../theme/palette';
+import { stateStyle, statusLabel } from '../../theme/palette';
 import { useItemHover } from '../../features/hover';
 import clsx from 'clsx';
 import type { MapView } from './mapView';
@@ -23,7 +23,7 @@ function Segment({ unit, view }: { unit: ProgressUnit; view: MapView }) {
         hover.className,
       )}
       style={{
-        backgroundColor: STATE_STYLES[state].hex,
+        backgroundColor: stateStyle(t, state).hex,
         opacity: state === 'excluded' ? 0.5 : 1,
       }}
     />

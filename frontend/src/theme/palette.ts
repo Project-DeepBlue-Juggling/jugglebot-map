@@ -120,6 +120,22 @@ export const STATE_STYLES: Record<UnitState, StateStyle> = {
   },
 };
 
+/**
+ * A retired phase shares `excluded` with dropped work (out of the count) but
+ * is drawn as a faded done-green: it was set aside on purpose, not abandoned.
+ */
+export const RETIRED_STYLE: StateStyle = {
+  label: 'Retired',
+  glyph: '–',
+  hex: '#86efac', // green-300, drawn at half opacity like every excluded segment
+  pill: 'bg-green-50 text-green-700/70 dark:bg-green-950/30 dark:text-green-300/60',
+};
+
+/** The style for a task in `state`; retired phases get `RETIRED_STYLE`. */
+export function stateStyle(task: Task, state: UnitState): StateStyle {
+  return task.status === 'retired' ? RETIRED_STYLE : STATE_STYLES[state];
+}
+
 /** Every map status per kind (p4-common), in display order. */
 export const STATUSES_BY_KIND: Record<string, readonly string[]> = {
   pathway: ['active', 'complete', 'dropped'],

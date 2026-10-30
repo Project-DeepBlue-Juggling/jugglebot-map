@@ -3,12 +3,12 @@ import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import type { Task } from '../../api/schemas';
 import { taskState } from '../../lib/derive';
 import { staleClock } from '../../lib/stale';
-import { STATE_STYLES, statusLabel } from '../../theme/palette';
+import { stateStyle, statusLabel } from '../../theme/palette';
 import { useItemHover } from '../../features/hover';
 import { pillState, type MapView } from './mapView';
 
 export function StatusGlyph({ task }: { task: Task }) {
-  const st = STATE_STYLES[taskState(task)];
+  const st = stateStyle(task, taskState(task));
   return (
     <span
       aria-label={statusLabel(task.status)}
@@ -25,7 +25,7 @@ export function StatusPill({ task }: { task: Task }) {
     <span
       className={clsx(
         'rounded px-1.5 py-px text-[10px] font-medium',
-        STATE_STYLES[pillState(task)].pill,
+        stateStyle(task, pillState(task)).pill,
       )}
     >
       {statusLabel(task.status)}
