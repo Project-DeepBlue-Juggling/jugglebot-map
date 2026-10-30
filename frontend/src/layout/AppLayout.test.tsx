@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 describe('AppLayout', () => {
-  it('links to the four pages', async () => {
+  it('links to the six pages', async () => {
     renderApp('/', <FrontPage />);
     const nav = await screen.findByRole('navigation', { name: 'Primary' });
     const links = await screen.findAllByRole('link');
@@ -32,6 +32,8 @@ describe('AppLayout', () => {
       'Front page',
       'Now / Next / Later',
       'Done',
+      'Night Shift',
+      'Next Sitting',
       'Dictionary',
     ]);
   });

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class _Strict(BaseModel):
@@ -166,3 +166,78 @@ class GlossaryCluster(_Strict):
 
 class Glossary(_Strict):
     clusters: List[GlossaryCluster]
+
+
+class NightShiftReport(_Strict):
+    date: str
+    path: str
+    title: str
+
+
+class NightShiftQuestion(_Strict):
+    id: str
+    short_id: Optional[str]
+    title: str
+    body: str
+    parent_id: Optional[str]
+    parent_short_id: Optional[str]
+    parent_title: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+class NightShiftSummary(_Strict):
+    latest_date: Optional[str]
+    open_questions: int
+
+
+class RunbookResult(_Strict):
+    date: str
+    verdict: str
+    notes: str
+
+
+class RunbookRow(_Strict):
+    task_id: str
+    short_id: str
+    title: str
+    pathway_short_id: Optional[str]
+    pathway_title: Optional[str]
+    priority: str
+    setup: List[str]
+    why: str
+    do: List[str]
+    pass_: str = Field(alias="pass")
+    record: str
+    minutes: int
+    branch: Optional[str]
+    score: float
+    has_result: bool
+    results: List[RunbookResult]
+
+
+class RunbookBlock(_Strict):
+    setup: List[str]
+    rows: List[RunbookRow]
+
+
+class RunbookNeeds(_Strict):
+    task_id: str
+    short_id: str
+    title: str
+    errors: List[str]
+
+
+class RunbookQuestion(_Strict):
+    task_id: str
+    short_id: str
+    title: str
+    parent_task_id: Optional[str]
+    parent_short_id: str
+
+
+class Runbook(_Strict):
+    blocks: List[RunbookBlock]
+    needs_section: List[RunbookNeeds]
+    questions: List[RunbookQuestion]
+    page: str

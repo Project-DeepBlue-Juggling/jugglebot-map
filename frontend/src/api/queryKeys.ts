@@ -22,6 +22,13 @@ export const qk = {
     ['projects', projectId, 'tasks', taskId, 'history'] as const,
   nightly: ['nightly'] as const,
   nightlyLatest: ['nightly', 'latest'] as const,
+  nightShift: {
+    reports: ['night-shift', 'reports'] as const,
+    report: (date: string) => ['night-shift', 'reports', date] as const,
+    questions: ['night-shift', 'questions'] as const,
+    summary: ['night-shift', 'summary'] as const,
+  },
+  runbook: ['runbook'] as const,
   glossary: (projectId: string) => ['projects', projectId, 'glossary'] as const,
   dependencies: (projectId: string) => ['projects', projectId, 'dependencies'] as const,
 } as const;

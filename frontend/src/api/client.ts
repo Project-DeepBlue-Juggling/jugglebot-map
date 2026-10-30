@@ -7,6 +7,10 @@ import {
   Glossary,
   ItemHistory,
   NightlyStatus,
+  NightShiftQuestionList,
+  Runbook,
+  NightShiftReportList,
+  NightShiftSummary,
   Project,
   ProjectList,
   ProjectMembershipList,
@@ -125,6 +129,28 @@ export function createApiClient(auth: AuthClient) {
     getNightly: () => request('/nightly', jsonInit('GET'), NightlyStatus),
     /** The latest nightly report as Markdown text; 404 (ApiError) when there is none. */
     getNightlyLatest: () => request('/nightly/latest', jsonInit('GET'), z.string()),
+
+    // -- Night Shift (reports read-only; an answer is one write through the store)
+    getNightShiftReports: () =>
+      request('/night-shift/reports', jsonInit('GET'), NightShiftReportList),
+    getNightShiftReport: (date: string) =>
+      request(`/night-shift/reports/${encodeURIComponent(date)}`, jsonInit('GET'), z.string()),
+    getNightShiftQuestions: () =>
+      request('/night-shift/questions', jsonInit('GET'), NightShiftQuestionList),
+    getNightShiftSummary: () => request('/night-shift/summary', jsonInit('GET'), NightShiftSummary),
+    answerQuestion: (taskId: string, answer: string) =>
+      request(
+        `/night-shift/questions/${encodeURIComponent(taskId)}/answer`,
+        jsonInit('POST', { answer }),
+        Task,
+      ),
+
+    // -- Next Sitting Runbook
+    getRunbook: () => request('/runbook', jsonInit('GET'), Runbook),
+    saveSittingResult: (
+      taskId: string,
+      body: { date: string; verdict: 'pass' | 'fail'; notes: string },
+    ) => request(`/runbook/${encodeURIComponent(taskId)}/result`, jsonInit('POST', body), Task),
 
     // -- Glossary (read-only)
     getGlossary: (projectId: string) =>

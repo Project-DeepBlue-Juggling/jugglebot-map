@@ -2,7 +2,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useProjects } from '../api/hooks';
 
 /** Project pages a bare path may name (`/now?item=JB-5`). */
-const PAGES = ['/now', '/done', '/dictionary'];
+const PAGES = ['/now', '/done', '/night-shift', '/next-sitting', '/dictionary'];
 
 /**
  * The bare `/` route and every unmatched path: go to the one project, keeping a

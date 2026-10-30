@@ -7,6 +7,8 @@ import { useAuth } from '../auth/useAuth';
 import type {
   CurrentUser,
   DependencyCreateBody,
+  NightShiftQuestion,
+  NightShiftSummary,
   Task,
   TaskCreateBody,
   TaskUpdateBody,
@@ -188,6 +190,83 @@ export function useNightlyReport(enabled: boolean) {
     queryFn: () => api.getNightlyLatest(),
     enabled,
     retry: false,
+  });
+}
+
+// -- Night Shift ------------------------------------------------------------
+
+export function useNightShiftReports() {
+  const api = useApi();
+  return useQuery({ queryKey: qk.nightShift.reports, queryFn: () => api.getNightShiftReports() });
+}
+
+export function useNightShiftReport(date: string | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: qk.nightShift.report(date ?? ''),
+    queryFn: () => api.getNightShiftReport(date ?? ''),
+    enabled: date !== null,
+  });
+}
+
+export function useNightShiftQuestions() {
+  const api = useApi();
+  return useQuery({
+    queryKey: qk.nightShift.questions,
+    queryFn: () => api.getNightShiftQuestions(),
+  });
+}
+
+/** The nav badge: latest report date and the open-question count. */
+export function useNightShiftSummary() {
+  const api = useApi();
+  return useQuery({ queryKey: qk.nightShift.summary, queryFn: () => api.getNightShiftSummary() });
+}
+
+/** Answer a question ticket; the card leaves the list and the badge recounts from the response. */
+export function useAnswerQuestion() {
+  const api = useApi();
+  const qc = useQueryClient();
+  const projectId = useActiveProjectId();
+  return useMutation({
+    mutationFn: ({ id, answer }: { id: string; answer: string }) => api.answerQuestion(id, answer),
+    onSuccess: (task: Task) => {
+      qc.setQueryData<NightShiftQuestion[]>(qk.nightShift.questions, (prev) =>
+        prev?.filter((q) => q.id !== task.id),
+      );
+      qc.setQueryData<NightShiftSummary>(qk.nightShift.summary, (prev) =>
+        prev === undefined
+          ? prev
+          : { ...prev, open_questions: Math.max(prev.open_questions - 1, 0) },
+      );
+      qc.setQueryData<Task[]>(qk.tasks.list(projectId), (prev) =>
+        prev?.map((t) => (t.id === task.id ? task : t)),
+      );
+    },
+  });
+}
+
+// -- Next Sitting Runbook ---------------------------------------------------
+
+export function useRunbook() {
+  const api = useApi();
+  return useQuery({ queryKey: qk.runbook, queryFn: () => api.getRunbook() });
+}
+
+/** Save one row's Sitting result; the runbook refetches so `has_result` and results update. */
+export function useSaveSittingResult() {
+  const api = useApi();
+  const qc = useQueryClient();
+  const projectId = useActiveProjectId();
+  return useMutation({
+    mutationFn: (v: { id: string; date: string; verdict: 'pass' | 'fail'; notes: string }) =>
+      api.saveSittingResult(v.id, { date: v.date, verdict: v.verdict, notes: v.notes }),
+    onSuccess: (task: Task) => {
+      qc.setQueryData<Task[]>(qk.tasks.list(projectId), (prev) =>
+        prev?.map((t) => (t.id === task.id ? task : t)),
+      );
+      void qc.invalidateQueries({ queryKey: qk.runbook });
+    },
   });
 }
 

@@ -23,11 +23,12 @@ from fastapi.staticfiles import StaticFiles
 from server.config import MapConfig, setup
 from server.events import Broker
 from server.history import HistoryCache
+from server import nightshift
 from server.nightly import NightlyCache
 from server.gitwriter import DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
 from server.watcher import DEFAULT_WATCH_MS, Watcher
-from server.models import (Count, Dependency, Glossary, Health, Membership, Project, Task,
-                           TaskDetail, User)
+from server.models import (Count, Dependency, Glossary, Health, Membership, NightShiftQuestion,
+                           NightShiftReport, NightShiftSummary, Project, Runbook, Task, TaskDetail, User)
 
 log = logging.getLogger("jugglebot_map")
 
@@ -304,6 +305,87 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         if text is None:
             raise ApiError(404, {"detail": "no latest.md"})
         return PlainTextResponse(text, media_type="text/markdown")
+
+    # --- night shift (reports read on request; answers go through store.update) --
+    @r.get("/night-shift/reports", response_model=List[NightShiftReport])
+    def night_reports() -> Any:
+        return nightshift.list_reports(cfg.repo_root)
+
+    @r.get("/night-shift/reports/{date}")
+    def night_report(date: str) -> Any:
+        try:
+            text = nightshift.read_report(cfg.repo_root, date)
+        except ValueError:
+            raise ApiError(400, {"detail": "date must be YYYY-MM-DD"})
+        if text is None:
+            raise ApiError(404, {"detail": "no report for " + date})
+        return PlainTextResponse(text, media_type="text/markdown")
+
+    @r.get("/night-shift/questions", response_model=List[NightShiftQuestion])
+    def night_questions() -> Any:
+        with store._lock:
+            return nightshift.open_questions(store.index(), cfg.repo_root)
+
+    @r.get("/night-shift/summary", response_model=NightShiftSummary)
+    def night_summary() -> Any:
+        reports = nightshift.list_reports(cfg.repo_root)
+        with store._lock:
+            n = len(nightshift.open_questions(store.index(), cfg.repo_root))
+        return {"latest_date": reports[0]["date"] if reports else None, "open_questions": n}
+
+    @r.post("/night-shift/questions/{task_id}/answer", response_model=Task)
+    async def night_answer(task_id: str, request: Request) -> Any:
+        from mapkit.items import has_answer
+        body = await _json_body(request)
+        answer = body.get("answer")
+        if not isinstance(answer, str) or not answer.strip():
+            raise ApiError(422, {"detail": "answer must be non-empty text"})
+        with store._lock:  # check and write under one lock: no double answer
+            ix = store.index()
+            node = store._node(ix, task_id, write=True)
+            t = ix.task(node, cfg.repo_root)
+            if node.kind != "ticket" or t["ticket_type"] != "question":
+                raise ApiError(422, {"detail": "not a question ticket"})
+            if t["status"] != "open" or has_answer(node.item.body):
+                raise ApiError(409, {"detail": "question already answered"})
+            patch = {"status": "complete",
+                     "description": t["description"] + "\n\n## Answer\n\n" + answer.strip()}
+            if body.get("if_unchanged_since"):
+                patch["if_unchanged_since"] = body["if_unchanged_since"]
+            return store.update(node.id, patch)
+
+    # --- next sitting runbook (hardware Items' ## Sitting sections) -------------
+    @r.get("/runbook", response_model=Runbook)
+    def runbook() -> Any:
+        with store._lock:
+            return nightshift.runbook(store.index(), cfg.repo_root)
+
+    @r.post("/runbook/{task_id}/result", response_model=Task)
+    async def runbook_result(task_id: str, request: Request) -> Any:
+        """Append ``## Sitting result (<date>)`` to the Item through ``store.update``.
+
+        A second result for the same date is allowed and appended as another section
+        (a re-run the same day is real data); nothing is overwritten.
+        """
+        from mapkit.sitting import append_sitting_result
+        body = await _json_body(request)
+        date, verdict, notes = body.get("date"), body.get("verdict"), body.get("notes", "")
+        if not isinstance(date, str) or not nightshift.DATE_RE.match(date):
+            raise ApiError(422, {"detail": "date must be YYYY-MM-DD"})
+        if verdict not in ("pass", "fail"):
+            raise ApiError(422, {"detail": "verdict must be 'pass' or 'fail'"})
+        if not isinstance(notes, str):
+            raise ApiError(422, {"detail": "notes must be text"})
+        with store._lock:
+            ix = store.index()
+            node = store._node(ix, task_id, write=True)
+            if node.item is None or node.item.meta.get("hardware") not in ("bench-leg", "robot"):
+                raise ApiError(422, {"detail": "not a hardware Item"})
+            t = ix.task(node, cfg.repo_root)
+            patch = {"description": append_sitting_result(t["description"], date, verdict, notes)}
+            if body.get("if_unchanged_since"):
+                patch["if_unchanged_since"] = body["if_unchanged_since"]
+            return store.update(node.id, patch)
 
     # --- health and events ----------------------------------------------------
     @r.get("/health", response_model=Health)

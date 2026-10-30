@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { useEventStream } from '../api/eventStream';
 import { HealthBanner } from './HealthBanner';
-import { useProjects } from '../api/hooks';
+import { useNightShiftSummary, useProjects, useRunbook } from '../api/hooks';
 import NewItemModal from '../features/drawer/NewItemModal';
 import { ActiveProjectProvider } from '../projects/ActiveProjectContext';
 import { hasModifier, isShortcutTarget, modalIsOpen } from '../ui/keyboard';
@@ -22,6 +22,10 @@ export default function AppLayout() {
   useEventStream();
   const location = useLocation();
   const { data: projects } = useProjects();
+  const { data: nightShift } = useNightShiftSummary();
+  const openQuestions = nightShift?.open_questions ?? 0;
+  const { data: runbook } = useRunbook();
+  const sittingRows = runbook?.blocks.reduce((n, b) => n + b.rows.length, 0) ?? 0;
   // The server has exactly one project; the nav links point at it.
   const fromPath = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? null;
   const projectId = fromPath ?? projects?.[0]?.id ?? null;
@@ -74,6 +78,36 @@ export default function AppLayout() {
                 </NavLink>
                 <NavLink to={`/projects/${projectId}/done`} className={navClass}>
                   Done
+                </NavLink>
+                <NavLink
+                  to={`/projects/${projectId}/night-shift`}
+                  className={(s) => clsx(navClass(s), 'flex items-center justify-between')}
+                >
+                  Night Shift
+                  {openQuestions > 0 && (
+                    <span
+                      data-testid="night-shift-badge"
+                      aria-label={`${openQuestions} open questions`}
+                      className="ml-2 rounded-full bg-amber-500 px-1.5 text-xs font-medium text-white"
+                    >
+                      {openQuestions}
+                    </span>
+                  )}
+                </NavLink>
+                <NavLink
+                  to={`/projects/${projectId}/next-sitting`}
+                  className={(s) => clsx(navClass(s), 'flex items-center justify-between')}
+                >
+                  Next Sitting
+                  {sittingRows > 0 && (
+                    <span
+                      data-testid="next-sitting-badge"
+                      aria-label={`${sittingRows} hardware checks`}
+                      className="ml-2 rounded-full bg-sky-600 px-1.5 text-xs font-medium text-white"
+                    >
+                      {sittingRows}
+                    </span>
+                  )}
                 </NavLink>
                 <NavLink to={`/projects/${projectId}/dictionary`} className={navClass}>
                   Dictionary

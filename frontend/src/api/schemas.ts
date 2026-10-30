@@ -385,3 +385,81 @@ export const NightlyStatus = z.object({
   configured: z.boolean(),
 });
 export type NightlyStatus = z.infer<typeof NightlyStatus>;
+
+// -- Night Shift (server/nightshift.py) --
+
+export const NightShiftReportEntry = z.object({
+  date: z.string(),
+  path: z.string(),
+  title: z.string(),
+});
+export type NightShiftReportEntry = z.infer<typeof NightShiftReportEntry>;
+export const NightShiftReportList = z.array(NightShiftReportEntry);
+
+export const NightShiftQuestion = z.object({
+  id: z.string(),
+  short_id: z.string().nullable(),
+  title: z.string(),
+  body: z.string(),
+  parent_id: z.string().nullable(),
+  parent_short_id: z.string().nullable(),
+  parent_title: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type NightShiftQuestion = z.infer<typeof NightShiftQuestion>;
+export const NightShiftQuestionList = z.array(NightShiftQuestion);
+
+export const NightShiftSummary = z.object({
+  latest_date: z.string().nullable(),
+  open_questions: z.number(),
+});
+export type NightShiftSummary = z.infer<typeof NightShiftSummary>;
+
+// -- Next Sitting Runbook (server/nightshift.py `runbook`) --
+
+export const RunbookResult = z.object({ date: z.string(), verdict: z.string(), notes: z.string() });
+export type RunbookResult = z.infer<typeof RunbookResult>;
+
+export const RunbookRow = z.object({
+  task_id: z.string(),
+  short_id: z.string(),
+  title: z.string(),
+  pathway_short_id: z.string().nullable(),
+  pathway_title: z.string().nullable(),
+  priority: z.string(),
+  setup: z.array(z.string()),
+  why: z.string(),
+  do: z.array(z.string()),
+  pass: z.string(),
+  record: z.string(),
+  minutes: z.number(),
+  branch: z.string().nullable(),
+  score: z.number(),
+  has_result: z.boolean(),
+  results: z.array(RunbookResult),
+});
+export type RunbookRow = z.infer<typeof RunbookRow>;
+
+export const Runbook = z.object({
+  blocks: z.array(z.object({ setup: z.array(z.string()), rows: z.array(RunbookRow) })),
+  needs_section: z.array(
+    z.object({
+      task_id: z.string(),
+      short_id: z.string(),
+      title: z.string(),
+      errors: z.array(z.string()),
+    }),
+  ),
+  questions: z.array(
+    z.object({
+      task_id: z.string(),
+      short_id: z.string(),
+      title: z.string(),
+      parent_task_id: z.string().nullable(),
+      parent_short_id: z.string(),
+    }),
+  ),
+  page: z.string(),
+});
+export type Runbook = z.infer<typeof Runbook>;
