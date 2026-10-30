@@ -127,11 +127,18 @@ last API edit it runs
 git add -A -- map
 git commit -m "map: <titles>" -- map          # author and committer map-bot <map-bot@jugglebot.local>
 git pull --rebase --no-autostash origin main  # on failure: git rebase --abort (if a rebase is in progress)
+# renumber own Items whose short ID the rebase brought in
+mapkit.gen_docs.write_docs; git commit -m "map: regenerate project-map page" -- docs/...   # only if changed
 git push origin HEAD:refs/heads/main
 ```
 
 The subject is the changed items' titles joined by `; ` (72 characters at most, `...` when cut); there is
-no `Logbook-Entry` trailer and the generator is not run (`docs/project-map.md` is regenerated upstream).
+no `Logbook-Entry` trailer. The generated pages (`docs/project-map.md`, `docs/glossary.md`) are
+regenerated after the rebase and committed on top as their own `map-bot` commit, so an app edit never
+leaves `main` with a stale page. The clone's `.git/info/attributes` (written at start) merges those two
+pages with git's `union` driver, so a page commit left by a rejected push never conflicts with a peer's in
+the next rebase; the fresh regeneration replaces the merged text. A page the writer could not commit is
+restored to HEAD (and at start), because a dirty page would block every later `pull --rebase`.
 A failed pull (a conflict) or push never discards anything: the rebase is aborted, the local commit and
 the working tree stay, `/health`'s `banner` turns `error` with the operation and git's stderr tail, and
 the next edit retries (the next success clears the banner). Any other failure in the flush, the short-ID

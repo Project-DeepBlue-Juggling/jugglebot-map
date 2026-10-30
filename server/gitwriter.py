@@ -7,11 +7,16 @@ writer runs, in order::
     git commit -m "map: <titles>" -- map            (as map-bot, no trailer)
     git pull --rebase origin main
       on failure: git rebase --abort                 (only when a rebase is in progress)
+    (renumber own Items whose short ID the rebase brought in)
+    mapkit.gen_docs.write_docs; git commit -m "map: regenerate project-map page" -- docs/...
     git push origin HEAD:refs/heads/main
 
 Safety rules, each pinned by a test:
 
-* a local edit is never discarded: nothing here resets, checks out or cleans;
+* a local edit is never discarded: nothing here resets, checks out or cleans,
+  except the generated pages (:data:`DOCS_PAGES`), which are restored to HEAD
+  when their regeneration could not be committed and at start (a dirty page
+  would block every later ``pull --rebase``, which runs ``--no-autostash``);
   a failed rebase is aborted, which restores the pre-pull HEAD (the local
   commit) and its working tree;
 * the repo is never left mid-rebase;
@@ -24,10 +29,18 @@ Safety rules, each pinned by a test:
   committed at start (an untracked one counts as an unpushed new Item);
 * any failure in the flush, the short-ID renumber included, sets the banner.
 
-The commit does NOT run the generator (#32): only ``map/`` is staged. The
-store's lock is held from ``add`` through ``pull --rebase`` (the rebase rewrites
-working-tree files, so an API write must not interleave); it is released for
-the push, which does not touch the tree.
+The generated pages (``docs/project-map.md``, ``docs/glossary.md``) are
+regenerated AFTER the rebase and committed on top as their own ``map-bot``
+commit, so an app edit never leaves ``main`` with a stale page (the docs
+currency test went red after every app edit until 2026-10-30) and the page
+reflects every Item the rebase brought in. Only a commit left by a rejected
+push can meet a peer's page in the next rebase; ``.git/info/attributes``
+(set at start, local to this clone) merges the pages with git's ``union``
+driver so that never conflicts, and the fresh regeneration replaces the
+merged text. A checkout without ``docs/project-map.md`` is not regenerated.
+The store's lock is held from ``add`` through the regeneration (the rebase
+rewrites working-tree files, so an API write must not interleave); it is
+released for the push, which does not touch the tree.
 """
 from __future__ import annotations
 
@@ -51,6 +64,9 @@ DEFAULT_DEBOUNCE_MS = 5000
 SUBJECT_MAX = 72
 GIT_TIMEOUT_S = 60.0
 STDERR_TAIL = 400
+#: The pages ``mapkit.gen_docs.write_docs`` renders from ``map/``, repo-relative.
+DOCS_PAGES = ("docs/project-map.md", "docs/glossary.md")
+REGEN_SUBJECT = "map: regenerate project-map page"
 
 
 def _now() -> str:
@@ -171,6 +187,8 @@ class GitWriter:
         if self._rebase_in_progress():
             # A previous process died mid-rebase: abort it so the tree is the local commit again.
             self._git("rebase", "--abort", check=False)
+        self._union_merge_pages()
+        self._restore_pages()  # a previous process died between regenerating and committing
         self.enabled = True
         left = self._uncommitted()  # a previous process died inside the debounce
         with self._plock:
@@ -272,6 +290,7 @@ class GitWriter:
                         return True
                     self._pull()
                     self._repair_ids()
+                    self._regen_docs()
                 self._git("push", REMOTE, "HEAD:refs/heads/" + BRANCH, op="git push")
             except GitError as exc:
                 self._fail(str(exc))
@@ -354,6 +373,58 @@ class GitWriter:
                     ", ".join("%s %s -> %s" % (st, old, new) for old, new, st in rows))
         if self._on_repair is not None:
             self._on_repair()
+
+    def _has_pages(self) -> bool:
+        return os.path.isfile(os.path.join(self.repo_root, DOCS_PAGES[0]))
+
+    def _regen_docs(self) -> None:
+        """After the rebase and the renumber, before the push (store lock held):
+        regenerate the pages and commit any that changed as ``map-bot``. On any
+        failure the pages go back to HEAD before the error propagates."""
+        if not self._has_pages():
+            return
+        from mapkit import gen_docs  # local: mapkit is importable only after config.setup()
+        try:
+            changed = gen_docs.write_docs(self.repo_root)
+            if not changed:
+                return
+            rels = [os.path.relpath(p, self.repo_root).replace(os.sep, "/") for p in changed]
+            self._git("add", "--", *rels, op="git add")
+            self._git("commit", "--quiet", "-m", REGEN_SUBJECT, "--", *rels,
+                      op="git commit", bot=True)
+        except BaseException:
+            self._restore_pages()
+            raise
+
+    def _restore_pages(self) -> None:
+        """Put dirty generated pages back to HEAD (derivable; never an Item)."""
+        if not self._has_pages():
+            return
+        p = self._git("status", "--porcelain", "--", *DOCS_PAGES, check=False)
+        dirty = [l[3:] for l in p.stdout.splitlines() if len(l) > 3 and l[:2] != "??"]
+        if dirty:
+            self._git("reset", "--quiet", "--", *dirty, check=False)
+            self._git("checkout", "--", *dirty, check=False)
+            log.warning("jugglebot-map: restored generated page(s) to HEAD: %s", ", ".join(dirty))
+
+    def _union_merge_pages(self) -> None:
+        """Clone-local ``merge=union`` for the generated pages (see the module doc)."""
+        p = self._git("rev-parse", "--git-path", "info/attributes", check=False)
+        rel = p.stdout.strip()
+        if p.returncode != 0 or not rel:
+            return
+        path = rel if os.path.isabs(rel) else os.path.join(self.repo_root, rel)
+        want = ["%s merge=union" % page for page in DOCS_PAGES]
+        try:
+            with open(path, encoding="utf-8") as fh:
+                have = fh.read().splitlines()
+        except OSError:
+            have = []
+        missing = [w for w in want if w not in have]
+        if missing:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8") as fh:
+                fh.write("".join(m + "\n" for m in missing))
 
     def _pull(self) -> None:
         p = self._git("pull", "--rebase", "--no-autostash", REMOTE, BRANCH, check=False, bot=True)
