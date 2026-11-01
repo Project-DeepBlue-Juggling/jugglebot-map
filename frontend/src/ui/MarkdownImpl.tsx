@@ -179,17 +179,25 @@ const components: Components = {
     </blockquote>
   ),
   hr: () => <hr className="my-4 border-dr-border" />,
+  /* A table sizes to its content (w-max) up to the container, never wider; a cell
+     is capped at 500 px so a long sentence wraps instead of stretching the row
+     (owner, 2026-11-01: the Night Shift report's tables). The first column holds
+     the Item ID, which must never break at its hyphen. */
   table: ({ children }) => (
     <div className="my-[10px] overflow-x-auto">
-      <table className="border-collapse text-[12.5px]">{children}</table>
+      <table className="w-max max-w-full border-collapse text-[12.5px] [&_td:first-child]:whitespace-nowrap [&_th:first-child]:whitespace-nowrap">
+        {children}
+      </table>
     </div>
   ),
   th: ({ children }) => (
-    <th className="border border-dr-border px-2 py-1 text-left font-semibold text-dr-hi">
+    <th className="max-w-[500px] border border-dr-border px-2 py-1 text-left align-top font-semibold text-dr-hi">
       {children}
     </th>
   ),
-  td: ({ children }) => <td className="border border-dr-border px-2 py-1">{children}</td>,
+  td: ({ children }) => (
+    <td className="max-w-[500px] border border-dr-border px-2 py-1 align-top">{children}</td>
+  ),
 };
 
 /** The rendering half; `Markdown.tsx` lazy-loads it to keep it off the first paint. */

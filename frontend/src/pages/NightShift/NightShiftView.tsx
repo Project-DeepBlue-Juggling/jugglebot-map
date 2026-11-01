@@ -54,7 +54,7 @@ export function NightShiftView(p: NightShiftViewProps) {
                 </button>
               ))}
             </div>
-            <div className="max-w-3xl text-sm" data-testid="night-shift-report">
+            <div className="text-sm" data-testid="night-shift-report">
               {p.reportError !== null && (
                 <p className="text-slate-500">Report unavailable: {p.reportError}</p>
               )}

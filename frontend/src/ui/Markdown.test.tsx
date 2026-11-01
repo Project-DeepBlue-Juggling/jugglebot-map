@@ -35,6 +35,19 @@ describe('Markdown', () => {
     expect(c.querySelector('table')?.parentElement?.className).toMatch(/overflow-x-auto/);
   });
 
+  it('sizes a table to its content, caps a cell at 500 px and never breaks the first column', async () => {
+    const c = await show(
+      ['| Item | What |', '|---|---|', '| JB-120 | a long sentence |'].join('\n'),
+    );
+    const table = c.querySelector('table');
+    expect(table?.className).toMatch(/\bw-max\b/);
+    expect(table?.className).toMatch(/max-w-full/);
+    expect(table?.className).toMatch(/td:first-child\]:whitespace-nowrap/);
+    const td = c.querySelector('table td');
+    expect(td?.className).toMatch(/max-w-\[500px\]/);
+    expect(c.querySelector('table th')?.className).toMatch(/max-w-\[500px\]/);
+  });
+
   it('joins soft line breaks into one paragraph with no <br>', async () => {
     const c = await show('a\nb');
     expect(c.querySelectorAll('p')).toHaveLength(1);
