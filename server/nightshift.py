@@ -196,6 +196,11 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
 
     def info(ref: str) -> Dict[str, Any]:
         node = ix.resolve(ref) if ref else None
+        if node is None and ref:
+            # mapkit names an Item by its JB-n when it has one; resolve() takes stems only
+            m = _JB_RE.match(ref)
+            hits = ix.by_short.get(int(m.group(1)), []) if m else []
+            node = hits[0] if len(hits) == 1 else None
         if node is None:
             return {"task_id": None, "short_id": None, "title": None, "body": "",
                     "kind": None, "ticket_type": None}

@@ -11,10 +11,12 @@ from tests.conftest import make_repo
 from tests.test_p5_writer_watcher import git, git_env  # noqa: F401
 
 
-def _item(title, setup, hw="robot", minutes=10, branch=None, section=True, priority="high"):
-    head = ("---\nkind: bug\ntitle: %s\nstatus: backlog\ncreated: '2026-10-05'\n"
+def _item(title, setup, hw="robot", minutes=10, branch=None, section=True, priority="high",
+          item_id=None):
+    head = ("---\n%skind: bug\ntitle: %s\nstatus: backlog\ncreated: '2026-10-05'\n"
             "updated: '2026-10-05T10:00:00Z'\nowners: []\npriority: %s\nhardware: %s\n"
-            "parent: pathway-alpha\nblocked_by: []\nlinks: []\n---\n\nBody.\n" % (title, priority, hw))
+            "parent: pathway-alpha\nblocked_by: []\nlinks: []\n---\n\nBody.\n"
+            % ("id: %s\n" % item_id if item_id else "", title, priority, hw))
     if not section:
         return head
     sec = ("\n## Sitting\n\n- setup: %s\n- why: because\n- do:\n  - step one\n  - step two\n"
@@ -30,7 +32,7 @@ def rb_repo(tmp_path, git_env):  # noqa: F811
     for slug, text in (("lvl", _item("Level one", "level")),
                        ("arm", _item("Armed one", "level, armed", minutes=20)),
                        ("brn", _item("Branchy", "level", minutes=5, branch=True)),
-                       ("nosec", _item("No section", "level", section=False))):
+                       ("nosec", _item("No section", "level", section=False, item_id="JB-7"))):
         with open(os.path.join(repo, "map", "bug-%s.md" % slug), "w") as fh:
             fh.write(text)
     git(repo, "init", "--quiet")
@@ -73,7 +75,10 @@ def test_needs_section(c):
     data = c.get("/api/v1/runbook").json()
     assert [n["title"] for n in data["needs_section"]] == ["No section"]
     assert data["needs_section"][0]["errors"] == ["no ## Sitting section"]
+    # mapkit names it by its JB-n; the server still resolves it to the task (uuid, kind)
+    assert data["needs_section"][0]["short_id"] == "JB-7"
     assert data["needs_section"][0]["kind"] == "bug"
+    assert data["needs_section"][0]["task_id"] != "JB-7"
 
 
 def test_result_appends_each_call_and_flips_has_result(c, rb_repo):
