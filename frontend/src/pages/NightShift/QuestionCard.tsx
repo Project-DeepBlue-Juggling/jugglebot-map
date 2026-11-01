@@ -5,14 +5,20 @@ import Markdown from '../../ui/Markdown';
 export interface QuestionCardProps {
   question: NightShiftQuestion;
   onOpen: (taskId: string) => void;
-  onAnswer: (taskId: string, answer: string) => Promise<void>;
+  /** Resolves true when the answer was saved. */
+  onAnswer: (taskId: string, answer: string) => Promise<boolean>;
 }
 
-/** One open question: the Item it blocks, the question, a textarea and a Save button. */
+/**
+ * One open question: the Item it blocks, the question, a textarea and a Save button.
+ * Ctrl+Enter (Cmd+Enter on a Mac) in the textarea saves, like the button (JB-132).
+ */
 export function QuestionCard({ question: q, onOpen, onAnswer }: QuestionCardProps) {
   const [text, setText] = useState('');
   const [saving, setSaving] = useState(false);
+  const canSave = !saving && text.trim() !== '';
   const save = async () => {
+    if (!canSave) return;
     setSaving(true);
     try {
       await onAnswer(q.id, text.trim());
@@ -41,19 +47,29 @@ export function QuestionCard({ question: q, onOpen, onAnswer }: QuestionCardProp
       </div>
       <textarea
         aria-label={`Answer to ${q.title}`}
+        data-question-id={q.id}
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            void save();
+          }
+        }}
         rows={3}
         className="mb-2 w-full rounded border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-900"
       />
-      <button
-        type="button"
-        disabled={saving || text.trim() === ''}
-        onClick={() => void save()}
-        className="rounded bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-      >
-        Save
-      </button>
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          disabled={!canSave}
+          onClick={() => void save()}
+          className="rounded bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+        >
+          Save
+        </button>
+        <span className="text-xs text-slate-500 dark:text-slate-400">Ctrl+Enter to save</span>
+      </div>
     </li>
   );
 }

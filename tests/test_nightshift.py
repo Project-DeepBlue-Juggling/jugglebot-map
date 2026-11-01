@@ -125,3 +125,63 @@ def test_answer_refusals(c):
     stale = c.post("%s/questions/%s/answer" % (NS, qid),
                    json={"answer": "x", "if_unchanged_since": "2020-01-01T00:00:00Z"})
     assert stale.status_code == 409 and "current" in stale.json()
+
+
+REPORT_WITH_QUESTIONS = """# Night Shift 2026-11-01
+
+## Questions for the Operator
+| Ticket | Question | Blocks | Note |
+|---|---|---|---|
+| %s | Which leg first? | JB-12 | |
+| JB-999 | Gone? | JB-12 | |
+
+## Unfinished
+none
+"""
+
+
+def test_report_questions_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F811
+    """JB-132: the served report's questions table carries a "Your answer" column read from
+    each ticket's ## Answer; the committed file is not changed."""
+    short = "JB-40"
+    with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
+        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: JB-40\nkind: ticket", 1))
+    path = os.path.join(ns_repo, "docs", "night-shift", "2026-11-01.md")
+    with open(path, "w") as fh:
+        fh.write(REPORT_WITH_QUESTIONS % short)
+    git(ns_repo, "add", "-A")
+    git(ns_repo, "commit", "--quiet", "-m", "jb-40 and a report")
+    app = create_app(ns_repo, dist_dir=os.path.join(ns_repo, "no-dist"), git=False, watch=False)
+    with TestClient(app) as c:
+        _check_answer_column(c, path, short)
+
+
+def _check_answer_column(c, path, short):
+    qid = c.get(NS + "/questions").json()[0]["id"]
+    before = c.get(NS + "/reports/2026-11-01").text
+    assert "| Ticket | Question | Blocks | Note | Your answer |" in before
+    assert "|---|---|---|---|---|" in before
+    assert "| %s | Which leg first? | JB-12 | | _not answered yet_ |" % short in before
+    assert "| JB-999 | Gone? | JB-12 | | _ticket not found_ |" in before
+    r = c.post(NS + "/questions/%s/answer" % qid, json={"answer": "Leg 3 first.\n\nThen | leg 1."})
+    assert r.status_code == 200, r.text
+    after = c.get(NS + "/reports/2026-11-01").text
+    assert "| %s | Which leg first? | JB-12 | | Leg 3 first. Then \\| leg 1. |" % short in after
+    assert open(path).read() == REPORT_WITH_QUESTIONS % short  # the snapshot is untouched
+    assert after.splitlines()[-2:] == ["## Unfinished", "none"]
+
+
+def test_report_without_a_questions_table_is_unchanged(c, ns_repo):
+    body = c.get(NS + "/reports/2026-10-31").text
+    assert body == "# Night Shift 2026-10-31\n\n## Summary\n\nJB-12 done.\n"
+    legacy = "# Night Shift 2026-10-29\n\n## Questions for the Operator\nJB-5 | Which? (parent JB-1)\n"
+    with open(os.path.join(ns_repo, "docs", "night-shift", "2026-10-29.md"), "w") as fh:
+        fh.write(legacy)
+    assert c.get(NS + "/reports/2026-10-29").text == legacy
+
+
+def test_answer_text_section_rule():
+    from server.nightshift import answer_text
+    assert answer_text("## Question\n\nQ?\n\n## Answer\n\nYes.\n\nAnd more.\n\n## Notes\nx\n") == "Yes. And more."
+    assert answer_text("## Question\n\nQ?\n") == ""
+    assert answer_text("## Answer\n\n   \n") == ""

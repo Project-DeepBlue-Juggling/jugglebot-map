@@ -319,6 +319,8 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             raise ApiError(400, {"detail": "date must be YYYY-MM-DD"})
         if text is None:
             raise ApiError(404, {"detail": "no report for " + date})
+        with store._lock:  # the questions table gains each ticket's live answer (JB-132)
+            text = nightshift.annotate_answers(text, store.index(), cfg.repo_root)
         return PlainTextResponse(text, media_type="text/markdown")
 
     @r.get("/night-shift/questions", response_model=List[NightShiftQuestion])

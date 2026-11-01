@@ -122,6 +122,60 @@ describe('Night Shift page', () => {
     await waitFor(() => expect(screen.queryByTestId('night-shift-badge')).toBeNull());
   });
 
+  it('Ctrl+Enter saves and the cursor moves to the next question (JB-132)', async () => {
+    const second = { ...question, id: 'q2', short_id: 'JB-131', title: 'Which hand?' };
+    const posted: unknown[] = [];
+    server.use(
+      http.get(`${BASE}/questions`, () => HttpResponse.json([question, second])),
+      http.post(`${BASE}/questions/:id/answer`, async ({ request, params }) => {
+        posted.push([params.id, await request.json()]);
+        return HttpResponse.json({
+          ...state.tasks[0],
+          id: String(params.id),
+          kind: 'ticket',
+          status: 'complete',
+        });
+      }),
+    );
+    renderApp('/night-shift', <NightShiftRoute />);
+    const first = await screen.findByRole('textbox', { name: 'Answer to Which leg first?' });
+    const next = screen.getByRole('textbox', { name: 'Answer to Which hand?' });
+    fireEvent.change(first, { target: { value: 'Leg 3 first.' } });
+    fireEvent.keyDown(first, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(screen.getAllByTestId('question-card')).toHaveLength(1));
+    expect(posted).toEqual([['q1', { answer: 'Leg 3 first.' }]]);
+    expect(next).toHaveFocus();
+    // a plain Enter is a newline, not a save; an empty box never saves
+    fireEvent.keyDown(next, { key: 'Enter' });
+    fireEvent.keyDown(next, { key: 'Enter', metaKey: true });
+    expect(posted).toHaveLength(1);
+    fireEvent.change(next, { target: { value: 'Left.' } });
+    fireEvent.keyDown(next, { key: 'Enter', metaKey: true });
+    await waitFor(() => expect(screen.queryByTestId('question-card')).toBeNull());
+    expect(posted).toEqual([
+      ['q1', { answer: 'Leg 3 first.' }],
+      ['q2', { answer: 'Left.' }],
+    ]);
+  });
+
+  it('a failed save keeps the text and the cursor', async () => {
+    server.use(
+      http.get(`${BASE}/questions`, () => HttpResponse.json([question])),
+      http.post(`${BASE}/questions/:id/answer`, () =>
+        HttpResponse.json({ detail: 'question already answered' }, { status: 409 }),
+      ),
+    );
+    renderApp('/night-shift', <NightShiftRoute />);
+    const box = await screen.findByRole('textbox', { name: 'Answer to Which leg first?' });
+    box.focus();
+    fireEvent.change(box, { target: { value: 'Leg 3 first.' } });
+    fireEvent.keyDown(box, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(screen.getByTestId('question-card')).toBeInTheDocument();
+    expect(box).toHaveValue('Leg 3 first.');
+    expect(box).toHaveFocus();
+  });
+
   it('clicking the parent opens the drawer', async () => {
     server.use(http.get(`${BASE}/questions`, () => HttpResponse.json([question])));
     renderApp('/night-shift', <NightShiftRoute />);

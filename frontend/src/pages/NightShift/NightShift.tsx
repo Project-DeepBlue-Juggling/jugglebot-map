@@ -45,8 +45,10 @@ export default function NightShift({ onOpen = noop }: NightShiftProps) {
         try {
           await answer.mutateAsync({ id, answer: text });
           toast.success('Answer saved');
+          return true;
         } catch (err) {
           toast.error('Could not save', err instanceof ApiError ? err.message : String(err));
+          return false;
         }
       }}
     />

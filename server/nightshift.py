@@ -56,6 +56,90 @@ def read_report(repo_root: str, date: str) -> Optional[str]:
         return None
 
 
+_QUESTIONS_HEAD = "## Questions for the Operator"
+_JB_RE = re.compile(r"^JB-(\d+)$")
+_RULE_CELL_RE = re.compile(r"^:?-{3,}:?$")
+ANSWER_HEADER = "Your answer"
+
+
+def _cells(row: str) -> List[str]:
+    s = row.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [c.strip() for c in s.split("|")]
+
+
+def _is_rule(row: str) -> bool:
+    cs = _cells(row)
+    return row.strip().startswith("|") and bool(cs) and all(_RULE_CELL_RE.match(c) for c in cs)
+
+
+def answer_text(body: str) -> str:
+    """The ``## Answer`` section of a ticket body as one line (blank lines dropped), or ``""``.
+
+    Same section rule as ``mapkit.items.has_answer``: from the ``## Answer`` heading to the
+    next ``## `` heading."""
+    out: List[str] = []
+    in_answer = False
+    for line in body.splitlines():
+        if line.rstrip() == "## Answer":
+            in_answer = True
+        elif line.startswith("## "):
+            in_answer = False
+        elif in_answer and line.strip():
+            out.append(line.strip())
+    return " ".join(out)
+
+
+def _answer_cell(ix: Any, repo_root: str, ticket: str) -> str:
+    m = _JB_RE.match(ticket)
+    hits = ix.by_short.get(int(m.group(1)), []) if m else []
+    if len(hits) != 1:
+        return "_ticket not found_"
+    t = ix.task(hits[0], repo_root)
+    text = answer_text(t["description"])
+    if text:
+        return text.replace("|", "\\|")
+    if t["status"] == "dropped":
+        return "_dropped_"
+    return "_not answered yet_"
+
+
+def annotate_answers(text: str, ix: Any, repo_root: str) -> str:
+    """The report with a "Your answer" column on its ``## Questions for the Operator`` table.
+
+    The committed report is the night's snapshot; the answer lives on the question ticket
+    (``## Answer``, written by the app's answer box). This joins them when the report is
+    served, so the table shows each answer as it stands now. Only a GFM table (a header row
+    followed by a ``|---|`` rule) is annotated; a report without one, or one that already
+    has the column, is returned unchanged.
+    """
+    lines = text.split("\n")
+    try:
+        start = next(i for i, l in enumerate(lines) if l.strip() == _QUESTIONS_HEAD)
+    except StopIteration:
+        return text
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+    rule = next((i for i in range(start + 1, end - 0) if _is_rule(lines[i])), None)
+    if rule is None or rule - 1 <= start or not lines[rule - 1].strip().startswith("|"):
+        return text
+    if ANSWER_HEADER in _cells(lines[rule - 1]):
+        return text
+    def append(row: str, cell: str, sep: str = " ") -> str:
+        row = row.rstrip()
+        return (row if row.endswith("|") else row + " |") + sep + cell + sep + "|"
+
+    lines[rule - 1] = append(lines[rule - 1], ANSWER_HEADER)
+    lines[rule] = append(lines[rule], "---", sep="")
+    i = rule + 1
+    while i < end and lines[i].strip().startswith("|"):
+        lines[i] = append(lines[i], _answer_cell(ix, repo_root, _cells(lines[i])[0]))
+        i += 1
+    return "\n".join(lines)
+
+
 def open_questions(ix: Any, repo_root: str) -> List[Dict[str, Any]]:
     """Every open ``type: question`` ticket, oldest first, with its parent Item."""
     out = []

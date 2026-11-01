@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { useRef } from 'react';
 import type { NightShiftQuestion, NightShiftReportEntry } from '../../api/schemas';
 import Markdown from '../../ui/Markdown';
 import { QuestionCard } from './QuestionCard';
@@ -11,10 +12,27 @@ export interface NightShiftViewProps {
   reportError: string | null;
   questions: readonly NightShiftQuestion[];
   onOpen: (taskId: string) => void;
-  onAnswer: (taskId: string, answer: string) => Promise<void>;
+  /** Resolves true when the answer was saved. */
+  onAnswer: (taskId: string, answer: string) => Promise<boolean>;
 }
 
 export function NightShiftView(p: NightShiftViewProps) {
+  const listRef = useRef<HTMLUListElement>(null);
+  // After a save the answered card leaves the list; the cursor goes to the next
+  // question's box (or the previous one when the last was answered), ready to type
+  // (JB-132). A failed save keeps the cursor and the text where they were.
+  const answerAndAdvance = async (id: string, text: string) => {
+    const ids = p.questions.map((q) => q.id);
+    const at = ids.indexOf(id);
+    const next = ids[at + 1] ?? (at > 0 ? ids[at - 1] : undefined);
+    const ok = await p.onAnswer(id, text);
+    if (ok && next !== undefined) {
+      listRef.current
+        ?.querySelector<HTMLTextAreaElement>(`textarea[data-question-id="${CSS.escape(next)}"]`)
+        ?.focus();
+    }
+    return ok;
+  };
   return (
     <div className="h-full overflow-auto p-6">
       <h1 className="mb-4 text-xl font-semibold">Night Shift</h1>
@@ -23,9 +41,9 @@ export function NightShiftView(p: NightShiftViewProps) {
         {p.questions.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">No open questions</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul ref={listRef} className="flex flex-col gap-3">
             {p.questions.map((q) => (
-              <QuestionCard key={q.id} question={q} onOpen={p.onOpen} onAnswer={p.onAnswer} />
+              <QuestionCard key={q.id} question={q} onOpen={p.onOpen} onAnswer={answerAndAdvance} />
             ))}
           </ul>
         )}
