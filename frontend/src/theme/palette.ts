@@ -34,6 +34,13 @@ export const KIND_HUES: Record<'bug' | 'feature' | 'idea', KindHue> = {
   },
 };
 
+/** Rig chip hues on the Next Sitting page: Robot emerald, Bench leg orange, Bench hand fuchsia. */
+export const RIG_HUES: Record<string, string> = {
+  robot: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300',
+  'bench-leg': 'bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-300',
+  'bench-hand': 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-950/60 dark:text-fuchsia-300',
+};
+
 /** Neutral style for ticket cards (a type label stands in for the kind hue). */
 export const TICKET_HUE: KindHue = {
   label: 'Ticket',

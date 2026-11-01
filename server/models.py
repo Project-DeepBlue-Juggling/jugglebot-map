@@ -200,6 +200,7 @@ class RunbookResult(_Strict):
 
 
 class RunbookRow(_Strict):
+    hardware: str
     task_id: str
     short_id: str
     title: str
@@ -221,11 +222,13 @@ class RunbookRow(_Strict):
 
 
 class RunbookBlock(_Strict):
+    hardware: str
     setup: List[str]
     rows: List[RunbookRow]
 
 
 class RunbookNeeds(_Strict):
+    hardware: str
     task_id: str
     short_id: str
     title: str
@@ -246,7 +249,15 @@ class RunbookQuestion(_Strict):
     parent_ticket_type: Optional[str]
 
 
+class RunbookRig(_Strict):
+    hardware: str
+    label: str
+    blocks: int
+    minutes: int
+
+
 class Runbook(_Strict):
+    rigs: List[RunbookRig]
     blocks: List[RunbookBlock]
     needs_section: List[RunbookNeeds]
     questions: List[RunbookQuestion]

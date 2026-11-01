@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import type { Runbook } from '../../api/schemas';
 import { KindPill } from '../../ui/ShortId';
+import { RigChip } from '../../ui/RigChip';
 import { RunbookRow } from './RunbookRow';
 
 export interface NextSittingViewProps {
@@ -78,27 +79,52 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
               </ul>
             </section>
           )}
-          {blocks.map((b, n) => (
-            <section key={b.setup.join(',') + n} aria-label={`Block ${n + 1}`} className="mb-6">
-              <h2 className="mb-2 text-base font-semibold">
-                Setup: {b.setup.join(', ') || 'none'}{' '}
-                <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                  ({b.rows.reduce((m, r) => m + r.minutes, 0)} min)
-                </span>
-              </h2>
-              <ul className="flex flex-col gap-3">
-                {b.rows.map((r) => (
-                  <RunbookRow
-                    key={r.task_id}
-                    row={r}
-                    today={today}
-                    onOpen={onOpen}
-                    onSave={onSave}
-                  />
+          {runbook.rigs.map((rig) => {
+            const mine = blocks
+              .map((b, n) => ({ b, n }))
+              .filter(({ b }) => b.hardware === rig.hardware);
+            if (mine.length === 0) return null;
+            const minutes = mine.reduce(
+              (m, { b }) => m + b.rows.reduce((k, r) => k + r.minutes, 0),
+              0,
+            );
+            return (
+              <section key={rig.hardware} aria-label={`Rig: ${rig.label}`} className="mb-8">
+                <h2 className="mb-3 border-b border-slate-200 pb-1 text-lg font-semibold dark:border-slate-700">
+                  <RigChip hardware={rig.hardware} />
+                  {rig.label}{' '}
+                  <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
+                    {mine.length} {mine.length === 1 ? 'block' : 'blocks'} · {minutes} min
+                  </span>
+                </h2>
+                {mine.map(({ b, n }) => (
+                  <section
+                    key={b.setup.join(',') + n}
+                    aria-label={`Block ${n + 1}`}
+                    className="mb-6"
+                  >
+                    <h3 className="mb-2 text-base font-semibold">
+                      Setup: {b.setup.join(', ') || 'none'}{' '}
+                      <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
+                        ({b.rows.reduce((m, r) => m + r.minutes, 0)} min)
+                      </span>
+                    </h3>
+                    <ul className="flex flex-col gap-3">
+                      {b.rows.map((r) => (
+                        <RunbookRow
+                          key={r.task_id}
+                          row={r}
+                          today={today}
+                          onOpen={onOpen}
+                          onSave={onSave}
+                        />
+                      ))}
+                    </ul>
+                  </section>
                 ))}
-              </ul>
-            </section>
-          ))}
+              </section>
+            );
+          })}
         </>
       )}
       {runbook.needs_section.length > 0 && (
@@ -107,6 +133,7 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
           <ul className="text-sm">
             {runbook.needs_section.map((n) => (
               <li key={n.task_id}>
+                <RigChip hardware={n.hardware} />
                 {n.kind != null && <KindPill kind={n.kind} ticketType={n.ticket_type} />}
                 <button
                   type="button"

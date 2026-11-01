@@ -183,6 +183,17 @@ def parse_results(body: str) -> List[Dict[str, str]]:
     return out
 
 
+RIGS = ("robot", "bench-leg", "bench-hand")  # rig display order; mapkit.sitting.HARDWARE when it has it
+RIG_LABELS = {"robot": "Robot", "bench-leg": "Bench leg", "bench-hand": "Bench hand"}
+
+
+def _rig_constants() -> Any:
+    """``(HARDWARE, RIG_LABELS)`` from the checkout's mapkit when it carries them, else the literals."""
+    from mapkit import sitting
+    hw = tuple(getattr(sitting, "HARDWARE", ()))
+    return (hw if "bench-hand" in hw else RIGS), dict(getattr(sitting, "RIG_LABELS", RIG_LABELS))
+
+
 def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     """The Next Sitting Runbook for the API: ``mapkit.sitting.collect`` plus store ids.
 
@@ -193,6 +204,7 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     from mapkit import sitting
 
     data = sitting.collect(repo_root)
+    rig_order, rig_labels = _rig_constants()
 
     def info(ref: str) -> Dict[str, Any]:
         node = ix.resolve(ref) if ref else None
@@ -208,6 +220,15 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
         return {"task_id": t["id"], "short_id": t["short_id"], "title": t["title"],
                 "body": t["description"], "kind": t["kind"], "ticket_type": t["ticket_type"]}
 
+    def hw_of(ref: str) -> str:
+        node = ix.resolve(ref) if ref else None
+        if node is None and ref:
+            m = _JB_RE.match(ref)
+            hits = ix.by_short.get(int(m.group(1)), []) if m else []
+            node = hits[0] if len(hits) == 1 else None
+        item = getattr(node, "item", None)
+        return (item.meta.get("hardware") if item is not None else None) or "robot"
+
     blocks = []
     for block in data["blocks"]:
         rows = []
@@ -216,18 +237,30 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
             pw = info(r.pathway)
             results = parse_results(it["body"])
             s = r.spec
-            rows.append({"task_id": it["task_id"] or r.stem, "short_id": it["short_id"] or r.item_id,
+            rows.append({"hardware": getattr(r, "hardware", None) or hw_of(r.stem),
+                         "task_id": it["task_id"] or r.stem, "short_id": it["short_id"] or r.item_id,
                          "title": r.title, "kind": it["kind"], "ticket_type": it["ticket_type"],
                          "pathway_short_id": pw["short_id"],
                          "pathway_title": pw["title"], "priority": r.priority,
                          "setup": list(s.setup), "why": s.why, "do": list(s.do), "pass": s.pass_,
                          "record": s.record, "minutes": s.minutes, "branch": s.branch,
                          "score": r.score, "has_result": bool(results), "results": results})
-        blocks.append({"setup": list(block[0].spec.setup), "rows": rows})
+        blocks.append({"hardware": rows[0]["hardware"], "setup": list(block[0].spec.setup),
+                       "rows": rows})
+    blocks.sort(key=lambda b: rig_order.index(b["hardware"]) if b["hardware"] in rig_order
+                else len(rig_order))  # stable: mapkit's score order holds within a rig
+    rigs = []
+    for hw in rig_order:
+        mine = [b for b in blocks if b["hardware"] == hw]
+        if mine:
+            rigs.append({"hardware": hw, "label": rig_labels.get(hw, hw), "blocks": len(mine),
+                         "minutes": sum(r["minutes"] for b in mine for r in b["rows"])})
     needs = []
-    for item_id, title, errors in data["needs_section"]:
+    for entry in data["needs_section"]:
+        item_id, title, errors = entry[:3]
         it = info(item_id)
-        needs.append({"task_id": it["task_id"] or item_id, "short_id": it["short_id"] or item_id,
+        needs.append({"hardware": entry[3] if len(entry) > 3 else hw_of(item_id),
+                      "task_id": it["task_id"] or item_id, "short_id": it["short_id"] or item_id,
                       "title": title, "kind": it["kind"], "ticket_type": it["ticket_type"],
                       "errors": list(errors)})
     questions = []
@@ -240,5 +273,5 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
                           "parent_task_id": p["task_id"], "parent_kind": p["kind"],
                           "parent_ticket_type": p["ticket_type"],
                           "parent_short_id": p["short_id"] or parent})
-    return {"blocks": blocks, "needs_section": needs, "questions": questions,
+    return {"rigs": rigs, "blocks": blocks, "needs_section": needs, "questions": questions,
             "page": sitting.render_runbook(repo_root)}

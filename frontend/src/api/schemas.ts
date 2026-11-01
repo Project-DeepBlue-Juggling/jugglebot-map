@@ -14,7 +14,7 @@ export type TaskStatus = z.infer<typeof TaskStatus>;
 // means "no priority" (the default). These are the only non-null values.
 // Item metrics (spec: the Jugglebot checkout's metrics/spec.md); null = unrated.
 export const EffortValue = z.enum(['xs', 's', 'm', 'l', 'xl']);
-export const HardwareValue = z.enum(['none', 'bench-leg', 'robot']);
+export const HardwareValue = z.enum(['none', 'bench-leg', 'bench-hand', 'robot']);
 export const OwnerNeedValue = z.enum(['none', 'decision', 'hands']);
 export const RadiusValue = z.enum(['local', 'subsystem', 'cross-cutting', 'normative']);
 export const DiagnosisValue = z.enum(['unknown', 'hypothesis', 'confirmed']);
@@ -424,6 +424,7 @@ export const RunbookResult = z.object({ date: z.string(), verdict: z.string(), n
 export type RunbookResult = z.infer<typeof RunbookResult>;
 
 export const RunbookRow = z.object({
+  hardware: HardwareValue.exclude(['none']),
   task_id: z.string(),
   short_id: z.string(),
   title: z.string(),
@@ -446,9 +447,24 @@ export const RunbookRow = z.object({
 export type RunbookRow = z.infer<typeof RunbookRow>;
 
 export const Runbook = z.object({
-  blocks: z.array(z.object({ setup: z.array(z.string()), rows: z.array(RunbookRow) })),
+  rigs: z.array(
+    z.object({
+      hardware: HardwareValue.exclude(['none']),
+      label: z.string(),
+      blocks: z.number(),
+      minutes: z.number(),
+    }),
+  ),
+  blocks: z.array(
+    z.object({
+      hardware: HardwareValue.exclude(['none']),
+      setup: z.array(z.string()),
+      rows: z.array(RunbookRow),
+    }),
+  ),
   needs_section: z.array(
     z.object({
+      hardware: HardwareValue.exclude(['none']),
       task_id: z.string(),
       short_id: z.string(),
       title: z.string(),

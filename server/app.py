@@ -381,7 +381,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         with store._lock:
             ix = store.index()
             node = store._node(ix, task_id, write=True)
-            if node.item is None or node.item.meta.get("hardware") not in ("bench-leg", "robot"):
+            if node.item is None or node.item.meta.get("hardware") not in nightshift.RIGS:
                 raise ApiError(422, {"detail": "not a hardware Item"})
             t = ix.task(node, cfg.repo_root)
             patch = {"description": append_sitting_result(t["description"], date, verdict, notes)}

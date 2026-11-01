@@ -12,6 +12,7 @@ let state: TestState;
 let server: ReturnType<typeof makeServer>;
 
 const row = (over: Record<string, unknown>) => ({
+  hardware: 'robot',
   task_id: 'b1',
   short_id: 'JB-1',
   title: 'Level check',
@@ -40,8 +41,13 @@ beforeEach(() => {
   state = createState();
   state.tasks = [mapTask({ id: 'b1', kind: 'bug', title: 'Level check', status: 'backlog' })];
   rb = {
+    rigs: [
+      { hardware: 'robot', label: 'Robot', blocks: 2, minutes: 35 },
+      { hardware: 'bench-hand', label: 'Bench hand', blocks: 1, minutes: 7 },
+    ],
     blocks: [
       {
+        hardware: 'robot',
         setup: ['level'],
         rows: [
           row({}),
@@ -57,6 +63,7 @@ beforeEach(() => {
         ],
       },
       {
+        hardware: 'robot',
         setup: ['level', 'armed'],
         rows: [
           row({
@@ -68,9 +75,23 @@ beforeEach(() => {
           }),
         ],
       },
+      {
+        hardware: 'bench-hand',
+        setup: ['level'],
+        rows: [
+          row({
+            hardware: 'bench-hand',
+            task_id: 'b5',
+            short_id: 'JB-6',
+            title: 'Hand check',
+            minutes: 7,
+          }),
+        ],
+      },
     ],
     needs_section: [
       {
+        hardware: 'bench-leg',
         task_id: 'b4',
         short_id: 'JB-4',
         title: 'No section',
@@ -98,13 +119,31 @@ describe('Next Sitting page', () => {
     renderApp('/next-sitting', <NextSittingRoute />);
     expect(await screen.findByText('Power-cycle the can-bridge.')).toBeInTheDocument();
     expect(screen.getByText('Latch hand_source first.')).toBeInTheDocument();
-    expect(screen.getAllByTestId('runbook-row')).toHaveLength(3);
+    expect(screen.getAllByTestId('runbook-row')).toHaveLength(4);
     expect(screen.getByText('Setup: level, armed')).toBeInTheDocument();
     expect(screen.getByText('(15 min)')).toBeInTheDocument();
     expect(screen.getByText('night-shift/x')).toBeInTheDocument();
-    expect(screen.getAllByText('step two')).toHaveLength(3);
+    expect(screen.getAllByText('step two')).toHaveLength(4);
     expect(screen.getByText(/no ## Sitting section/)).toBeInTheDocument();
-    expect(await screen.findByTestId('next-sitting-badge')).toHaveTextContent('3');
+    expect(await screen.findByTestId('next-sitting-badge')).toHaveTextContent('4');
+  });
+
+  it('heads each rig present, in order, with blocks beneath and a chip on needs entries', async () => {
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('runbook-row');
+    const heads = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+    const robot = heads.findIndex((t) => t?.includes('Robot'));
+    const hand = heads.findIndex((t) => t?.includes('Bench hand'));
+    expect(robot).toBeGreaterThanOrEqual(0);
+    expect(hand).toBeGreaterThan(robot);
+    expect(heads[robot]).toContain('2 blocks · 35 min');
+    expect(heads[hand]).toContain('1 block · 7 min');
+    expect(heads.some((t) => t?.includes('Bench leg') && t.includes('block'))).toBe(false);
+    const handRig = screen.getByRole('region', { name: 'Rig: Bench hand' });
+    expect(within(handRig).getByRole('region', { name: 'Block 3' })).toBeInTheDocument();
+    expect(within(handRig).getByText('Hand check')).toBeInTheDocument();
+    const needs = screen.getByRole('region', { name: 'Needs a Sitting section' });
+    expect(within(needs).getByTestId('rig-chip')).toHaveTextContent('Bench leg');
   });
 
   it('shows the kind pill beside each row ID, needs entry and question', async () => {
@@ -125,8 +164,8 @@ describe('Next Sitting page', () => {
     const rows = await screen.findAllByTestId('runbook-row');
     expect(within(rows[0] as HTMLElement).getByTestId('kind-pill')).toHaveTextContent('Bug');
     const pills = screen.getAllByTestId('kind-pill').map((p) => p.textContent);
-    // 3 rows + 1 needs entry + question (own pill, then its parent's)
-    expect(pills).toEqual(['Bug', 'Bug', 'Bug', 'Bug', 'Question', 'Bug']);
+    // 4 rows + 1 needs entry + question (own pill, then its parent's)
+    expect(pills).toEqual(['Bug', 'Bug', 'Bug', 'Bug', 'Bug', 'Question', 'Bug']);
   });
 
   it('the pathway chip filters the same list and All resets', async () => {
@@ -136,7 +175,7 @@ describe('Next Sitting page', () => {
     expect(screen.getAllByTestId('runbook-row')).toHaveLength(1);
     expect(screen.getByText('Beta check')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'All' }));
-    expect(screen.getAllByTestId('runbook-row')).toHaveLength(3);
+    expect(screen.getAllByTestId('runbook-row')).toHaveLength(4);
   });
 
   it('saves a verdict and notes, then shows the result', async () => {
@@ -146,8 +185,10 @@ describe('Next Sitting page', () => {
         posted = await request.json();
         rb = {
           ...rb,
+          rigs: [{ hardware: 'robot', label: 'Robot', blocks: 1, minutes: 10 }],
           blocks: [
             {
+              hardware: 'robot',
               setup: ['level'],
               rows: [
                 row({
@@ -177,7 +218,7 @@ describe('Next Sitting page', () => {
   });
 
   it('shows the empty state', async () => {
-    rb = { blocks: [], needs_section: [], questions: [], page: '' };
+    rb = { rigs: [], blocks: [], needs_section: [], questions: [], page: '' };
     renderApp('/next-sitting', <NextSittingRoute />);
     expect(await screen.findByText('No hardware checks waiting')).toBeInTheDocument();
     expect(screen.queryByTestId('next-sitting-badge')).toBeNull();

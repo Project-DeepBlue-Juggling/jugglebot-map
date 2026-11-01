@@ -32,7 +32,10 @@ def rb_repo(tmp_path, git_env):  # noqa: F811
     for slug, text in (("lvl", _item("Level one", "level")),
                        ("arm", _item("Armed one", "level, armed", minutes=20)),
                        ("brn", _item("Branchy", "level", minutes=5, branch=True)),
-                       ("nosec", _item("No section", "level", section=False, item_id="JB-7"))):
+                       ("hnd", _item("Hand one", "level", hw="bench-hand", minutes=7)),
+                       ("bl", _item("Leg one", "level", hw="bench-leg", minutes=9)),
+                       ("nosec", _item("No section", "level", section=False, item_id="JB-7",
+                                       hw="bench-hand"))):
         with open(os.path.join(repo, "map", "bug-%s.md" % slug), "w") as fh:
             fh.write(text)
     git(repo, "init", "--quiet")
@@ -60,7 +63,7 @@ def test_blocks_match_collect(c, rb_repo):
     assert [[r["short_id"] for r in b["rows"]] for b in data["blocks"]] == \
         [[r.item_id for r in b] for b in want["blocks"]]
     assert [b["setup"] for b in data["blocks"]] == [list(b[0].spec.setup) for b in want["blocks"]]
-    assert len(_rows(data)) == 3 and len(data["blocks"]) == 2
+    assert len(_rows(data)) == 5 and len(data["blocks"]) == 4
     row = _rows(data)[0]
     assert row["pathway_title"] == "Alpha pathway"
     assert all(r["kind"] == "bug" for r in _rows(data))
@@ -71,6 +74,23 @@ def test_blocks_match_collect(c, rb_repo):
     assert data["page"].startswith("# Next Sitting Runbook")
 
 
+def test_rigs_hardware_and_order(c):
+    data = c.get("/api/v1/runbook").json()
+    assert [r["hardware"] for r in data["rigs"]] == ["robot", "bench-leg", "bench-hand"]
+    assert [r["label"] for r in data["rigs"]] == ["Robot", "Bench leg", "Bench hand"]
+    robot, leg, hand = data["rigs"]
+    assert (robot["blocks"], robot["minutes"]) == (2, 35)
+    assert (leg["blocks"], leg["minutes"]) == (1, 9)
+    assert (hand["blocks"], hand["minutes"]) == (1, 7)
+    # blocks come rig by rig in rig order; a block never mixes rigs
+    assert [b["hardware"] for b in data["blocks"]] == ["robot", "robot", "bench-leg", "bench-hand"]
+    for b in data["blocks"]:
+        assert {r["hardware"] for r in b["rows"]} == {b["hardware"]}
+    titles = {r["title"]: r["hardware"] for r in _rows(data)}
+    assert titles["Hand one"] == "bench-hand" and titles["Leg one"] == "bench-leg"
+    assert titles["Level one"] == "robot"
+
+
 def test_needs_section(c):
     data = c.get("/api/v1/runbook").json()
     assert [n["title"] for n in data["needs_section"]] == ["No section"]
@@ -79,6 +99,7 @@ def test_needs_section(c):
     assert data["needs_section"][0]["short_id"] == "JB-7"
     assert data["needs_section"][0]["kind"] == "bug"
     assert data["needs_section"][0]["task_id"] != "JB-7"
+    assert data["needs_section"][0]["hardware"] == "bench-hand"
 
 
 def test_result_appends_each_call_and_flips_has_result(c, rb_repo):

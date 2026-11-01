@@ -7,7 +7,7 @@ import type { Task } from '../api/schemas';
  */
 export const METRIC_ENUMS = {
   effort: ['xs', 's', 'm', 'l', 'xl'],
-  hardware: ['none', 'bench-leg', 'robot'],
+  hardware: ['none', 'bench-leg', 'bench-hand', 'robot'],
   owner: ['none', 'decision', 'hands'],
   radius: ['local', 'subsystem', 'cross-cutting', 'normative'],
   diagnosis: ['unknown', 'hypothesis', 'confirmed'],
@@ -41,10 +41,19 @@ export const METRIC_LABELS: Record<MetricKey, string> = {
   area: 'Area',
 };
 
+/** Display names of the hardware values; the rig headings and chips use the same words. */
+export const HARDWARE_LABELS: Record<string, string> = {
+  none: 'None',
+  robot: 'Robot',
+  'bench-leg': 'Bench leg',
+  'bench-hand': 'Bench hand',
+};
+
 export const EFFORT_VALUES = METRIC_ENUMS.effort;
 
 /** Display text of a metric value: effort shows in capitals (XS S M L XL); the stored value stays lowercase. */
 export function metricValueLabel(key: MetricKey, value: string): string {
+  if (key === 'hardware') return HARDWARE_LABELS[value] ?? value;
   return key === 'effort' ? value.toUpperCase() : value;
 }
 

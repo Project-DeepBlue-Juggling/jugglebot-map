@@ -388,11 +388,16 @@ describe('P4 audit fixes (drawer)', () => {
     // one compact row of six-or-fewer selects; diagnosis is for bugs only
     expect(within(within(d).getByTestId('metrics')).getAllByRole('combobox')).toHaveLength(5);
     expect(within(d).queryByRole('combobox', { name: 'Diagnosis' })).toBeNull();
-    await userEvent.selectOptions(hardware, 'bench-leg');
+    expect(
+      within(hardware)
+        .getAllByRole('option')
+        .map((o) => (o as HTMLOptionElement).value),
+    ).toEqual(['', 'none', 'bench-leg', 'bench-hand', 'robot']);
+    await userEvent.selectOptions(hardware, 'bench-hand');
     await userEvent.selectOptions(effort, '');
     await userEvent.click(within(d).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(patchBodies).toHaveLength(1));
-    expect(patchBodies[0]).toMatchObject({ hardware: 'bench-leg', effort: null });
+    expect(patchBodies[0]).toMatchObject({ hardware: 'bench-hand', effort: null });
     expect(patchBodies[0]).not.toHaveProperty('radius');
   });
 
@@ -516,7 +521,8 @@ describe('new-item title screen (mapkit.similar via the server 409)', () => {
       http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
         const b = (await request.json()) as Record<string, unknown>;
         bodies.push(b);
-        if (b.allow_similar === true) return HttpResponse.json(mapTask({ id: 'new5', kind: 'idea' }));
+        if (b.allow_similar === true)
+          return HttpResponse.json(mapTask({ id: 'new5', kind: 'idea' }));
         return HttpResponse.json(
           { detail: 'Similar items exist', code: 'similar', duplicate: null, similar: [match()] },
           { status: 409 },
@@ -561,7 +567,9 @@ describe('new-item title screen (mapkit.similar via the server 409)', () => {
     );
     await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
     const alert = await within(form).findByTestId('title-conflict');
-    expect(alert).toHaveTextContent('Already filed as JB-103 (inbox) Records window stays floating');
+    expect(alert).toHaveTextContent(
+      'Already filed as JB-103 (inbox) Records window stays floating',
+    );
     expect(within(form).getByRole('button', { name: 'Create' })).toBeDisabled();
     fireEvent.keyDown(within(form).getByLabelText('Title'), { key: 'Enter', ctrlKey: true });
     await new Promise((r) => setTimeout(r, 50));
