@@ -112,6 +112,17 @@
   html.dark {
     color-scheme: dark;
   }
+  /* Every native <select>'s opened options list, in both themes. A select
+     styled bg-transparent (the drawer's GHOST class) gives the browser no
+     background for the popup, so it draws its default light list while the
+     options inherit the select's text colour: light-on-light in dark mode
+     (the drawer's Status/Priority/Pathway). Explicit theme tokens on the
+     options make every list contrast whatever the closed select looks like. */
+  select option,
+  select optgroup {
+    color: var(--dr-text-hi);
+    background-color: var(--dr-bg);
+  }
   /* Dark scrollbars: the inner scroll areas (lanes, rail, inbox band) otherwise
      draw the platform's light scrollbar as a white strip on the dark page. */
   html.dark * {
@@ -213,8 +224,8 @@ select.metric-select.is-unrated {
   font-style: italic;
   color: var(--dr-text-lo);
 }
+/* Option colours come from the base `select option` rule; only undo the
+   unrated italic here so the list itself reads upright. */
 select.metric-select option {
-  color: var(--dr-text-hi);
-  background-color: var(--dr-bg);
   font-style: normal;
 }
