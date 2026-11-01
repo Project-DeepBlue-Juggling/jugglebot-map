@@ -97,8 +97,10 @@ def test_questions_only_open_question_type(c):
     assert q["title"] == "Which leg first?" and "leg 3" in q["body"]
     assert q["parent_id"] == bug["id"] and q["parent_short_id"] == bug["short_id"]
     assert q["parent_title"] == "Wobbly leg"
+    assert q["parent_kind"] == "bug" and q["parent_ticket_type"] is None
     assert set(q) == {"id", "short_id", "title", "body", "parent_id", "parent_short_id",
-                      "parent_title", "created_at", "updated_at"}
+                      "parent_kind", "parent_ticket_type", "parent_title", "created_at",
+                      "updated_at"}
 
 
 def test_answer_appends_once_completes_and_hides(c, ns_repo):

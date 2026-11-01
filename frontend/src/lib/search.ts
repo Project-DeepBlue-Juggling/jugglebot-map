@@ -44,6 +44,8 @@ export interface SearchHit {
   closed: boolean;
   /** The Item's short ID (`JB-12`); null for plans, phases and glossary terms. */
   shortId: string | null;
+  /** The task's ticket type (a Question reads apart from a Ticket); null otherwise. */
+  ticketType: string | null;
   /** The Avoid word that matched, when the hit is a redirect to the preferred term. */
   avoid: string | null;
   tier: MatchTier;
@@ -104,6 +106,7 @@ function taskHit(
     status: task.status,
     closed: isDone(task),
     shortId: task.short_id,
+    ticketType: task.ticket_type,
     avoid: null,
     tier,
   };
@@ -155,6 +158,7 @@ export function searchMap(
         status: null,
         closed: false,
         shortId: null,
+        ticketType: null,
         avoid,
         tier,
       });

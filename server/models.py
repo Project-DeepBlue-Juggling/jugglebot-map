@@ -181,6 +181,8 @@ class NightShiftQuestion(_Strict):
     body: str
     parent_id: Optional[str]
     parent_short_id: Optional[str]
+    parent_kind: Optional[str]
+    parent_ticket_type: Optional[str]
     parent_title: Optional[str]
     created_at: str
     updated_at: str
@@ -201,6 +203,8 @@ class RunbookRow(_Strict):
     task_id: str
     short_id: str
     title: str
+    kind: Optional[str]
+    ticket_type: Optional[str]
     pathway_short_id: Optional[str]
     pathway_title: Optional[str]
     priority: str
@@ -225,6 +229,8 @@ class RunbookNeeds(_Strict):
     task_id: str
     short_id: str
     title: str
+    kind: Optional[str]
+    ticket_type: Optional[str]
     errors: List[str]
 
 
@@ -232,8 +238,12 @@ class RunbookQuestion(_Strict):
     task_id: str
     short_id: str
     title: str
+    kind: str
+    ticket_type: str
     parent_task_id: Optional[str]
     parent_short_id: str
+    parent_kind: Optional[str]
+    parent_ticket_type: Optional[str]
 
 
 class Runbook(_Strict):

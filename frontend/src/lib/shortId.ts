@@ -44,3 +44,13 @@ export function shortIdIndex(tasks: readonly Task[] | undefined): ReadonlyMap<st
   for (const t of tasks ?? []) if (t.short_id !== null) out.set(t.short_id, t.id);
   return out;
 }
+
+/** `JB-<n>` -> kind (and ticket type), for the pill beside a linkified mention. */
+export function shortIdKinds(
+  tasks: readonly Task[] | undefined,
+): ReadonlyMap<string, { kind: string; ticketType: string | null }> {
+  const out = new Map<string, { kind: string; ticketType: string | null }>();
+  for (const t of tasks ?? [])
+    if (t.short_id !== null) out.set(t.short_id, { kind: t.kind, ticketType: t.ticket_type });
+  return out;
+}

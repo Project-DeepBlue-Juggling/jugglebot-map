@@ -3,6 +3,7 @@ import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { SHORT_ID_IN_TEXT } from '../lib/shortId';
 import { ITEM_HREF_PREFIX, ItemLinkCtx } from './itemLinks';
+import { KindPill } from './ShortId';
 
 /* A minimal mdast node shape: enough for the one plugin below without a
    unist dependency. */
@@ -89,14 +90,18 @@ function ItemRef({ shortId, children }: { shortId: string; children: ReactNode }
   const links = useContext(ItemLinkCtx);
   const id = links?.ids.get(shortId);
   if (links === null || id === undefined) return <>{children}</>;
+  const k = links.kinds.get(shortId);
   return (
-    <button
-      type="button"
-      onClick={() => links.open(id)}
-      className="font-mono text-[12.5px] text-dr-link underline-offset-2 hover:underline"
-    >
-      {children}
-    </button>
+    <>
+      {k !== undefined && <KindPill kind={k.kind} ticketType={k.ticketType} />}
+      <button
+        type="button"
+        onClick={() => links.open(id)}
+        className="font-mono text-[12.5px] text-dr-link underline-offset-2 hover:underline"
+      >
+        {children}
+      </button>
+    </>
   );
 }
 

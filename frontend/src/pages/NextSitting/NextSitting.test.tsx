@@ -15,6 +15,8 @@ const row = (over: Record<string, unknown>) => ({
   task_id: 'b1',
   short_id: 'JB-1',
   title: 'Level check',
+  kind: 'bug',
+  ticket_type: null,
   pathway_short_id: 'JB-9',
   pathway_title: 'Alpha',
   priority: 'high',
@@ -68,7 +70,14 @@ beforeEach(() => {
       },
     ],
     needs_section: [
-      { task_id: 'b4', short_id: 'JB-4', title: 'No section', errors: ['no ## Sitting section'] },
+      {
+        task_id: 'b4',
+        short_id: 'JB-4',
+        title: 'No section',
+        kind: 'bug',
+        ticket_type: null,
+        errors: ['no ## Sitting section'],
+      },
     ],
     questions: [],
     page: '# Next Sitting Runbook\n\n## Setup 0: before power\n\n- Power-cycle the can-bridge.\n- Latch `hand_source` first.\n\n## Block 1: level\n',
@@ -96,6 +105,28 @@ describe('Next Sitting page', () => {
     expect(screen.getAllByText('step two')).toHaveLength(3);
     expect(screen.getByText(/no ## Sitting section/)).toBeInTheDocument();
     expect(await screen.findByTestId('next-sitting-badge')).toHaveTextContent('3');
+  });
+
+  it('shows the kind pill beside each row ID, needs entry and question', async () => {
+    rb.questions = [
+      {
+        task_id: 'q1',
+        short_id: 'JB-5',
+        title: 'Which hand?',
+        kind: 'ticket',
+        ticket_type: 'question',
+        parent_task_id: 'b1',
+        parent_short_id: 'JB-1',
+        parent_kind: 'bug',
+        parent_ticket_type: null,
+      },
+    ];
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const rows = await screen.findAllByTestId('runbook-row');
+    expect(within(rows[0] as HTMLElement).getByTestId('kind-pill')).toHaveTextContent('Bug');
+    const pills = screen.getAllByTestId('kind-pill').map((p) => p.textContent);
+    // 3 rows + 1 needs entry + question (own pill, then its parent's)
+    expect(pills).toEqual(['Bug', 'Bug', 'Bug', 'Bug', 'Question', 'Bug']);
   });
 
   it('the pathway chip filters the same list and All resets', async () => {

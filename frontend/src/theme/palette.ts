@@ -41,8 +41,29 @@ export const TICKET_HUE: KindHue = {
   chip: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
 };
 
+/** Pathway Items: indigo, the same hue as the first pathway cycle entry. */
+export const PATHWAY_HUE: KindHue = {
+  label: 'Pathway',
+  hex: '#6366f1', // indigo-500
+  chip: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300',
+};
+
+/** Question tickets (`ticket_type: question`): violet, apart from the slate ticket. */
+export const QUESTION_HUE: KindHue = {
+  label: 'Question',
+  hex: '#8b5cf6', // violet-500
+  chip: 'bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300',
+};
+
 export function kindHue(kind: string): KindHue {
   return (KIND_HUES as Record<string, KindHue>)[kind] ?? TICKET_HUE;
+}
+
+/** The hue of the kind pill beside an Item ID: kind, with questions told apart from tickets. */
+export function idPillHue(kind: string, ticketType?: string | null): KindHue {
+  if (kind === 'pathway') return PATHWAY_HUE;
+  if (kind === 'ticket' && ticketType === 'question') return QUESTION_HUE;
+  return kindHue(kind);
 }
 
 export const KIND_LABELS: Record<string, string> = {

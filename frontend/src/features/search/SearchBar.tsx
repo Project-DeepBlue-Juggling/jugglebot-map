@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { useGlossary, useTasks } from '../../api/hooks';
 import { searchMap, type SearchHit } from '../../lib/search';
+import { IdPill } from '../../ui/ShortId';
 import { hasModifier, isShortcutTarget, modalIsOpen } from '../../ui/keyboard';
 import { useActiveProjectId } from '../../projects/useActiveProject';
 import { useOpenItem } from '../drawer/drawerContext';
@@ -198,11 +199,7 @@ export function SearchBar() {
                       hit.closed && 'opacity-50',
                     )}
                   >
-                    {hit.shortId !== null && (
-                      <span className="shrink-0 font-mono text-[11px] opacity-70">
-                        {hit.shortId}
-                      </span>
-                    )}
+                    <IdPill shortId={hit.shortId} kind={hit.group} ticketType={hit.ticketType} />
                     <span className="min-w-0 truncate">{hit.title}</span>
                     {hit.avoid !== null && (
                       <span className="shrink-0 text-xs text-slate-500 dark:text-slate-400">

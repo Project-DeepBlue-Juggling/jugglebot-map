@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import clsx from 'clsx';
 import type { RunbookRow as Row } from '../../api/schemas';
+import { KindPill } from '../../ui/ShortId';
 
 export interface RunbookRowProps {
   row: Row;
@@ -36,13 +37,16 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
       className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800"
     >
       <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <button
-          type="button"
-          onClick={() => onOpen(row.task_id)}
-          className="font-mono text-sm text-sky-700 hover:underline dark:text-sky-400"
-        >
-          {row.short_id}
-        </button>
+        <span>
+          {row.kind != null && <KindPill kind={row.kind} ticketType={row.ticket_type} />}
+          <button
+            type="button"
+            onClick={() => onOpen(row.task_id)}
+            className="font-mono text-sm text-sky-700 hover:underline dark:text-sky-400"
+          >
+            {row.short_id}
+          </button>
+        </span>
         <span className="text-sm font-semibold">{row.title}</span>
         <span className="text-xs text-slate-500 dark:text-slate-400">
           {row.minutes} min · {row.priority || 'unrated'} · {row.pathway_title ?? 'unattached'}

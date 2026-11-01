@@ -42,7 +42,7 @@ import { useDrawer } from './drawerContext';
 import { MarkdownField, Title } from './fields';
 import ShortId from '../../ui/ShortId';
 import { ItemLinkCtx, type ItemLinks } from '../../ui/itemLinks';
-import { shortIdIndex } from '../../lib/shortId';
+import { shortIdIndex, shortIdKinds } from '../../lib/shortId';
 import { HistorySection } from './HistorySection';
 
 interface DrawerProps {
@@ -85,7 +85,7 @@ export default function ItemDrawer({ taskId, onClose, onOpen, docked = false }: 
   );
   // `JB-<n>` mentions in the bodies below open that Item here.
   const itemLinks = useMemo<ItemLinks>(
-    () => ({ ids: shortIdIndex(allTasks), open: onOpen }),
+    () => ({ ids: shortIdIndex(allTasks), kinds: shortIdKinds(allTasks), open: onOpen }),
     [allTasks, onOpen],
   );
 

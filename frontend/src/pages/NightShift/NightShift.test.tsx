@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { HttpResponse, http } from 'msw';
 import { NightShiftRoute } from '../../features/drawer/routes';
 import { mapTask } from '../../test/mapFixtures';
@@ -17,6 +17,8 @@ const question = {
   body: 'Should the night shift fix leg 3 first?',
   parent_id: 'bug1',
   parent_short_id: 'JB-12',
+  parent_kind: 'bug',
+  parent_ticket_type: null,
   parent_title: 'Wobbly leg',
   created_at: '2026-10-30T00:00:00Z',
   updated_at: '2026-10-30T00:00:00Z',
@@ -25,7 +27,15 @@ const question = {
 beforeEach(() => {
   window.localStorage.clear();
   state = createState();
-  state.tasks = [mapTask({ id: 'bug1', kind: 'bug', title: 'Wobbly leg', status: 'inbox' })];
+  state.tasks = [
+    mapTask({
+      id: 'bug1',
+      kind: 'bug',
+      title: 'Wobbly leg',
+      status: 'inbox',
+      short_id: 'JB-12',
+    }),
+  ];
   server = makeServer(state);
   server.listen({ onUnhandledRequest: 'error' });
 });
@@ -74,6 +84,27 @@ describe('Night Shift page', () => {
     expect(await screen.findByText('Summary 2026-10-30')).toBeInTheDocument();
   });
 
+  it('links JB-<n> in the report to its Item, with the kind pill, and opens it', async () => {
+    server.use(
+      http.get(`${BASE}/reports`, () =>
+        HttpResponse.json([
+          { date: '2026-10-31', path: 'docs/night-shift/2026-10-31.md', title: 'NS' },
+        ]),
+      ),
+      http.get(`${BASE}/reports/:date`, () =>
+        HttpResponse.text('Held JB-12 and JB-99.', {
+          headers: { 'content-type': 'text/markdown' },
+        }),
+      ),
+    );
+    renderApp('/night-shift', <NightShiftRoute />);
+    const link = await screen.findByRole('button', { name: 'JB-12' });
+    const report = screen.getByTestId('night-shift-report');
+    expect(within(report).getByTestId('kind-pill')).toHaveTextContent('Bug');
+    expect(within(report).getAllByTestId('kind-pill')).toHaveLength(1); // JB-99 is unknown
+    expect(link).toBeInTheDocument();
+  });
+
   it('shows the nav badge count when questions are open', async () => {
     server.use(
       http.get(`${BASE}/summary`, () =>
@@ -105,6 +136,7 @@ describe('Night Shift page', () => {
     renderApp('/night-shift', <NightShiftRoute />);
     const card = await screen.findByTestId('question-card');
     expect(card).toHaveTextContent('JB-12');
+    expect(within(card).getByTestId('kind-pill')).toHaveTextContent('Bug');
     expect(card).toHaveTextContent('Wobbly leg');
     expect(card).toHaveTextContent('Which leg first?');
     expect(card).toHaveTextContent('Should the night shift fix leg 3 first?');

@@ -206,11 +206,6 @@ export function DoneView({ tasks, onOpen }: DoneViewProps) {
                     data-testid="closed-item"
                     className="flex min-w-0 items-baseline gap-2"
                   >
-                    <span
-                      className={`shrink-0 rounded px-1.5 py-px text-[10px] font-medium ${kindHue(task.kind).chip}`}
-                    >
-                      {kindHue(task.kind).label}
-                    </span>
                     <ShortId task={task} className="pt-px" />
                     <button
                       type="button"

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import type { Runbook } from '../../api/schemas';
+import { KindPill } from '../../ui/ShortId';
 import { RunbookRow } from './RunbookRow';
 
 export interface NextSittingViewProps {
@@ -106,6 +107,7 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
           <ul className="text-sm">
             {runbook.needs_section.map((n) => (
               <li key={n.task_id}>
+                {n.kind != null && <KindPill kind={n.kind} ticketType={n.ticket_type} />}
                 <button
                   type="button"
                   onClick={() => onOpen(n.task_id)}
@@ -125,6 +127,7 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
           <ul className="text-sm">
             {runbook.questions.map((q) => (
               <li key={q.task_id}>
+                <KindPill kind={q.kind} ticketType={q.ticket_type} />
                 <button
                   type="button"
                   onClick={() => onOpen(q.task_id)}
@@ -132,7 +135,14 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
                 >
                   {q.short_id}
                 </button>{' '}
-                {q.title} <span className="text-slate-500">(parent {q.parent_short_id})</span>
+                {q.title}{' '}
+                <span className="text-slate-500">
+                  (parent{' '}
+                  {q.parent_kind != null && (
+                    <KindPill kind={q.parent_kind} ticketType={q.parent_ticket_type} />
+                  )}
+                  {q.parent_short_id})
+                </span>
               </li>
             ))}
           </ul>

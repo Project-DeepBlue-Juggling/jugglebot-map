@@ -61,6 +61,8 @@ def test_blocks_match_collect(c, rb_repo):
     assert len(_rows(data)) == 3 and len(data["blocks"]) == 2
     row = _rows(data)[0]
     assert row["pathway_title"] == "Alpha pathway"
+    assert all(r["kind"] == "bug" for r in _rows(data))
+    assert "ticket_type" in row
     assert row["do"] == ["step one", "step two"] and row["pass"] == "it works"
     assert row["has_result"] is False and row["results"] == []
     assert any(r["branch"] == "night-shift/x" for r in _rows(data))
@@ -71,6 +73,7 @@ def test_needs_section(c):
     data = c.get("/api/v1/runbook").json()
     assert [n["title"] for n in data["needs_section"]] == ["No section"]
     assert data["needs_section"][0]["errors"] == ["no ## Sitting section"]
+    assert data["needs_section"][0]["kind"] == "bug"
 
 
 def test_result_appends_each_call_and_flips_has_result(c, rb_repo):

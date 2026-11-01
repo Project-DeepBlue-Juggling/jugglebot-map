@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { NightShiftQuestion } from '../../api/schemas';
 import Markdown from '../../ui/Markdown';
+import { IdPill } from '../../ui/ShortId';
 
 export interface QuestionCardProps {
   question: NightShiftQuestion;
@@ -37,7 +38,16 @@ export function QuestionCard({ question: q, onOpen, onAnswer }: QuestionCardProp
           onClick={() => onOpen(q.parent_id as string)}
           className="mb-1 flex items-center gap-2 text-left text-xs text-slate-500 hover:underline dark:text-slate-400"
         >
-          <span className="font-mono">{q.parent_short_id ?? 'item'}</span>
+          {q.parent_short_id !== null && q.parent_kind !== null ? (
+            <IdPill
+              shortId={q.parent_short_id}
+              kind={q.parent_kind}
+              ticketType={q.parent_ticket_type}
+              className="!opacity-100"
+            />
+          ) : (
+            <span className="font-mono">{q.parent_short_id ?? 'item'}</span>
+          )}
           <span>{q.parent_title}</span>
         </button>
       )}

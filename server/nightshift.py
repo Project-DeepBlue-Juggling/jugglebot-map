@@ -153,6 +153,8 @@ def open_questions(ix: Any, repo_root: str) -> List[Dict[str, Any]]:
                     "body": t["description"],
                     "parent_id": p["id"] if p else None,
                     "parent_short_id": p["short_id"] if p else None,
+                    "parent_kind": p["kind"] if p else None,
+                    "parent_ticket_type": p["ticket_type"] if p else None,
                     "parent_title": p["title"] if p else None,
                     "created_at": t["created_at"], "updated_at": t["updated_at"]})
     out.sort(key=lambda q: (q["created_at"], q["id"]))
@@ -195,10 +197,11 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     def info(ref: str) -> Dict[str, Any]:
         node = ix.resolve(ref) if ref else None
         if node is None:
-            return {"task_id": None, "short_id": None, "title": None, "body": ""}
+            return {"task_id": None, "short_id": None, "title": None, "body": "",
+                    "kind": None, "ticket_type": None}
         t = ix.task(node, repo_root)
         return {"task_id": t["id"], "short_id": t["short_id"], "title": t["title"],
-                "body": t["description"]}
+                "body": t["description"], "kind": t["kind"], "ticket_type": t["ticket_type"]}
 
     blocks = []
     for block in data["blocks"]:
@@ -209,7 +212,8 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
             results = parse_results(it["body"])
             s = r.spec
             rows.append({"task_id": it["task_id"] or r.stem, "short_id": it["short_id"] or r.item_id,
-                         "title": r.title, "pathway_short_id": pw["short_id"],
+                         "title": r.title, "kind": it["kind"], "ticket_type": it["ticket_type"],
+                         "pathway_short_id": pw["short_id"],
                          "pathway_title": pw["title"], "priority": r.priority,
                          "setup": list(s.setup), "why": s.why, "do": list(s.do), "pass": s.pass_,
                          "record": s.record, "minutes": s.minutes, "branch": s.branch,
@@ -219,13 +223,17 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     for item_id, title, errors in data["needs_section"]:
         it = info(item_id)
         needs.append({"task_id": it["task_id"] or item_id, "short_id": it["short_id"] or item_id,
-                      "title": title, "errors": list(errors)})
+                      "title": title, "kind": it["kind"], "ticket_type": it["ticket_type"],
+                      "errors": list(errors)})
     questions = []
     for qid, title, parent in data["questions"]:
         q = info(qid)
         p = info(parent)
         questions.append({"task_id": q["task_id"] or qid, "short_id": q["short_id"] or qid,
-                          "title": title, "parent_task_id": p["task_id"],
+                          "title": title, "kind": q["kind"] or "ticket",
+                          "ticket_type": q["ticket_type"] or "question",
+                          "parent_task_id": p["task_id"], "parent_kind": p["kind"],
+                          "parent_ticket_type": p["ticket_type"],
                           "parent_short_id": p["short_id"] or parent})
     return {"blocks": blocks, "needs_section": needs, "questions": questions,
             "page": sitting.render_runbook(repo_root)}
