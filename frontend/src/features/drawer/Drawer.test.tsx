@@ -158,7 +158,7 @@ describe('five-field new-item modal', () => {
     renderApp('/', <FrontRoute />);
     await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
     const form = await screen.findByTestId('new-item-form');
-    for (const name of ['Title', 'One line', 'Pathway (optional)']) {
+    for (const name of ['Title', 'Description', 'Pathway (optional)']) {
       expect(within(form).getByLabelText(name)).toBeEnabled();
     }
     // Kind and Priority are pill radio groups (JB-71).
@@ -176,7 +176,7 @@ describe('five-field new-item modal', () => {
     expect(formSrc).not.toMatch(/grid-cols|\bsm:|\bmd:|\blg:/);
     await userEvent.click(within(form).getByRole('radio', { name: 'Bug' }));
     await userEvent.type(within(form).getByLabelText('Title'), 'Leg buzz');
-    await userEvent.type(within(form).getByLabelText('One line'), 'Leg 3 buzzes at 40 Hz');
+    await userEvent.type(within(form).getByLabelText('Description'), 'Leg 3 buzzes at 40 Hz');
     await userEvent.click(within(form).getByRole('radio', { name: 'High' }));
     await userEvent.selectOptions(within(form).getByLabelText('Pathway (optional)'), 'oval');
     let posted: Record<string, unknown> | null = null;
@@ -231,7 +231,7 @@ describe('five-field new-item modal', () => {
     await userEvent.tab();
     expect(within(form).getByLabelText('Title')).toHaveFocus();
     await userEvent.keyboard('Leg buzz');
-    await userEvent.tab(); // One line
+    await userEvent.tab(); // Description
     await userEvent.tab(); // Priority: lands on the chosen pill (None)
     const prios = within(
       within(form).getByRole('radiogroup', { name: 'Priority (optional)' }),
@@ -266,21 +266,45 @@ describe('five-field new-item modal', () => {
       }),
     );
     // An empty title never files, chord or not.
-    fireEvent.keyDown(within(form).getByLabelText('One line'), { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(within(form).getByLabelText('Description'), { key: 'Enter', ctrlKey: true });
     await userEvent.type(within(form).getByLabelText('Title'), 'Chorded');
-    await userEvent.type(within(form).getByLabelText('One line'), 'from the last field');
+    await userEvent.type(within(form).getByLabelText('Description'), 'from the last field');
     // A bare Enter on a field the browser never submits from (the Pathway select).
     fireEvent.keyDown(within(form).getByLabelText('Pathway (optional)'), { key: 'Enter' });
     await new Promise((r) => setTimeout(r, 50));
     expect(posts).toBe(0);
     // Two chords before the first answers still file one item.
-    const line = within(form).getByLabelText('One line');
+    const line = within(form).getByLabelText('Description');
     expect(fireEvent.keyDown(line, { key: 'Enter', ctrlKey: true })).toBe(false); // default prevented
     fireEvent.keyDown(line, { key: 'Enter', metaKey: true });
     await waitFor(() => expect(posted).not.toBeNull());
     expect(posted).toMatchObject({ title: 'Chorded', description: 'from the last field' });
     await waitFor(() => expect(screen.queryByTestId('new-item-form')).toBeNull());
     expect(posts).toBe(1);
+  });
+
+  it('the description is multi-line: Enter adds a line, the newlines reach the POST (JB-91)', async () => {
+    renderApp('/', <FrontRoute />);
+    await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
+    const form = await screen.findByTestId('new-item-form');
+    let posts = 0;
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post('http://localhost:8000/api/v1/projects/:projectId/tasks', async ({ request }) => {
+        posts += 1;
+        posted = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(mapTask({ id: 'new6', kind: 'idea' }));
+      }),
+    );
+    const desc = within(form).getByLabelText('Description');
+    expect(desc.tagName).toBe('TEXTAREA');
+    await userEvent.type(within(form).getByLabelText('Title'), 'Multi-line');
+    await userEvent.type(desc, 'first line{Enter}second line');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(0); // a bare Enter in the description never files
+    fireEvent.keyDown(desc, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ description: 'first line\nsecond line' });
   });
 
   it('Cmd+Enter on a Kind pill creates too (the chord works from any control)', async () => {

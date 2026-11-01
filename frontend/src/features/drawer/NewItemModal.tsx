@@ -23,7 +23,8 @@ const NEUTRAL_PILL = 'bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-sl
 const PRIORITY_PILLS = ['', ...PRIORITY_OPTIONS] as const;
 
 /**
- * The new-item modal: seven fields (kind, title, one line, priority, effort, hardware, pathway).
+ * The new-item modal: seven fields (kind, title, description, priority, effort, hardware, pathway).
+ * The description is a multi-line textarea (JB-91): Enter adds a line, Ctrl+Enter creates.
  * Kind and Priority are pill buttons; the form opens on the Kind pills.
  * One column at every width (no responsive breakpoints), `w-full max-w-md` plus a
  * viewport-bounded scrolling body, so it fits a 400 px window.
@@ -158,11 +159,13 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
         )}
         <div>
           <label className={LABEL} htmlFor="new-line">
-            One line
+            Description
           </label>
-          <input
+          {/* Multi-line (JB-91): Enter is a new line, Ctrl+Enter still creates. */}
+          <textarea
             id="new-line"
-            className={FIELD}
+            className={clsx(FIELD, 'min-h-[5rem] resize-y')}
+            rows={4}
             value={line}
             onChange={(e) => setLine(e.target.value)}
           />
