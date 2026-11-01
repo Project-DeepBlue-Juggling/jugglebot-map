@@ -144,6 +144,11 @@ describe('Next Sitting page', () => {
     expect(within(handRig).getByText('Hand check')).toBeInTheDocument();
     const needs = screen.getByRole('region', { name: 'Needs a Sitting section' });
     expect(within(needs).getByTestId('rig-chip')).toHaveTextContent('Bench leg');
+    // An invisible table: every needs entry is one row of five aligned cells
+    // (rig, kind, ID, title, reason), so each kind of text shares a column.
+    const rows = within(needs).getAllByRole('row');
+    expect(rows.length).toBe(1);
+    for (const r of rows) expect(within(r).getAllByRole('cell')).toHaveLength(5);
   });
 
   it('shows the kind pill beside each row ID, needs entry and question', async () => {

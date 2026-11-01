@@ -130,22 +130,33 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
       {runbook.needs_section.length > 0 && (
         <section aria-label="Needs a Sitting section" className="mb-6">
           <h2 className="mb-1 text-base font-semibold">Needs a Sitting section</h2>
-          <ul className="text-sm">
-            {runbook.needs_section.map((n) => (
-              <li key={n.task_id}>
-                <RigChip hardware={n.hardware} />
-                {n.kind != null && <KindPill kind={n.kind} ticketType={n.ticket_type} />}
-                <button
-                  type="button"
-                  onClick={() => onOpen(n.task_id)}
-                  className="font-mono text-sky-700 hover:underline dark:text-sky-400"
-                >
-                  {n.short_id}
-                </button>{' '}
-                {n.title}: <span className="text-slate-500">{n.errors.join('; ')}</span>
-              </li>
-            ))}
-          </ul>
+          {/* An invisible table: rig, kind, ID, title and reason each line up in
+              their own column, with no rules drawn (owner, 2026-11-01). */}
+          <table className="text-sm">
+            <tbody>
+              {runbook.needs_section.map((n) => (
+                <tr key={n.task_id} className="align-baseline">
+                  <td className="py-0.5 pr-2">
+                    <RigChip hardware={n.hardware} />
+                  </td>
+                  <td className="py-0.5 pr-1">
+                    {n.kind != null && <KindPill kind={n.kind} ticketType={n.ticket_type} />}
+                  </td>
+                  <td className="py-0.5 pr-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => onOpen(n.task_id)}
+                      className="font-mono text-sky-700 hover:underline dark:text-sky-400"
+                    >
+                      {n.short_id}
+                    </button>
+                  </td>
+                  <td className="py-0.5 pr-4">{n.title}</td>
+                  <td className="py-0.5 text-slate-500">{n.errors.join('; ')}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </section>
       )}
       {runbook.questions.length > 0 && (
