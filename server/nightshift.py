@@ -60,6 +60,8 @@ _QUESTIONS_HEAD = "## Questions for the Operator"
 _JB_RE = re.compile(r"^JB-(\d+)$")
 _RULE_CELL_RE = re.compile(r"^:?-{3,}:?$")
 ANSWER_HEADER = "Your answer"
+_HELD_HEAD = "## Held"
+RESPOND_HEADER = "Respond in"
 
 
 def _cells(row: str) -> List[str]:
@@ -107,26 +109,28 @@ def _answer_cell(ix: Any, repo_root: str, ticket: str) -> str:
     return "_not answered yet_"
 
 
-def annotate_answers(text: str, ix: Any, repo_root: str) -> str:
-    """The report with a "Your answer" column on its ``## Questions for the Operator`` table.
+def _annotate_table(lines: List[str], heading: str, key_col: Any, ix: Any, repo_root: str) -> None:
+    """Add the "Your answer" column to the GFM table under ``heading``, in place.
 
-    The committed report is the night's snapshot; the answer lives on the question ticket
-    (``## Answer``, written by the app's answer box). This joins them when the report is
-    served, so the table shows each answer as it stands now. Only a GFM table (a header row
-    followed by a ``|---|`` rule) is annotated; a report without one, or one that already
-    has the column, is returned unchanged.
-    """
-    lines = text.split("\n")
+    ``key_col`` is the column index (int) or the header text (str) whose cell names the
+    ticket; a header without that text, or a table that already has the column, is left alone.
+    A ``none`` key cell (a Held row with no ticket) gets an empty answer cell."""
     try:
-        start = next(i for i, l in enumerate(lines) if l.strip() == _QUESTIONS_HEAD)
+        start = next(i for i, l in enumerate(lines) if l.strip() == heading)
     except StopIteration:
-        return text
+        return
     end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
-    rule = next((i for i in range(start + 1, end - 0) if _is_rule(lines[i])), None)
+    rule = next((i for i in range(start + 1, end) if _is_rule(lines[i])), None)
     if rule is None or rule - 1 <= start or not lines[rule - 1].strip().startswith("|"):
-        return text
-    if ANSWER_HEADER in _cells(lines[rule - 1]):
-        return text
+        return
+    head = _cells(lines[rule - 1])
+    if ANSWER_HEADER in head:
+        return
+    if isinstance(key_col, str):
+        if key_col not in head:
+            return
+        key_col = head.index(key_col)
+
     def append(row: str, cell: str, sep: str = " ") -> str:
         row = row.rstrip()
         return (row if row.endswith("|") else row + " |") + sep + cell + sep + "|"
@@ -135,8 +139,26 @@ def annotate_answers(text: str, ix: Any, repo_root: str) -> str:
     lines[rule] = append(lines[rule], "---", sep="")
     i = rule + 1
     while i < end and lines[i].strip().startswith("|"):
-        lines[i] = append(lines[i], _answer_cell(ix, repo_root, _cells(lines[i])[0]))
+        cs = _cells(lines[i])
+        key = cs[key_col] if key_col < len(cs) else "none"
+        lines[i] = append(lines[i], "" if key == "none" else _answer_cell(ix, repo_root, key))
         i += 1
+
+
+def annotate_answers(text: str, ix: Any, repo_root: str) -> str:
+    """The report with a "Your answer" column on its Questions and Held tables.
+
+    The committed report is the night's snapshot; the answer lives on the question ticket
+    (``## Answer``, written by the app's answer box). This joins them when the report is
+    served, so each table shows each answer as it stands now. ``## Questions for the
+    Operator`` is keyed on its first cell (the ticket); ``## Held`` on its ``Respond in``
+    cell (JB-m or ``none``; a Held table without that column, as in older reports, is left
+    alone). Only a GFM table (a header row followed by a ``|---|`` rule) is annotated; a
+    report without one, or one that already has the column, is returned unchanged.
+    """
+    lines = text.split("\n")
+    _annotate_table(lines, _QUESTIONS_HEAD, 0, ix, repo_root)
+    _annotate_table(lines, _HELD_HEAD, RESPOND_HEADER, ix, repo_root)
     return "\n".join(lines)
 
 

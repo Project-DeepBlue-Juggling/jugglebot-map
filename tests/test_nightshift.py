@@ -187,3 +187,65 @@ def test_answer_text_section_rule():
     assert answer_text("## Question\n\nQ?\n\n## Answer\n\nYes.\n\nAnd more.\n\n## Notes\nx\n") == "Yes. And more."
     assert answer_text("## Question\n\nQ?\n") == ""
     assert answer_text("## Answer\n\n   \n") == ""
+
+
+REPORT_WITH_HELD = """# Night Shift 2026-11-02
+
+## Held
+| Item | What it is | Branch | Why the gate held it | What unblocks it | Respond in |
+|---|---|---|---|---|---|
+| JB-135 | Hover | night-shift/2026-11-02-JB-135 | (b) audit note | your call | %s |
+| JB-32 | Plant | night-shift/2026-11-02-JB-32 | (b) audit | a Sitting | none |
+| JB-33 | Other | night-shift/2026-11-02-JB-33 | (b) audit | your call | JB-999 |
+
+## Questions for the Operator
+| Ticket | Question | Blocks | Note |
+|---|---|---|---|
+| %s | Hold or merge? | JB-135 | |
+
+## Unfinished
+none
+"""
+
+REPORT_OLD_HELD = """# Night Shift 2026-11-01
+
+## Held
+| Item | What it is | Branch | Why | What unblocks it |
+|---|---|---|---|---|
+| JB-135 | Hover | b | (b) x | your call |
+
+## Unfinished
+none
+"""
+
+
+def test_report_held_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F811
+    """The Held table's "Your answer" column reads the ticket named in its "Respond in" cell:
+    not answered yet, the answer, ticket not found; "none" is empty; an older Held table
+    without the column is untouched."""
+    with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
+        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: JB-40\nkind: ticket", 1))
+    d = os.path.join(ns_repo, "docs", "night-shift")
+    path = os.path.join(d, "2026-11-02.md")
+    with open(path, "w") as fh:
+        fh.write(REPORT_WITH_HELD % ("JB-40", "JB-40"))
+    with open(os.path.join(d, "2026-11-01.md"), "w") as fh:
+        fh.write(REPORT_OLD_HELD)
+    git(ns_repo, "add", "-A")
+    git(ns_repo, "commit", "--quiet", "-m", "jb-40 and a held report")
+    app = create_app(ns_repo, dist_dir=os.path.join(ns_repo, "no-dist"), git=False, watch=False)
+    with TestClient(app) as c:
+        qid = c.get(NS + "/questions").json()[0]["id"]
+        before = c.get(NS + "/reports/2026-11-02").text
+        assert "| Respond in | Your answer |" in before
+        assert "|---|---|---|---|---|---|---|" in before
+        assert "| JB-40 | _not answered yet_ |" in before
+        assert "| JB-32 | Plant | night-shift/2026-11-02-JB-32 | (b) audit | a Sitting | none |  |" in before
+        assert "| JB-999 | _ticket not found_ |" in before
+        r = c.post(NS + "/questions/%s/answer" % qid, json={"answer": "Apply the fix, merge."})
+        assert r.status_code == 200, r.text
+        after = c.get(NS + "/reports/2026-11-02").text
+        assert "| JB-40 | Apply the fix, merge. |" in after
+        assert "| JB-40 | Hold or merge? | JB-135 | | Apply the fix, merge. |" in after
+        assert open(path).read() == REPORT_WITH_HELD % ("JB-40", "JB-40")
+        assert c.get(NS + "/reports/2026-11-01").text == REPORT_OLD_HELD
