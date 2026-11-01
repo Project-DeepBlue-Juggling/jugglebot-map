@@ -136,10 +136,10 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
             <tbody>
               {runbook.needs_section.map((n) => (
                 <tr key={n.task_id} className="align-baseline">
-                  <td className="py-0.5 pr-2">
+                  <td className="py-0.5 pr-2 whitespace-nowrap">
                     <RigChip hardware={n.hardware} />
                   </td>
-                  <td className="py-0.5 pr-1">
+                  <td className="py-0.5 pr-1 whitespace-nowrap">
                     {n.kind != null && <KindPill kind={n.kind} ticketType={n.ticket_type} />}
                   </td>
                   <td className="py-0.5 pr-3 whitespace-nowrap">
@@ -152,7 +152,7 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
                     </button>
                   </td>
                   <td className="py-0.5 pr-4">{n.title}</td>
-                  <td className="py-0.5 text-slate-500">{n.errors.join('; ')}</td>
+                  <td className="py-0.5 whitespace-nowrap text-slate-500">{n.errors.join('; ')}</td>
                 </tr>
               ))}
             </tbody>
