@@ -4,6 +4,7 @@ import { useApi } from './useApi';
 import { qk } from './queryKeys';
 import { useActiveProjectId } from '../projects/useActiveProject';
 import { useAuth } from '../auth/useAuth';
+import type { Verdict } from './schemas';
 import type {
   CurrentUser,
   DependencyCreateBody,
@@ -259,7 +260,7 @@ export function useSaveSittingResult() {
   const qc = useQueryClient();
   const projectId = useActiveProjectId();
   return useMutation({
-    mutationFn: (v: { id: string; date: string; verdict: 'pass' | 'fail'; notes: string }) =>
+    mutationFn: (v: { id: string; date: string; verdict: Verdict; notes: string }) =>
       api.saveSittingResult(v.id, { date: v.date, verdict: v.verdict, notes: v.notes }),
     onSuccess: (task: Task) => {
       qc.setQueryData<Task[]>(qk.tasks.list(projectId), (prev) =>

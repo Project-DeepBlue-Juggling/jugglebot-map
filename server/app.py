@@ -369,13 +369,17 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         A second result for the same date is allowed and appended as another section
         (a re-run the same day is real data); nothing is overwritten.
         """
+        from mapkit import sitting
         from mapkit.sitting import append_sitting_result
+        # The checkout's mapkit owns the verdict set (``pending`` = flown, the verdict needs the
+        # logs); an older checkout without ``VERDICTS`` accepts pass and fail only.
+        verdicts = tuple(getattr(sitting, "VERDICTS", ("pass", "fail")))
         body = await _json_body(request)
         date, verdict, notes = body.get("date"), body.get("verdict"), body.get("notes", "")
         if not isinstance(date, str) or not nightshift.DATE_RE.match(date):
             raise ApiError(422, {"detail": "date must be YYYY-MM-DD"})
-        if verdict not in ("pass", "fail"):
-            raise ApiError(422, {"detail": "verdict must be 'pass' or 'fail'"})
+        if verdict not in verdicts:
+            raise ApiError(422, {"detail": "verdict must be one of: " + ", ".join(verdicts)})
         if not isinstance(notes, str):
             raise ApiError(422, {"detail": "notes must be text"})
         with store._lock:

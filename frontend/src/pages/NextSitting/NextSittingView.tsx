@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
-import type { Runbook } from '../../api/schemas';
+import type { Runbook, Verdict } from '../../api/schemas';
 import { KindPill } from '../../ui/ShortId';
 import { RigChip } from '../../ui/RigChip';
 import { RunbookRow } from './RunbookRow';
@@ -9,7 +9,7 @@ export interface NextSittingViewProps {
   runbook: Runbook;
   today: string;
   onOpen: (taskId: string) => void;
-  onSave: (taskId: string, verdict: 'pass' | 'fail', notes: string) => Promise<void>;
+  onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<void>;
 }
 
 const UNATTACHED = 'unattached';

@@ -1,22 +1,34 @@
 import { useState } from 'react';
 import clsx from 'clsx';
-import type { RunbookRow as Row } from '../../api/schemas';
+import { VERDICTS, type RunbookRow as Row, type Verdict } from '../../api/schemas';
 import { KindPill } from '../../ui/ShortId';
 
 export interface RunbookRowProps {
   row: Row;
   today: string;
   onOpen: (taskId: string) => void;
-  onSave: (taskId: string, verdict: 'pass' | 'fail', notes: string) => Promise<void>;
+  onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<void>;
 }
 
 const label = 'text-xs font-semibold uppercase text-slate-500 dark:text-slate-400';
 
-/** One hardware check: its Sitting section, and the pass / fail strip. */
+const VERDICT_LABEL: Record<Verdict, string> = { pass: 'Pass', fail: 'Fail', pending: 'Pending' };
+const VERDICT_HINT: Record<Verdict, string> = {
+  pass: 'Flown and passed',
+  fail: 'Flown and failed',
+  pending: 'Flown, but the pass needs the logs or an analysis: /sitting-debrief decides',
+};
+const VERDICT_COLOUR: Record<string, string> = {
+  pass: 'text-emerald-700 dark:text-emerald-400',
+  fail: 'text-red-700 dark:text-red-400',
+  pending: 'text-amber-700 dark:text-amber-400',
+};
+
+/** One hardware check: its Sitting section, and the pass / fail / pending strip. */
 export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
   const todays = row.results.filter((r) => r.date === today);
   const [adding, setAdding] = useState(todays.length === 0);
-  const [verdict, setVerdict] = useState<'pass' | 'fail' | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const submit = async () => {
@@ -79,9 +91,7 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
           <span
             className={clsx(
               'font-semibold',
-              r.verdict === 'pass'
-                ? 'text-emerald-700 dark:text-emerald-400'
-                : 'text-red-700 dark:text-red-400',
+              VERDICT_COLOUR[r.verdict] ?? 'text-slate-700 dark:text-slate-300',
             )}
           >
             {r.verdict}
@@ -100,11 +110,12 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
       ) : (
         <div className="flex flex-col gap-2">
           <div className="flex gap-2">
-            {(['pass', 'fail'] as const).map((v) => (
+            {VERDICTS.map((v) => (
               <button
                 key={v}
                 type="button"
                 aria-pressed={verdict === v}
+                title={VERDICT_HINT[v]}
                 onClick={() => setVerdict(v)}
                 className={clsx(
                   'rounded border px-3 py-1 text-sm',
@@ -113,7 +124,7 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
                     : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700',
                 )}
               >
-                {v === 'pass' ? 'Pass' : 'Fail'}
+                {VERDICT_LABEL[v]}
               </button>
             ))}
           </div>

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AuthClient } from '../auth/types';
+import type { Verdict } from './schemas';
 import {
   CurrentUser,
   DependencyEdge,
@@ -149,7 +150,7 @@ export function createApiClient(auth: AuthClient) {
     getRunbook: () => request('/runbook', jsonInit('GET'), Runbook),
     saveSittingResult: (
       taskId: string,
-      body: { date: string; verdict: 'pass' | 'fail'; notes: string },
+      body: { date: string; verdict: Verdict; notes: string },
     ) => request(`/runbook/${encodeURIComponent(taskId)}/result`, jsonInit('POST', body), Task),
 
     // -- Glossary (read-only)

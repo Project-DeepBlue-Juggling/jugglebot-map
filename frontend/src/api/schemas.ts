@@ -422,6 +422,9 @@ export type NightShiftSummary = z.infer<typeof NightShiftSummary>;
 
 export const RunbookResult = z.object({ date: z.string(), verdict: z.string(), notes: z.string() });
 export type RunbookResult = z.infer<typeof RunbookResult>;
+/** A typed Sitting result. `pending`: flown, but the pass needs the logs; the debrief decides. */
+export type Verdict = 'pass' | 'fail' | 'pending';
+export const VERDICTS: readonly Verdict[] = ['pass', 'fail', 'pending'];
 
 export const RunbookRow = z.object({
   hardware: HardwareValue.exclude(['none']),

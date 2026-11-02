@@ -222,6 +222,41 @@ describe('Next Sitting page', () => {
     expect(screen.getByRole('button', { name: 'add another' })).toBeInTheDocument();
   });
 
+  it('saves a pending verdict for a check the logs must settle', async () => {
+    let posted: unknown = null;
+    server.use(
+      http.post(`${URL}/:id/result`, async ({ request }) => {
+        posted = await request.json();
+        rb = {
+          ...rb,
+          rigs: [{ hardware: 'robot', label: 'Robot', blocks: 1, minutes: 10 }],
+          blocks: [
+            {
+              hardware: 'robot',
+              setup: ['level'],
+              rows: [
+                row({
+                  has_result: true,
+                  results: [{ date: localToday(), verdict: 'pending', notes: 'check the bag' }],
+                }),
+              ],
+            },
+          ],
+        };
+        return HttpResponse.json(state.tasks[0]);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const first = (await screen.findAllByTestId('runbook-row'))[0];
+    fireEvent.click(within(first).getByRole('button', { name: 'Pending' }));
+    fireEvent.change(within(first).getByRole('textbox'), { target: { value: 'check the bag' } });
+    fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
+    await waitFor(() =>
+      expect(screen.getByTestId('runbook-result')).toHaveTextContent('pending, check the bag'),
+    );
+    expect(posted).toEqual({ date: localToday(), verdict: 'pending', notes: 'check the bag' });
+  });
+
   it('shows the empty state', async () => {
     rb = { rigs: [], blocks: [], needs_section: [], questions: [], page: '' };
     renderApp('/next-sitting', <NextSittingRoute />);

@@ -117,6 +117,9 @@ def test_result_appends_each_call_and_flips_has_result(c, rb_repo):
     assert again["results"] == [{"date": "2026-10-31", "verdict": "pass", "notes": "10:42 fine"}]
     assert c.post(url, json={"date": "2026-10-31", "verdict": "fail", "notes": "again"}).status_code == 200
     assert open(path).read().count("## Sitting result (2026-10-31)") == 2
+    pend = c.post(url, json={"date": "2026-10-31", "verdict": "pending", "notes": "check the bag"})
+    assert pend.status_code == 200
+    assert "- verdict: pending\n- notes: check the bag" in open(path).read()
 
 
 def test_result_refusals(c):
