@@ -195,6 +195,7 @@ class NightShiftSummary(_Strict):
 
 class RunbookResult(_Strict):
     date: str
+    time: Optional[str]
     verdict: str
     notes: str
 

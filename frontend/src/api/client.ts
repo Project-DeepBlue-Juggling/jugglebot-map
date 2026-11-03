@@ -150,7 +150,7 @@ export function createApiClient(auth: AuthClient) {
     getRunbook: () => request('/runbook', jsonInit('GET'), Runbook),
     saveSittingResult: (
       taskId: string,
-      body: { date: string; verdict: Verdict; notes: string },
+      body: { date: string; time?: string | undefined; verdict: Verdict; notes: string },
     ) => request(`/runbook/${encodeURIComponent(taskId)}/result`, jsonInit('POST', body), Task),
 
     // -- Glossary (read-only)

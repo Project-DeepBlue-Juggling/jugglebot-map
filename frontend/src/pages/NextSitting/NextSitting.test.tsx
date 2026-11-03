@@ -198,7 +198,7 @@ describe('Next Sitting page', () => {
               rows: [
                 row({
                   has_result: true,
-                  results: [{ date: localToday(), verdict: 'pass', notes: 'smooth' }],
+                  results: [{ date: localToday(), time: '14:05', verdict: 'pass', notes: 'smooth' }],
                 }),
               ],
             },
@@ -216,10 +216,16 @@ describe('Next Sitting page', () => {
     fireEvent.change(within(first).getByRole('textbox'), { target: { value: 'smooth' } });
     fireEvent.click(save);
     await waitFor(() =>
-      expect(screen.getByTestId('runbook-result')).toHaveTextContent('pass, smooth'),
+      expect(screen.getByTestId('runbook-result')).toHaveTextContent(`${localToday()} 14:05 · pass, smooth`),
     );
-    expect(posted).toEqual({ date: localToday(), verdict: 'pass', notes: 'smooth' });
-    expect(screen.getByRole('button', { name: 'add another' })).toBeInTheDocument();
+    expect(posted).toEqual({
+      date: localToday(),
+      time: expect.stringMatching(/^\d{2}:\d{2}$/),
+      verdict: 'pass',
+      notes: 'smooth',
+    });
+    expect(screen.queryByRole('button', { name: 'add another' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Save result' })).toBeDisabled();
   });
 
   it('saves a pending verdict for a check the logs must settle', async () => {
@@ -237,7 +243,7 @@ describe('Next Sitting page', () => {
               rows: [
                 row({
                   has_result: true,
-                  results: [{ date: localToday(), verdict: 'pending', notes: 'check the bag' }],
+                  results: [{ date: localToday(), time: '14:06', verdict: 'pending', notes: 'check the bag' }],
                 }),
               ],
             },
@@ -252,9 +258,40 @@ describe('Next Sitting page', () => {
     fireEvent.change(within(first).getByRole('textbox'), { target: { value: 'check the bag' } });
     fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
     await waitFor(() =>
-      expect(screen.getByTestId('runbook-result')).toHaveTextContent('pending, check the bag'),
+      expect(screen.getByTestId('runbook-result')).toHaveTextContent(`${localToday()} 14:06 · pending, check the bag`),
     );
-    expect(posted).toEqual({ date: localToday(), verdict: 'pending', notes: 'check the bag' });
+    expect(posted).toMatchObject({ date: localToday(), verdict: 'pending', notes: 'check the bag' });
+  });
+
+  it('keeps the save controls open and lists every result, legacy ones date-only', async () => {
+    rb = {
+      ...rb,
+      rigs: [{ hardware: 'robot', label: 'Robot', blocks: 1, minutes: 10 }],
+      blocks: [
+        {
+          hardware: 'robot',
+          setup: ['level'],
+          rows: [
+            row({
+              has_result: true,
+              results: [
+                { date: '2026-10-31', time: null, verdict: 'fail', notes: '' },
+                { date: '2026-11-03', time: '14:05', verdict: 'pass', notes: 'ok' },
+              ],
+            }),
+          ],
+        },
+      ],
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const first = (await screen.findAllByTestId('runbook-row'))[0];
+    expect(within(first).getByRole('button', { name: 'Save result' })).toBeInTheDocument();
+    expect(within(first).getByRole('button', { name: 'Pass' })).toBeInTheDocument();
+    expect(within(first).queryByRole('button', { name: 'add another' })).toBeNull();
+    const res = within(first).getAllByTestId('runbook-result');
+    expect(res).toHaveLength(2);
+    expect(res[0]).toHaveTextContent(/^2026-10-31 · fail$/);
+    expect(res[1]).toHaveTextContent('2026-11-03 14:05 · pass, ok');
   });
 
   it('shows the empty state', async () => {

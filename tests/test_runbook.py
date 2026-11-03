@@ -114,7 +114,8 @@ def test_result_appends_each_call_and_flips_has_result(c, rb_repo):
     assert "## Sitting\n" in text  # original section kept
     again = next(r for r in _rows(c.get("/api/v1/runbook").json()) if r["title"] == "Level one")
     assert again["has_result"] is True
-    assert again["results"] == [{"date": "2026-10-31", "verdict": "pass", "notes": "10:42 fine"}]
+    assert again["results"] == [{"date": "2026-10-31", "time": None, "verdict": "pass",
+                                 "notes": "10:42 fine"}]
     assert c.post(url, json={"date": "2026-10-31", "verdict": "fail", "notes": "again"}).status_code == 200
     assert open(path).read().count("## Sitting result (2026-10-31)") == 2
     pend = c.post(url, json={"date": "2026-10-31", "verdict": "pending", "notes": "check the bag"})
@@ -132,3 +133,28 @@ def test_result_refusals(c):
     non_hw = next(t for t in tasks if t.get("kind") == "idea")
     assert c.post("/api/v1/runbook/%s/result" % non_hw["id"],
                   json={"date": "2026-10-31", "verdict": "pass", "notes": ""}).status_code == 422
+
+
+def test_parse_results_reads_dated_and_timed_headings():
+    from server import nightshift
+    body = ("## Sitting result (2026-10-31)\n- verdict: pass\n- notes: a\n\n"
+            "## Sitting result (2026-10-31 14:05)\n- verdict: fail\n- notes: b\n")
+    got = nightshift.parse_results(body)
+    assert [(r["date"], r["time"], r["verdict"], r["notes"]) for r in got] == [
+        ("2026-10-31", None, "pass", "a"), ("2026-10-31", "14:05", "fail", "b")]
+
+
+def test_result_time_heading_and_refusal(c, rb_repo):
+    import inspect
+    from mapkit import sitting
+    row = next(r for r in _rows(c.get("/api/v1/runbook").json()) if r["title"] == "Level one")
+    url = "/api/v1/runbook/%s/result" % row["task_id"]
+    bad = c.post(url, json={"date": "2026-10-31", "time": "2pm", "verdict": "pass", "notes": ""})
+    assert bad.status_code == 422 and "HH:MM" in bad.text
+    ok = c.post(url, json={"date": "2026-10-31", "time": "14:05", "verdict": "pass", "notes": "x"})
+    assert ok.status_code == 200
+    text = open(os.path.join(rb_repo, "map", "bug-lvl.md")).read()
+    if "time" in inspect.signature(sitting.append_sitting_result).parameters:
+        assert "## Sitting result (2026-10-31 14:05)" in text
+    else:  # an older checkout drops the time
+        assert "## Sitting result (2026-10-31)" in text

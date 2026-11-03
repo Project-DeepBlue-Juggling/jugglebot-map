@@ -7,7 +7,6 @@ import { RunbookRow } from './RunbookRow';
 
 export interface NextSittingViewProps {
   runbook: Runbook;
-  today: string;
   onOpen: (taskId: string) => void;
   onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<void>;
 }
@@ -25,7 +24,7 @@ function setupZero(page: string): string[] {
   return out;
 }
 
-export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingViewProps) {
+export function NextSittingView({ runbook, onOpen, onSave }: NextSittingViewProps) {
   const [pathway, setPathway] = useState<string | null>(null);
   const pathways = useMemo(() => {
     const seen = new Map<string, string>();
@@ -111,13 +110,7 @@ export function NextSittingView({ runbook, today, onOpen, onSave }: NextSittingV
                     </h3>
                     <ul className="flex flex-col gap-3">
                       {b.rows.map((r) => (
-                        <RunbookRow
-                          key={r.task_id}
-                          row={r}
-                          today={today}
-                          onOpen={onOpen}
-                          onSave={onSave}
-                        />
+                        <RunbookRow key={r.task_id} row={r} onOpen={onOpen} onSave={onSave} />
                       ))}
                     </ul>
                   </section>

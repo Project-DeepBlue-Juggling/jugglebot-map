@@ -5,7 +5,6 @@ import { KindPill } from '../../ui/ShortId';
 
 export interface RunbookRowProps {
   row: Row;
-  today: string;
   onOpen: (taskId: string) => void;
   onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<void>;
 }
@@ -25,9 +24,7 @@ const VERDICT_COLOUR: Record<string, string> = {
 };
 
 /** One hardware check: its Sitting section, and the pass / fail / pending strip. */
-export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
-  const todays = row.results.filter((r) => r.date === today);
-  const [adding, setAdding] = useState(todays.length === 0);
+export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
@@ -38,7 +35,6 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
       await onSave(row.task_id, verdict, notes.trim());
       setVerdict(null);
       setNotes('');
-      setAdding(false);
     } finally {
       setSaving(false);
     }
@@ -86,8 +82,11 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
           </>
         )}
       </dl>
-      {todays.map((r, i) => (
+      {row.results.map((r, i) => (
         <p key={i} data-testid="runbook-result" className="mb-1 text-sm">
+          <span className="text-slate-500 dark:text-slate-400">
+            {r.time !== null ? `${r.date} ${r.time}` : r.date} ·{' '}
+          </span>
           <span
             className={clsx(
               'font-semibold',
@@ -99,52 +98,42 @@ export function RunbookRow({ row, today, onOpen, onSave }: RunbookRowProps) {
           {r.notes !== '' && <span>, {r.notes}</span>}
         </p>
       ))}
-      {!adding ? (
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          {VERDICTS.map((v) => (
+            <button
+              key={v}
+              type="button"
+              aria-pressed={verdict === v}
+              title={VERDICT_HINT[v]}
+              onClick={() => setVerdict(v)}
+              className={clsx(
+                'rounded border px-3 py-1 text-sm',
+                verdict === v
+                  ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
+                  : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700',
+              )}
+            >
+              {VERDICT_LABEL[v]}
+            </button>
+          ))}
+        </div>
+        <textarea
+          aria-label={`Notes for ${row.short_id}`}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={2}
+          className="w-full rounded border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+        />
         <button
           type="button"
-          onClick={() => setAdding(true)}
-          className="text-xs text-slate-500 underline dark:text-slate-400"
+          disabled={verdict === null || saving}
+          onClick={() => void submit()}
+          className="self-start rounded bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
         >
-          add another
+          Save result
         </button>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex gap-2">
-            {VERDICTS.map((v) => (
-              <button
-                key={v}
-                type="button"
-                aria-pressed={verdict === v}
-                title={VERDICT_HINT[v]}
-                onClick={() => setVerdict(v)}
-                className={clsx(
-                  'rounded border px-3 py-1 text-sm',
-                  verdict === v
-                    ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
-                    : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700',
-                )}
-              >
-                {VERDICT_LABEL[v]}
-              </button>
-            ))}
-          </div>
-          <textarea
-            aria-label={`Notes for ${row.short_id}`}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={2}
-            className="w-full rounded border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-          />
-          <button
-            type="button"
-            disabled={verdict === null || saving}
-            onClick={() => void submit()}
-            className="self-start rounded bg-slate-900 px-3 py-1 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-          >
-            Save result
-          </button>
-        </div>
-      )}
+      </div>
     </li>
   );
 }

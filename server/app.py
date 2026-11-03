@@ -364,11 +364,14 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
 
     @r.post("/runbook/{task_id}/result", response_model=Task)
     async def runbook_result(task_id: str, request: Request) -> Any:
-        """Append ``## Sitting result (<date>)`` to the Item through ``store.update``.
+        """Append ``## Sitting result (<date>)`` (or ``(<date> HH:MM)``) to the Item through ``store.update``.
 
         A second result for the same date is allowed and appended as another section
-        (a re-run the same day is real data); nothing is overwritten.
+        (a re-run the same day is real data); nothing is overwritten. The optional ``time``
+        (``HH:MM``, the operator's local time at Save) goes into the heading when the checkout's
+        ``append_sitting_result`` takes it; an older checkout drops it.
         """
+        import inspect
         from mapkit import sitting
         from mapkit.sitting import append_sitting_result
         # The checkout's mapkit owns the verdict set (``pending`` = flown, the verdict needs the
@@ -382,13 +385,19 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             raise ApiError(422, {"detail": "verdict must be one of: " + ", ".join(verdicts)})
         if not isinstance(notes, str):
             raise ApiError(422, {"detail": "notes must be text"})
+        time = body.get("time")
+        if time is not None and not (isinstance(time, str) and re.match(r"^\d{2}:\d{2}$", time)):
+            raise ApiError(422, {"detail": "time must be HH:MM"})
+        kwargs: Dict[str, Any] = {}
+        if time is not None and "time" in inspect.signature(append_sitting_result).parameters:
+            kwargs["time"] = time
         with store._lock:
             ix = store.index()
             node = store._node(ix, task_id, write=True)
             if node.item is None or node.item.meta.get("hardware") not in nightshift.RIGS:
                 raise ApiError(422, {"detail": "not a hardware Item"})
             t = ix.task(node, cfg.repo_root)
-            patch = {"description": append_sitting_result(t["description"], date, verdict, notes)}
+            patch = {"description": append_sitting_result(t["description"], date, verdict, notes, **kwargs)}
             if body.get("if_unchanged_since"):
                 patch["if_unchanged_since"] = body["if_unchanged_since"]
             return store.update(node.id, patch)

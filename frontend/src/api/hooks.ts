@@ -260,8 +260,13 @@ export function useSaveSittingResult() {
   const qc = useQueryClient();
   const projectId = useActiveProjectId();
   return useMutation({
-    mutationFn: (v: { id: string; date: string; verdict: Verdict; notes: string }) =>
-      api.saveSittingResult(v.id, { date: v.date, verdict: v.verdict, notes: v.notes }),
+    mutationFn: (v: { id: string; date: string; time?: string; verdict: Verdict; notes: string }) =>
+      api.saveSittingResult(v.id, {
+        date: v.date,
+        time: v.time,
+        verdict: v.verdict,
+        notes: v.notes,
+      }),
     onSuccess: (task: Task) => {
       qc.setQueryData<Task[]>(qk.tasks.list(projectId), (prev) =>
         prev?.map((t) => (t.id === task.id ? task : t)),

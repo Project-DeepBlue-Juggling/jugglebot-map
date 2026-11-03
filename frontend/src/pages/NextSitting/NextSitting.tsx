@@ -2,7 +2,7 @@ import { ApiError } from '../../api/client';
 import { useRunbook, useSaveSittingResult } from '../../api/hooks';
 import { useToast } from '../../ui/useToast';
 import { NextSittingView } from './NextSittingView';
-import { localToday } from './today';
+import { localTime, localToday } from './today';
 
 const noop = () => {};
 
@@ -11,7 +11,7 @@ export interface NextSittingProps {
   onOpen?: (taskId: string) => void;
 }
 
-/** The Next Sitting route: loads the Runbook, saves a row's result with today's date. */
+/** The Next Sitting route: loads the Runbook, saves a row's result with the save date and time. */
 export default function NextSitting({ onOpen = noop }: NextSittingProps) {
   const runbook = useRunbook();
   const save = useSaveSittingResult();
@@ -25,11 +25,10 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
   return (
     <NextSittingView
       runbook={runbook.data}
-      today={localToday()}
       onOpen={onOpen}
       onSave={async (id, verdict, notes) => {
         try {
-          await save.mutateAsync({ id, date: localToday(), verdict, notes });
+          await save.mutateAsync({ id, date: localToday(), time: localTime(), verdict, notes });
           toast.success('Result saved');
         } catch (err) {
           toast.error('Could not save', err instanceof ApiError ? err.message : String(err));

@@ -420,7 +420,7 @@ export type NightShiftSummary = z.infer<typeof NightShiftSummary>;
 
 // -- Next Sitting Runbook (server/nightshift.py `runbook`) --
 
-export const RunbookResult = z.object({ date: z.string(), verdict: z.string(), notes: z.string() });
+export const RunbookResult = z.object({ date: z.string(), time: z.string().nullable(), verdict: z.string(), notes: z.string() });
 export type RunbookResult = z.infer<typeof RunbookResult>;
 /** A typed Sitting result. `pending`: flown, but the pass needs the logs; the debrief decides. */
 export type Verdict = 'pass' | 'fail' | 'pending';

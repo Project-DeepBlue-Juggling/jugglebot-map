@@ -183,17 +183,26 @@ def open_questions(ix: Any, repo_root: str) -> List[Dict[str, Any]]:
     return out
 
 
-_RESULT_RE = re.compile(r"^##\s+Sitting result \((\d{4}-\d{2}-\d{2})\)\s*$")
+_RESULT_RE = re.compile(r"^##\s+Sitting result \((\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?\)\s*$")
 
 
-def parse_results(body: str) -> List[Dict[str, str]]:
-    """Every ``## Sitting result (<date>)`` section in ``body``: ``{date, verdict, notes}``, file order."""
-    out: List[Dict[str, str]] = []
-    cur: Optional[Dict[str, str]] = None
+def parse_results(body: str) -> List[Dict[str, Any]]:
+    """Every ``## Sitting result (<date>[ HH:MM])`` section in ``body``: ``{date, time, verdict, notes}``, file order.
+
+    The checkout's ``mapkit.sitting.parse_sitting_results`` when it has one; else a local
+    parser (an old checkout), where ``time`` is None for the date-only heading.
+    """
+    from mapkit import sitting
+    fn = getattr(sitting, "parse_sitting_results", None)
+    if fn is not None:
+        return [{"date": r["date"], "time": r.get("time"), "verdict": r["verdict"],
+                 "notes": r["notes"]} for r in fn(body)]
+    out: List[Dict[str, Any]] = []
+    cur: Optional[Dict[str, Any]] = None
     for line in body.splitlines():
         m = _RESULT_RE.match(line)
         if m:
-            cur = {"date": m.group(1), "verdict": "", "notes": ""}
+            cur = {"date": m.group(1), "time": m.group(2), "verdict": "", "notes": ""}
             out.append(cur)
         elif line.startswith("## "):
             cur = None
