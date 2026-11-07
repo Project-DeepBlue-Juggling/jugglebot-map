@@ -83,7 +83,7 @@ export default function ItemDrawer({ taskId, onClose, onOpen, docked = false }: 
     () => (allTasks === undefined ? null : buildIndex(allTasks, deps.data ?? [], users.data ?? [])),
     [allTasks, deps.data, users.data],
   );
-  // `JB-<n>` mentions in the bodies below open that Item here.
+  // Short-ID mentions (`JB-<n>`, `BUG-<n>`) in the bodies below open that Item here.
   const itemLinks = useMemo<ItemLinks>(
     () => ({ ids: shortIdIndex(allTasks), kinds: shortIdKinds(allTasks), open: onOpen }),
     [allTasks, onOpen],

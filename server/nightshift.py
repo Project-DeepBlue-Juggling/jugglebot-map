@@ -56,8 +56,14 @@ def read_report(repo_root: str, date: str) -> Optional[str]:
         return None
 
 
+def _by_id(ix: Any, cell: str) -> List[Any]:
+    """Item nodes whose canonical ID (``JB-3`` or ``BUG-3``, either form) is ``cell``; a
+    report cell that is not a canonical ID (``none``, a stem) names nothing."""
+    from mapkit import ids
+    return ix.by_short.get(cell, []) if ids.canonical_ref(cell) else []
+
+
 _QUESTIONS_HEAD = "## Questions for the Operator"
-_JB_RE = re.compile(r"^JB-(\d+)$")
 _RULE_CELL_RE = re.compile(r"^:?-{3,}:?$")
 ANSWER_HEADER = "Your answer"
 _HELD_HEAD = "## Held"
@@ -96,8 +102,7 @@ def answer_text(body: str) -> str:
 
 
 def _answer_cell(ix: Any, repo_root: str, ticket: str) -> str:
-    m = _JB_RE.match(ticket)
-    hits = ix.by_short.get(int(m.group(1)), []) if m else []
+    hits = _by_id(ix, ticket)
     if len(hits) != 1:
         return "_ticket not found_"
     t = ix.task(hits[0], repo_root)
@@ -152,7 +157,7 @@ def annotate_answers(text: str, ix: Any, repo_root: str) -> str:
     (``## Answer``, written by the app's answer box). This joins them when the report is
     served, so each table shows each answer as it stands now. ``## Questions for the
     Operator`` is keyed on its first cell (the ticket); ``## Held`` on its ``Respond in``
-    cell (JB-m or ``none``; a Held table without that column, as in older reports, is left
+    cell (a short ID, `JB-m` or `BUG-m`, or ``none``; a Held table without that column, as in older reports, is left
     alone). Only a GFM table (a header row followed by a ``|---|`` rule) is annotated; a
     report without one, or one that already has the column, is returned unchanged.
     """
@@ -240,9 +245,8 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     def info(ref: str) -> Dict[str, Any]:
         node = ix.resolve(ref) if ref else None
         if node is None and ref:
-            # mapkit names an Item by its JB-n when it has one; resolve() takes stems only
-            m = _JB_RE.match(ref)
-            hits = ix.by_short.get(int(m.group(1)), []) if m else []
+            # mapkit names an Item by its ID (JB-n or BUG-n) when it has one; resolve() takes stems only
+            hits = _by_id(ix, ref)
             node = hits[0] if len(hits) == 1 else None
         if node is None:
             return {"task_id": None, "short_id": None, "title": None, "body": "",
@@ -254,8 +258,7 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     def hw_of(ref: str) -> str:
         node = ix.resolve(ref) if ref else None
         if node is None and ref:
-            m = _JB_RE.match(ref)
-            hits = ix.by_short.get(int(m.group(1)), []) if m else []
+            hits = _by_id(ix, ref)
             node = hits[0] if len(hits) == 1 else None
         item = getattr(node, "item", None)
         return (item.meta.get("hardware") if item is not None else None) or "robot"

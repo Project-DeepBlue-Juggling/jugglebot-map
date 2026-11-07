@@ -88,7 +88,7 @@ class Task(_Strict):
     source_path: str
     editable: bool
     pathway_id: Optional[str]
-    short_id: Optional[str]      # the Item's JB-<n>; None for plans, phases and an ID-less Item
+    short_id: Optional[str]      # the Item's ID (JB-<n> or BUG-<n>); None for plans, phases and an ID-less Item
     unpushed: bool               # filed here and not yet on origin/main: short_id is provisional
 
 

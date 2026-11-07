@@ -109,7 +109,7 @@ def repair(repo_root: str, ref: str, own: Iterable[str]) -> List[Tuple[str, str,
         for loser in mine:
             if loser is keeper:
                 continue
-            new = ids.allocate(repo_root, ref, pool)
+            new = ids.allocate(repo_root, ref, pool, kind=loser.kind)
             ids.set_id(loser, new)
             rows.append((sid, new, ids.stem(loser)))
     return rows

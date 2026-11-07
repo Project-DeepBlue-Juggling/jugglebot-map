@@ -29,7 +29,7 @@ export default function NightShift({ onOpen = noop }: NightShiftProps) {
   const date = picked ?? reports.data?.[0]?.date ?? null;
   const report = useNightShiftReport(date);
   const tasks = useTasks();
-  // `JB-<n>` in the report and the question bodies link to that Item, with its kind pill.
+  // Short IDs (`JB-<n>` or `BUG-<n>`) in the report and the question bodies link to that Item, with its kind pill.
   const itemLinks = useMemo<ItemLinks>(
     () => ({ ids: shortIdIndex(tasks.data), kinds: shortIdKinds(tasks.data), open: onOpen }),
     [tasks.data, onOpen],

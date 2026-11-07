@@ -55,6 +55,9 @@ def test_get_resolves_an_id_in_every_read_form(c):
         assert r.status_code == 200 and r.json() == want, ref
     assert c.get(url(c, "JB-99")).status_code == 404
     assert c.get(url(c, "not-a-thing")).status_code == 404
+    # str.isdigit() is True for "²" and Arabic-Indic "٣": a bare number is ASCII digits only
+    for ref in ("\u00b2", "\u0663"):
+        assert c.get(url(c, ref)).status_code == 404, ref
 
 
 def test_writes_refuse_bare_digits_and_accept_the_prefixed_id(c):
@@ -106,6 +109,104 @@ def test_a_duplicated_id_is_a_health_error_and_a_409(c):
     assert h["status"] == "degraded"
     assert sum("JB-3 also on" in e["message"] for e in h["errors"]) == 2
     assert c.get(url(c, "JB-3")).status_code == 409
+
+
+# ----------------------------------------------- per-kind IDs (P2, T-U9) ---
+
+KIND_IDS = {"pathway-alpha": "PWAY-3", "pathway-beta": "PWAY-4", "bug-wobbly-leg": "BUG-3",
+            "idea-shiny-thing": "IDEA-3", "ticket-alpha-question": "TKT-3"}
+
+
+def with_kind_ids(repo: str) -> str:
+    """A per-kind tree: the fixture Items carry BUG-3, IDEA-3, ... and mapkit/legacy_ids.csv
+    exists (P4's marker, here a dummy), so ``allocate`` demands ``kind=``."""
+    from server.config import ensure_mapkit
+    ensure_mapkit(repo)
+    from mapkit import ids
+    from mapkit.items import load_item
+    for st, sid in KIND_IDS.items():
+        ids.set_id(load_item(os.path.join(repo, "map", st + ".md")), sid)
+    with open(os.path.join(repo, "mapkit", "legacy_ids.csv"), "w") as fh:
+        fh.write("legacy,new\n")
+    return repo
+
+
+@pytest.fixture
+def ck(tmp_path):
+    repo = with_kind_ids(make_repo(str(tmp_path / "repo")))
+    app, client = make_client(repo, git=False, watch=False)
+    with client:
+        yield client
+
+
+def test_per_kind_id_resolves_like_the_uuid_and_kinds_differ(ck):
+    _, ts = tasks(ck)
+    want = ck.get(url(ck, ts["wobbly-leg"]["id"])).json()
+    assert want["short_id"] == "BUG-3"
+    for ref in ("BUG-3", "bug-3", "bug3"):
+        r = ck.get(url(ck, ref))
+        assert r.status_code == 200 and r.json() == want, ref
+    other = ck.get(url(ck, "IDEA-3")).json()
+    assert other["short_id"] == "IDEA-3" and other["id"] != want["id"]
+    assert ck.get(url(ck, "FEAT-3")).status_code == 404
+    assert ck.get(url(ck, "JB-3")).status_code == 404  # a third, distinct key: nothing holds it
+
+
+def test_legacy_jb_and_kind_ids_are_distinct_keys(tmp_path):
+    repo = with_ids(make_repo(str(tmp_path / "repo")))
+    from mapkit import ids
+    from mapkit.items import load_item
+    ids.set_id(load_item(os.path.join(repo, "map", "idea-shiny-thing.md")), "IDEA-3")
+    app, client = make_client(repo, git=False, watch=False)
+    with client:
+        a, b = client.get(url(client, "JB-3")).json(), client.get(url(client, "IDEA-3")).json()
+        assert (a["short_id"], b["short_id"]) == ("JB-3", "IDEA-3") and a["id"] != b["id"]
+        assert client.get(url(client, "jb-03")).json() == a  # legacy padded input still reads
+
+
+def test_bare_number_lists_every_kind_on_a_read_and_a_write_refuses_it(ck):
+    r = ck.get(url(ck, "3"))
+    assert r.status_code == 409 and len(r.json()["children"]) == 4  # BUG, IDEA, TKT, PWAY
+    assert ck.get(url(ck, "4")).json()["short_id"] == "PWAY-4"  # a number only one Item carries
+    w = ck.patch(url(ck, "3"), json={"title": "x"})
+    assert w.status_code == 422
+
+
+def test_create_allocates_per_kind_in_a_per_kind_tree(ck):
+    pid = ck.get(API + "/projects").json()[0]["id"]
+    mk = lambda kind, t: ck.post("%s/projects/%s/tasks" % (API, pid), json={"kind": kind, "title": t})
+    assert mk("bug", "Fresh bug").json()["short_id"] == "BUG-4"
+    assert mk("bug", "Other crash").json()["short_id"] == "BUG-5"
+    assert mk("idea", "Brand idea").json()["short_id"] == "IDEA-4"
+    assert mk("idea", "Second idea").json()["short_id"] == "IDEA-5"
+
+
+def test_duplicate_per_kind_id_is_a_409_and_a_health_error(ck):
+    from mapkit import ids
+    from mapkit.items import load_item
+    repo = ck.app.state.config.repo_root
+    ids.set_id(load_item(os.path.join(repo, "map", "ticket-alpha-question.md")), "BUG-3")
+    h = ck.get(API + "/health").json()
+    assert sum("BUG-3 also on" in e["message"] for e in h["errors"]) == 2
+    assert ck.get(url(ck, "BUG-3")).status_code == 409
+
+
+def test_no_git_and_git_allocation_agree(tmp_path):
+    """--no-git used to count the index itself; both branches now answer ``ids.allocate(kind=)``."""
+    from server.config import ensure_mapkit
+    for ctor, expect in ((with_ids, "JB-6"), (with_kind_ids, "BUG-4")):
+        repo = ctor(make_repo(str(tmp_path / ctor.__name__)))
+        ensure_mapkit(repo)
+        from mapkit import ids
+        from mapkit.items import load_item
+        items = [load_item(os.path.join(repo, "map", f)) for f in sorted(os.listdir(os.path.join(repo, "map")))
+                 if f.endswith(".md")]
+        assert ids.allocate(repo, items=items, kind="bug") == expect
+        app, client = make_client(repo, git=False, watch=False)
+        with client:
+            pid = client.get(API + "/projects").json()[0]["id"]
+            r = client.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "Z"})
+            assert r.json()["short_id"] == expect
 
 
 # ------------------------------------------------------------ git writer ---

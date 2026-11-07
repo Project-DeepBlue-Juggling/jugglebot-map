@@ -1,6 +1,6 @@
 import type { Glossary, Task } from '../api/schemas';
 import { isDone } from './derive';
-import { parseShortId } from './shortId';
+import { carriesNumber, parseBareNumber, parseShortId } from './shortId';
 
 /**
  * Header search: pure matching over the already-loaded items, plans and
@@ -42,7 +42,7 @@ export interface SearchHit {
   /** The item's status; null for a glossary term. */
   status: string | null;
   closed: boolean;
-  /** The Item's short ID (`JB-12`); null for plans, phases and glossary terms. */
+  /** The Item's short ID (`BUG-12`); null for plans, phases and glossary terms. */
   shortId: string | null;
   /** The task's ticket type (a Question reads apart from a Ticket); null otherwise. */
   ticketType: string | null;
@@ -85,15 +85,22 @@ function compare(a: SearchHit, b: SearchHit): number {
   return a.title.localeCompare(b.title);
 }
 
+type IdQuery = { typed: string | null; bare: string | null } | null;
+
 function taskHit(
   task: Task,
   q: string,
   tokens: readonly string[],
-  idQuery: number | null,
+  idQuery: IdQuery,
 ): SearchHit | null {
-  // `JB-12` / `jb12` names exactly one Item; it never matches `JB-120` by prefix.
-  let tier: MatchTier | null =
-    idQuery !== null && task.short_id === `JB-${idQuery}` ? -1 : tierOf(task.title, q);
+  // `BUG-12` / `bug12` names exactly one Item; a bare `12` every Item carrying that
+  // number; neither matches `120` by prefix.
+  const byId =
+    idQuery !== null &&
+    (idQuery.typed !== null
+      ? task.short_id === idQuery.typed
+      : idQuery.bare !== null && carriesNumber(task.short_id, idQuery.bare));
+  let tier: MatchTier | null = byId ? -1 : tierOf(task.title, q);
   if (tier === null && task.slug.toLowerCase().includes(q)) tier = 1;
   if (tier === null && hasAll(`${task.description}\n${task.destination}`.toLowerCase(), tokens)) {
     tier = 3;
@@ -130,8 +137,10 @@ export function searchMap(
   const q = query.trim().toLowerCase();
   if (q === '') return [];
   const tokens = q.split(/\s+/);
-  // A bare number (`12`) names JB-12 too; exact match only, so `1` never finds JB-12.
-  const idQuery = parseShortId(q) ?? (/^[1-9]\d*$/.test(q.trim()) ? Number(q.trim()) : null);
+  // A bare number (`12`) names every Item carrying it; exact only, so `1` never finds `12`.
+  const typed = parseShortId(q);
+  const bare = typed === null ? parseBareNumber(q) : null;
+  const idQuery: IdQuery = typed === null && bare === null ? null : { typed, bare };
   const hits: SearchHit[] = [];
   for (const task of tasks) {
     if (!ITEM_GROUPS.has(task.kind)) continue;

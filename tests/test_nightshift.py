@@ -249,3 +249,19 @@ def test_report_held_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F81
         assert "| JB-40 | Hold or merge? | JB-135 | | Apply the fix, merge. |" in after
         assert open(path).read() == REPORT_WITH_HELD % ("JB-40", "JB-40")
         assert c.get(NS + "/reports/2026-11-01").text == REPORT_OLD_HELD
+
+
+def test_report_questions_table_reads_a_per_kind_ticket_id(ns_repo, git_env):  # noqa: F811
+    """T-U10: the answer column fills when the report's ticket cell is BUG-/TKT-style, and the
+    legacy JB-n form beside it still works."""
+    short = "TKT-40"
+    with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
+        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: TKT-40\nkind: ticket", 1))
+    path = os.path.join(ns_repo, "docs", "night-shift", "2026-11-01.md")
+    with open(path, "w") as fh:
+        fh.write(REPORT_WITH_QUESTIONS % short)
+    git(ns_repo, "add", "-A")
+    git(ns_repo, "commit", "--quiet", "-m", "tkt-40 and a report")
+    app = create_app(ns_repo, dist_dir=os.path.join(ns_repo, "no-dist"), git=False, watch=False)
+    with TestClient(app) as c:
+        _check_answer_column(c, path, short)

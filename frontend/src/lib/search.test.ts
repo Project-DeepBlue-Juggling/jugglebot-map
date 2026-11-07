@@ -204,3 +204,30 @@ describe('short IDs', () => {
     expect(groups[0]?.hits[0]).toMatchObject({ id: 'd', tier: -1, closed: true });
   });
 });
+
+describe('per-kind short IDs (T-U11)', () => {
+  const tasks = [
+    mapTask({ id: 'a', kind: 'bug', title: 'Leg wobble', short_id: 'BUG-12' }),
+    mapTask({ id: 'b', kind: 'feature', title: 'Other', short_id: 'FEAT-12' }),
+    mapTask({ id: 'c', kind: 'idea', title: 'Third', short_id: 'IDEA-120' }),
+    mapTask({ id: 'd', kind: 'bug', title: 'Fourth', short_id: 'BUG-1' }),
+  ];
+  const exact = (q: string) =>
+    searchMap(tasks, undefined, q)
+      .flatMap((g) => g.hits)
+      .filter((h) => h.tier === -1)
+      .map((h) => h.id)
+      .sort();
+
+  it('a typed per-kind ID names exactly one Item', () => {
+    expect(exact('BUG-12')).toEqual(['a']);
+    expect(exact('feat12')).toEqual(['b']);
+  });
+
+  it('a bare number lists every kind carrying it, exact first; 1 does not find 12', () => {
+    expect(exact('12')).toEqual(['a', 'b']);
+    expect(searchMap(tasks, undefined, '12').flatMap((g) => g.hits)[0]?.tier).toBe(-1);
+    expect(exact('1')).toEqual(['d']);
+    expect(exact('120')).toEqual(['c']);
+  });
+});

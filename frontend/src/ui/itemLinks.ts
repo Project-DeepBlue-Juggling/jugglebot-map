@@ -1,7 +1,7 @@
 import { createContext } from 'react';
 
 /**
- * What Markdown needs to turn `JB-<n>` mentions into links: the known short IDs
+ * What Markdown needs to turn short-ID (`JB-<n>`, `BUG-<n>`) mentions into links: the known short IDs
  * (`JB-12` -> uuid) and the drawer's opener. The item drawer and the Night Shift page
  * provide it; elsewhere (the Dictionary) IDs stay plain text.
  */

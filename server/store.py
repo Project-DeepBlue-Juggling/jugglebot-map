@@ -149,7 +149,7 @@ class Index:
     plans: Dict[str, Plan] = field(default_factory=dict)        # filename -> Plan
     nodes: Dict[str, Node] = field(default_factory=dict)        # task id -> Node
     by_ref: Dict[str, Node] = field(default_factory=dict)
-    by_short: Dict[int, List[Node]] = field(default_factory=dict)  # JB-<n> number -> Item nodes
+    by_short: Dict[str, List[Node]] = field(default_factory=dict)  # canonical ID string (JB-3, BUG-3) -> Item nodes
     unpushed: frozenset = frozenset()  # stems the git writer has not pushed (refreshed per read)
     unloadable: List[Any] = field(default_factory=list)  # skipped map files; their id: still counts
     errors: List[Dict[str, str]] = field(default_factory=list)
@@ -465,9 +465,9 @@ class Store:
                 if len(ix.nodes) > before:
                     ix.items[stem(item)] = item
                     ix.by_slug.setdefault(item.slug, item)
-                    n = ids.canonical(item.meta.get("id"))
-                    if n is not None:
-                        ix.by_short.setdefault(n, []).append(ix.nodes[item.uuid])
+                    ref = ids.canonical_ref(item.meta.get("id"))
+                    if ref is not None:
+                        ix.by_short.setdefault(ref, []).append(ix.nodes[item.uuid])
         for pd in self.cfg.plan_dirs:
             if not os.path.isdir(pd):
                 continue
@@ -491,11 +491,11 @@ class Store:
                     ref = "%s#%s" % (plan.filename, step.norm_id)
                     self._add(ix, Node(id=uid(ref), kind="phase", ref=ref, path=path,
                                        plan=plan, step_index=i))
-        for n, nodes in sorted(ix.by_short.items()):
+        for sid, nodes in sorted(ix.by_short.items()):
             if len(nodes) > 1:  # the gitwriter repairs its own; anything else is for mapkit ids --repair
                 for node in nodes:
                     self._err(ix, node.path, "id %s also on %s (python -m mapkit ids --repair)" % (
-                        ids.format_id(n), ", ".join(x.ref for x in nodes if x is not node)))
+                        sid, ", ".join(x.ref for x in nodes if x is not node)))
         return ix
 
     # --- reads --------------------------------------------------------------
@@ -511,24 +511,34 @@ class Store:
         return [ix.task(n, self.repo_root) for n in ix.nodes.values()]
 
     def _node(self, ix: Index, task_id: str, write: bool = False) -> Node:
-        """A task uuid, or an Item's short ID (``JB-12``, ``jb12``; bare ``12`` on reads only).
+        """A task uuid, or an Item's ID in either form (``JB-12``, ``BUG-12``, ``bug12``,
+        legacy ``jb-07``; bare ``12`` on reads only, where it names every Item carrying it).
 
         Always returns the node, whose ``id`` is the canonical uuid. Bare digits
-        on a write are refused, matching mapkit: a one-digit typo in one global
-        sequence lands on another real Item.
+        on a write are refused, matching mapkit: a one-digit typo lands on another
+        real Item. ``BUG-3``, ``FEAT-3`` and ``JB-3`` are distinct keys.
         """
         node = ix.nodes.get(task_id)
         if node is not None:
             return node
-        n = ids.parse(task_id, allow_bare=True)
-        if n is None:
-            raise ApiError(404, {"detail": "task not found"})
-        if write and ids.parse(task_id) is None:
-            raise ApiError(422, {"detail": "a write names an Item by uuid or %s, not bare %r"
-                                           % (ids.format_id(n), task_id)})
-        hits = ix.by_short.get(n, [])
+        # TODO(P4): D-3 (a legacy JB-n reads via mapkit's legacy(), and is refused on a write); mapkit has no legacy() yet
+        text = task_id.strip()
+        ref = ids.typed_ref(text)
+        if ref is None:
+            if not re.fullmatch(r"[0-9]+", text) or int(text) < 1:  # ASCII only: isdigit() takes "²"
+                raise ApiError(404, {"detail": "task not found"})
+            if write:
+                raise ApiError(422, {"detail": "a write names an Item by uuid or its prefixed ID "
+                                               "(JB-%d, BUG-%d), not bare %r"
+                                               % (int(text), int(text), task_id)})
+            hits = [x for sid, nodes in sorted(ix.by_short.items())
+                    if ids.split_ref(sid)[1] == int(text) for x in nodes]
+            label = "bare %s" % int(text)
+        else:
+            hits = ix.by_short.get(ref, [])
+            label = ref
         if len(hits) > 1:
-            raise ApiError(409, {"detail": "%s names %d Items" % (ids.format_id(n), len(hits)),
+            raise ApiError(409, {"detail": "%s names %d Items" % (label, len(hits)),
                                  "children": self._summ(ix, hits), "blocking": [], "blocked_by": []})
         if not hits:
             raise ApiError(404, {"detail": "task not found"})
@@ -611,7 +621,7 @@ class Store:
                 raise ApiError(422, {"detail": "the short ID is allocated by the server"})
             self._screen_title(ix, body)
             meta: Dict[str, Any] = {
-                "id": self._next_id(ix),
+                "id": self._next_id(ix, kind),
                 "kind": kind, "title": body.get("title") or slug,
                 "status": body.get("status") or DEFAULT_STATUS[kind],
                 "created": dt.date.today().isoformat(), "updated": now_iso(),
@@ -714,16 +724,15 @@ class Store:
             os.remove(node.path)
             self._commit(node.path, node.item.meta.get("title") or node.item.slug)
 
-    def _next_id(self, ix: Index) -> str:
-        """The next ``JB-<n>``: 1 + max over the index and, with a git writer,
-        ``origin/main`` (``mapkit.ids.allocate``). Under ``--no-git`` nothing
-        shells out. A file the index skipped still counts through its ``id:``
-        line. A collision with an Item filed elsewhere since the last pull is
+    def _next_id(self, ix: Index, kind: str) -> str:
+        """The next ID for ``kind``: ``mapkit.ids.allocate(kind=)`` over the index plus every
+        file the index skipped (counted through its ``id:`` line) and ``origin/main``.
+        ``JB-<n>`` on a tree without ``mapkit/legacy_ids.csv``, ``<PREFIX>-<n>`` on one
+        with it. Both writer modes give the same answer: ``--no-git`` used to count the
+        index alone, now it asks ``allocate`` too (a git read that finds no ref adds
+        nothing). A collision with an Item filed elsewhere since the last pull is
         repaired by the git writer after its rebase."""
-        if self.writer is None:
-            skipped = [ids.canonical(u.meta.get("id")) for u in ix.unloadable]
-            return ids.format_id(max(list(ix.by_short) + [n for n in skipped if n] + [0]) + 1)
-        return ids.allocate(self.repo_root, items=list(ix.items.values()) + ix.unloadable)
+        return ids.allocate(self.repo_root, items=list(ix.items.values()) + ix.unloadable, kind=kind)
 
     @staticmethod
     def _refuse_id_change(node: Node, body: Dict[str, Any]) -> None:
