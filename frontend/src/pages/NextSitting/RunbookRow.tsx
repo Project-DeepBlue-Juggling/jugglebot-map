@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { VERDICTS, type RunbookRow as Row, type Verdict } from '../../api/schemas';
 import { KindPill } from '../../ui/ShortId';
@@ -28,14 +28,17 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
   const [verdict, setVerdict] = useState<Verdict | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
   const submit = async () => {
-    if (verdict === null) return;
+    if (verdict === null || inFlight.current) return;
+    inFlight.current = true;
     setSaving(true);
     try {
       await onSave(row.task_id, verdict, notes.trim());
       setVerdict(null);
       setNotes('');
     } finally {
+      inFlight.current = false;
       setSaving(false);
     }
   };
@@ -122,6 +125,13 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
           aria-label={`Notes for ${row.short_id}`}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+              e.preventDefault();
+              if (e.repeat) return;
+              void submit();
+            }
+          }}
           rows={2}
           className="w-full rounded border border-slate-300 bg-white p-2 text-sm dark:border-slate-600 dark:bg-slate-900"
         />

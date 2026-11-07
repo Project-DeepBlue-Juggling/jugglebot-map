@@ -228,6 +228,32 @@ describe('Next Sitting page', () => {
     expect(screen.getByRole('button', { name: 'Save result' })).toBeDisabled();
   });
 
+  it('Ctrl+Enter in the notes saves once like the button; with no verdict or plain Enter it does not', async () => {
+    let posts = 0;
+    server.use(
+      http.post(`${URL}/:id/result`, async () => {
+        posts += 1;
+        return HttpResponse.json(state.tasks[0]);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const first = (await screen.findAllByTestId('runbook-row'))[0];
+    const notes = within(first).getByRole('textbox');
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(0);
+    fireEvent.click(within(first).getByRole('button', { name: 'Pass' }));
+    fireEvent.keyDown(notes, { key: 'Enter' });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(0);
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true });
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true, repeat: true });
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(posts).toBe(1));
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(1);
+  });
+
   it('saves a pending verdict for a check the logs must settle', async () => {
     let posted: unknown = null;
     server.use(
