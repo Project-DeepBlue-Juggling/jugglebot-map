@@ -7,8 +7,17 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
   useLayoutEffect(() => {
     const el = ref.current;
     if (el === null) return;
+    // Collapsing to `auto` shrinks the drawer's content for a moment; the
+    // browser clamps the scroller's scrollTop to that shorter content (to 0 once
+    // the page is shorter than the pane) and does not bring it back when the
+    // height is restored. Keep every scrolled ancestor where it was.
+    const scrolled: Array<[HTMLElement, number]> = [];
+    for (let a = el.parentElement; a !== null; a = a.parentElement) {
+      if (a.scrollTop > 0) scrolled.push([a, a.scrollTop]);
+    }
     el.style.height = 'auto';
     el.style.height = `${el.scrollHeight}px`;
+    for (const [a, top] of scrolled) a.scrollTop = top;
   }, [ref, value]);
 }
 
