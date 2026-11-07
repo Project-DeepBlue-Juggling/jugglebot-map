@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { DoneRoute } from '../drawer/routes';
 import { mapTask } from '../../test/mapFixtures';
@@ -90,6 +90,25 @@ describe('header search', () => {
     fireEvent.keyDown(box(), { key: 'Enter' });
     expect(await screen.findByRole('complementary', { name: 'Item drawer' })).toBeVisible();
     expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('an arrow key scrolls the newly active option into view, a hover does not', async () => {
+    const scroll = vi.fn();
+    // jsdom has no scrollIntoView.
+    Element.prototype.scrollIntoView = scroll;
+    renderApp('/done', <DoneRoute />);
+    await typeQuery('cup');
+    const first = await screen.findByRole('option', { name: /Cup wobble/ });
+    const second = screen.getByRole('option', { name: /Cup rattle fixed/ });
+    scroll.mockClear();
+    fireEvent.keyDown(box(), { key: 'ArrowDown' });
+    await waitFor(() => expect(scroll).toHaveBeenCalledTimes(1));
+    expect(scroll.mock.instances[0]).toBe(second);
+    expect(scroll).toHaveBeenCalledWith({ block: 'nearest' });
+    scroll.mockClear();
+    fireEvent.mouseEnter(first);
+    await waitFor(() => expect(first).toHaveAttribute('aria-selected', 'true'));
+    expect(scroll).not.toHaveBeenCalled();
   });
 
   it('Esc closes the dropdown and clears the box', async () => {

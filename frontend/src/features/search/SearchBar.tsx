@@ -31,6 +31,8 @@ export function SearchBar() {
   const [wantGlossary, setWantGlossary] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Set by an arrow key, cleared by a hover: only a keyboard move scrolls the list.
+  const keyboardMove = useRef(false);
   const tasks = useTasks();
   const glossary = useGlossary({ enabled: wantGlossary });
 
@@ -95,6 +97,7 @@ export function SearchBar() {
       e.preventDefault();
       setPanelOpen(true);
       const d = e.key === 'ArrowDown' ? 1 : -1;
+      keyboardMove.current = true;
       setActive((i) => (i + d + flat.length) % flat.length);
     } else if (e.key === 'Enter') {
       const hit = flat[active];
@@ -107,6 +110,15 @@ export function SearchBar() {
 
   const showPanel = panelOpen && debounced.trim() !== '';
   const optionId = (hit: SearchHit) => `search-opt-${hit.group}-${hit.id}`;
+  const activeOptionId = flat[active] !== undefined ? optionId(flat[active]) : undefined;
+
+  // Bring the arrow-keyed option into view. A hover sets `active` too but must not
+  // scroll the list under the pointer, so only a keyboard move counts.
+  useEffect(() => {
+    if (!showPanel || !keyboardMove.current || activeOptionId === undefined) return;
+    keyboardMove.current = false;
+    document.getElementById(activeOptionId)?.scrollIntoView({ block: 'nearest' });
+  }, [active, showPanel, activeOptionId]);
 
   return (
     <div
@@ -191,7 +203,10 @@ export function SearchBar() {
                     role="option"
                     aria-selected={isActive}
                     data-closed={hit.closed ? 'true' : 'false'}
-                    onMouseEnter={() => setActive(flat.indexOf(hit))}
+                    onMouseEnter={() => {
+                      keyboardMove.current = false;
+                      setActive(flat.indexOf(hit));
+                    }}
                     onClick={() => choose(hit)}
                     className={clsx(
                       'flex cursor-pointer items-baseline gap-2 px-3 py-1 text-sm',
