@@ -269,6 +269,21 @@ def test_two_own_unpushed_items_colliding_after_the_rebase_are_both_renumbered(i
     assert subjects[1] == "map: App one; App two"  # app subjects carry no ID
 
 
+def test_an_item_on_origin_not_yet_pulled_still_bumps_the_next_id(id_remote):
+    """JB-100: the tree has JB-1..5; JB-6 and JB-7 sit on ``origin/main`` (fetched, never merged
+    into the checkout), so the server numbers from max(tree, origin) and gives JB-8. The tree
+    alone would say JB-6, the 2026-10-28 collision."""
+    repo, bare, other = id_remote
+    push_items_from(other, [("phone-x", "JB-6"), ("phone-y", "JB-7")])
+    git(repo, "fetch", "--quiet", "origin")  # the tracking ref moves; the working tree does not
+    assert not os.path.exists(os.path.join(repo, "map", "bug-phone-x.md"))
+    app, c = make_client(repo, git=True, debounce_ms=60000, watch=False)
+    with c:
+        pid = c.get(API + "/projects").json()[0]["id"]
+        r = c.post("%s/projects/%s/tasks" % (API, pid), json={"kind": "bug", "title": "App item"})
+        assert r.status_code == 201 and r.json()["short_id"] == "JB-8"
+
+
 def _chmod_tree(root, writable):
     for d, _dirs, files in os.walk(str(root)):
         for name in [d] + [os.path.join(d, f) for f in files]:
