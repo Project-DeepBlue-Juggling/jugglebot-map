@@ -31,7 +31,8 @@ export function SearchBar() {
   const [wantGlossary, setWantGlossary] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
-  // Set by an arrow key, cleared by a hover: only a keyboard move scrolls the list.
+  // Set by an arrow key and consumed by the scroll effect in the same commit: only a
+  // keyboard move scrolls the list. (The onMouseEnter reset is defence in depth only.)
   const keyboardMove = useRef(false);
   const tasks = useTasks();
   const glossary = useGlossary({ enabled: wantGlossary });
@@ -98,7 +99,8 @@ export function SearchBar() {
       setPanelOpen(true);
       const d = e.key === 'ArrowDown' ? 1 : -1;
       const next = (active + d + flat.length) % flat.length;
-      // Only a move that changes `active` re-runs the scroll effect to consume the flag;
+      // Only a move that changes `active` re-runs the scroll effect to consume the flag
+      // (it always runs: the arrow key opens the panel and `flat` is non-empty);
       // with a single result nothing changes and a stale flag would scroll a later results change.
       if (next !== active) keyboardMove.current = true;
       setActive(next);
@@ -207,6 +209,7 @@ export function SearchBar() {
                     aria-selected={isActive}
                     data-closed={hit.closed ? 'true' : 'false'}
                     onMouseEnter={() => {
+                      // Defence in depth: the scroll effect already consumed the flag, so no effect today.
                       keyboardMove.current = false;
                       setActive(flat.indexOf(hit));
                     }}
