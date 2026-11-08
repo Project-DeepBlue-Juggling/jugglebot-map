@@ -34,7 +34,7 @@ def rb_repo(tmp_path, git_env):  # noqa: F811
                        ("brn", _item("Branchy", "level", minutes=5, branch=True)),
                        ("hnd", _item("Hand one", "level", hw="bench-hand", minutes=7)),
                        ("bl", _item("Leg one", "level", hw="bench-leg", minutes=9)),
-                       ("nosec", _item("No section", "level", section=False, item_id="JB-7",
+                       ("nosec", _item("No section", "level", section=False, item_id="BUG-7",
                                        hw="bench-hand"))):
         with open(os.path.join(repo, "map", "bug-%s.md" % slug), "w") as fh:
             fh.write(text)
@@ -95,10 +95,10 @@ def test_needs_section(c):
     data = c.get("/api/v1/runbook").json()
     assert [n["title"] for n in data["needs_section"]] == ["No section"]
     assert data["needs_section"][0]["errors"] == ["no ## Sitting section"]
-    # mapkit names it by its JB-n; the server still resolves it to the task (uuid, kind)
-    assert data["needs_section"][0]["short_id"] == "JB-7"
+    # mapkit names it by its per-kind ID; the server still resolves it to the task (uuid, kind)
+    assert data["needs_section"][0]["short_id"] == "BUG-7"
     assert data["needs_section"][0]["kind"] == "bug"
-    assert data["needs_section"][0]["task_id"] != "JB-7"
+    assert data["needs_section"][0]["task_id"] != "BUG-7"
     assert data["needs_section"][0]["hardware"] == "bench-hand"
 
 

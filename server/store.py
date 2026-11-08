@@ -511,8 +511,10 @@ class Store:
         return [ix.task(n, self.repo_root) for n in ix.nodes.values()]
 
     def _node(self, ix: Index, task_id: str, write: bool = False) -> Node:
-        """A task uuid, or an Item's ID in either form (``JB-12``, ``BUG-12``, ``bug12``,
-        legacy ``jb-07``; bare ``12`` on reads only, where it names every Item carrying it).
+        """A task uuid, or an Item's per-kind ID (``BUG-12``, ``bug-12``, ``bug12``), or an old
+        ID in any spelling (``JB-12``, ``jb-07``, ``jb7``) translated through the crosswalk
+        (reads translate, writes are refused naming the new ID); bare ``12`` on reads only,
+        where it names every Item carrying it.
 
         Always returns the node, whose ``id`` is the canonical uuid. Bare digits
         on a write are refused, matching mapkit: a one-digit typo lands on another
@@ -522,16 +524,21 @@ class Store:
         if node is not None:
             return node
         text = task_id.strip()
-        ref = ids.typed_ref(text)
-        if ref is not None and not ix.by_short.get(ref):
-            ref = self._legacy_ref(ix, ref, write)
+        ref = ids.parse_ref(text)
+        if ref is None or not ix.by_short.get(ref):
+            new = self._legacy_new(text)
+            if new and ix.by_short.get(new):
+                if write:
+                    raise ApiError(422, {"detail": "%s is now %s; writes take the new ID"
+                                                   % (text, new), "new_id": new})
+                ref = new
         if ref is None:
             if not re.fullmatch(r"[0-9]+", text) or int(text) < 1:  # ASCII only: isdigit() takes "²"
                 raise ApiError(404, {"detail": "task not found"})
             if write:
                 raise ApiError(422, {"detail": "a write names an Item by uuid or its prefixed ID "
-                                               "(JB-%d, BUG-%d), not bare %r"
-                                               % (int(text), int(text), task_id)})
+                                               "(e.g. BUG-%d), not bare %r"
+                                               % (int(text), task_id)})
             hits = [x for sid, nodes in sorted(ix.by_short.items())
                     if ids.split_ref(sid)[1] == int(text) for x in nodes]
             label = "bare %s" % int(text)
@@ -545,25 +552,22 @@ class Store:
             raise ApiError(404, {"detail": "task not found"})
         return hits[0]
 
-    def _legacy_ref(self, ix: Index, ref: str, write: bool) -> str:
-        """D-3: an old ``JB-<n>`` no Item holds, after the renumber. A read answers with the new
-        ID's holder; a write is refused naming the new ID, so a stale ID changes nothing.
-        ``{}`` (no crosswalk, or a mapkit without ``legacy``) leaves ``ref`` as it was."""
-        if not ref.startswith(ids.PREFIX + "-"):
-            return ref
+    def _legacy_new(self, text: str) -> Optional[str]:
+        """An old ID (any spelling) no Item holds, mapped through the crosswalk to its new ID,
+        or None (no crosswalk, unknown ID, or a mapkit without ``legacy``)."""
         legacy = getattr(ids, "legacy", None)  # a rolled-back mapkit must not crash the app
         if legacy is None:
-            return ref
+            return None
         try:
-            new = legacy(self.repo_root).get(ref)
+            table = legacy(self.repo_root)
         except (OSError, KeyError, ValueError):
-            return ref
-        if new is None or not ix.by_short.get(new):
-            return ref
-        if write:
-            raise ApiError(422, {"detail": "%s is now %s; writes take the new ID" % (ref, new),
-                                 "new_id": new})
-        return new
+            return None
+        lr = getattr(ids, "legacy_ref", None)
+        if lr:
+            return lr(text, table)
+        # a pre-P5 mapkit has no legacy_ref: fall back to its typed_ref (goes at P6)
+        tr = getattr(ids, "typed_ref", None)
+        return table.get(tr(text)) if tr else None
 
     def task(self, task_id: str) -> Dict[str, Any]:
         ix = self.index()
@@ -748,8 +752,7 @@ class Store:
     def _next_id(self, ix: Index, kind: str) -> str:
         """The next ID for ``kind``: ``mapkit.ids.allocate(kind=)`` over the index plus every
         file the index skipped (counted through its ``id:`` line) and ``origin/main``.
-        ``JB-<n>`` on a tree without ``mapkit/legacy_ids.csv``, ``<PREFIX>-<n>`` on one
-        with it. Both writer modes give the same answer: ``--no-git`` used to count the
+        Always per kind (``BUG-<n>``, ``IDEA-<n>``, ...). Both writer modes give the same answer: ``--no-git`` used to count the
         index alone, now it asks ``allocate`` too (a git read that finds no ref adds
         nothing). A collision with an Item filed elsewhere since the last pull is
         repaired by the git writer after its rebase."""
