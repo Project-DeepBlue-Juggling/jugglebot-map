@@ -6,7 +6,7 @@ import { KindPill } from '../../ui/ShortId';
 export interface RunbookRowProps {
   row: Row;
   onOpen: (taskId: string) => void;
-  onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<void>;
+  onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<boolean>;
 }
 
 const label = 'text-xs font-semibold uppercase text-slate-500 dark:text-slate-400';
@@ -34,9 +34,11 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
     inFlight.current = true;
     setSaving(true);
     try {
-      await onSave(row.task_id, verdict, notes.trim());
-      setVerdict(null);
-      setNotes('');
+      // A failed save (false) keeps the verdict and notes so the result is not lost.
+      if (await onSave(row.task_id, verdict, notes.trim())) {
+        setVerdict(null);
+        setNotes('');
+      }
     } finally {
       inFlight.current = false;
       setSaving(false);
@@ -126,6 +128,7 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing || e.keyCode === 229) return;
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
               e.preventDefault();
               if (e.repeat) return;

@@ -254,6 +254,52 @@ describe('Next Sitting page', () => {
     expect(posts).toBe(1);
   });
 
+  it('a failed save keeps the verdict and notes; the retry saves and then clears', async () => {
+    let posts = 0;
+    server.use(
+      http.post(`${URL}/:id/result`, async () => {
+        posts += 1;
+        if (posts === 1) return HttpResponse.json({ detail: 'disk full' }, { status: 500 });
+        return HttpResponse.json(state.tasks[0]);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const first = (await screen.findAllByTestId('runbook-row'))[0];
+    const notes = within(first).getByRole('textbox') as HTMLTextAreaElement;
+    const pass = within(first).getByRole('button', { name: 'Pass' });
+    fireEvent.click(pass);
+    fireEvent.change(notes, { target: { value: 'smooth' } });
+    fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
+    await waitFor(() => expect(posts).toBe(1));
+    await waitFor(() => expect(within(first).getByRole('button', { name: 'Save result' })).toBeEnabled());
+    expect(notes.value).toBe('smooth');
+    expect(pass).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
+    await waitFor(() => expect(posts).toBe(2));
+    await waitFor(() => expect(notes.value).toBe(''));
+    expect(pass).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('Ctrl+Enter during IME composition does not save', async () => {
+    let posts = 0;
+    server.use(
+      http.post(`${URL}/:id/result`, async () => {
+        posts += 1;
+        return HttpResponse.json(state.tasks[0]);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const first = (await screen.findAllByTestId('runbook-row'))[0];
+    const notes = within(first).getByRole('textbox');
+    fireEvent.click(within(first).getByRole('button', { name: 'Pass' }));
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true, isComposing: true });
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true, keyCode: 229 });
+    await new Promise((r) => setTimeout(r, 50));
+    expect(posts).toBe(0);
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(posts).toBe(1));
+  });
+
   it('saves a pending verdict for a check the logs must settle', async () => {
     let posted: unknown = null;
     server.use(

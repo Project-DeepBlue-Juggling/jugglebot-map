@@ -8,7 +8,7 @@ import { RunbookRow } from './RunbookRow';
 export interface NextSittingViewProps {
   runbook: Runbook;
   onOpen: (taskId: string) => void;
-  onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<void>;
+  onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<boolean>;
 }
 
 const UNATTACHED = 'unattached';

@@ -30,8 +30,10 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
         try {
           await save.mutateAsync({ id, date: localToday(), time: localTime(), verdict, notes });
           toast.success('Result saved');
+          return true;
         } catch (err) {
           toast.error('Could not save', err instanceof ApiError ? err.message : String(err));
+          return false;
         }
       }}
     />
