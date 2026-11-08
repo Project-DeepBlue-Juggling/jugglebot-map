@@ -164,6 +164,60 @@ def test_legacy_jb_and_kind_ids_are_distinct_keys(tmp_path):
         assert client.get(url(client, "jb-03")).json() == a  # legacy padded input still reads
 
 
+def with_crosswalk(repo: str, rows) -> str:
+    """Overwrite the dummy crosswalk with real rows (old_id,new_id,kind,stem): D-3's lookup table."""
+    with open(os.path.join(repo, "mapkit", "legacy_ids.csv"), "w") as fh:
+        fh.write("old_id,new_id,kind,stem\n")
+        for old, new, kind, stem in rows:
+            fh.write("%s,%s,%s,%s\n" % (old, new, kind, stem))
+    return repo
+
+
+@pytest.fixture
+def cx(tmp_path):
+    repo = with_crosswalk(with_kind_ids(make_repo(str(tmp_path / "repo"))), [
+        ("JB-64", "BUG-3", "bug", "bug-wobbly-leg"), ("JB-12", "IDEA-3", "idea", "idea-shiny-thing")])
+    app, client = make_client(repo, git=False, watch=False)
+    with client:
+        yield client
+
+
+def test_legacy_jb_read_translates_to_the_new_id_holder(cx):
+    want = cx.get(url(cx, "BUG-3")).json()
+    for ref in ("JB-64", "jb-64", "jb64", "JB-064"):
+        r = cx.get(url(cx, ref))
+        assert r.status_code == 200 and r.json() == want, ref
+    assert cx.get(url(cx, "JB-12")).json()["short_id"] == "IDEA-3"
+
+
+def test_legacy_jb_write_is_refused_naming_the_new_id(cx):
+    before = cx.get(url(cx, "BUG-3")).json()
+    for call in (lambda u: cx.patch(u, json={"title": "Stale"}), lambda u: cx.delete(u)):
+        r = call(url(cx, "JB-64"))
+        body = r.json()
+        assert r.status_code == 422 and body["new_id"] == "BUG-3", body
+        assert "JB-64 is now BUG-3" in body["detail"] and "writes take the new ID" in body["detail"]
+    assert cx.get(url(cx, "BUG-3")).json() == before  # nothing changed
+
+
+def test_a_jb_not_in_the_crosswalk_is_a_404_on_read_and_write(cx):
+    assert cx.get(url(cx, "JB-99")).status_code == 404
+    assert cx.patch(url(cx, "JB-99"), json={"title": "x"}).status_code == 404
+
+
+def test_without_a_crosswalk_a_jb_resolves_exactly_as_before(c):
+    assert c.get(url(c, "JB-3")).json()["short_id"] == "JB-3"
+    assert c.patch(url(c, "JB-3"), json={"title": "Plain"}).status_code == 200
+    assert c.get(url(c, "JB-99")).status_code == 404
+
+
+def test_an_mapkit_without_legacy_does_not_crash_the_app(cx, monkeypatch):
+    from mapkit import ids
+    monkeypatch.delattr(ids, "legacy")  # a rolled-back mapkit
+    assert cx.get(url(cx, "JB-64")).status_code == 404
+    assert cx.patch(url(cx, "JB-64"), json={"title": "x"}).status_code == 404
+
+
 def test_bare_number_lists_every_kind_on_a_read_and_a_write_refuses_it(ck):
     r = ck.get(url(ck, "3"))
     assert r.status_code == 409 and len(r.json()["children"]) == 4  # BUG, IDEA, TKT, PWAY

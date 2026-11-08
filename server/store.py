@@ -521,9 +521,10 @@ class Store:
         node = ix.nodes.get(task_id)
         if node is not None:
             return node
-        # TODO(P4): D-3 (a legacy JB-n reads via mapkit's legacy(), and is refused on a write); mapkit has no legacy() yet
         text = task_id.strip()
         ref = ids.typed_ref(text)
+        if ref is not None and not ix.by_short.get(ref):
+            ref = self._legacy_ref(ix, ref, write)
         if ref is None:
             if not re.fullmatch(r"[0-9]+", text) or int(text) < 1:  # ASCII only: isdigit() takes "²"
                 raise ApiError(404, {"detail": "task not found"})
@@ -543,6 +544,26 @@ class Store:
         if not hits:
             raise ApiError(404, {"detail": "task not found"})
         return hits[0]
+
+    def _legacy_ref(self, ix: Index, ref: str, write: bool) -> str:
+        """D-3: an old ``JB-<n>`` no Item holds, after the renumber. A read answers with the new
+        ID's holder; a write is refused naming the new ID, so a stale ID changes nothing.
+        ``{}`` (no crosswalk, or a mapkit without ``legacy``) leaves ``ref`` as it was."""
+        if not ref.startswith(ids.PREFIX + "-"):
+            return ref
+        legacy = getattr(ids, "legacy", None)  # a rolled-back mapkit must not crash the app
+        if legacy is None:
+            return ref
+        try:
+            new = legacy(self.repo_root).get(ref)
+        except (OSError, KeyError, ValueError):
+            return ref
+        if new is None or not ix.by_short.get(new):
+            return ref
+        if write:
+            raise ApiError(422, {"detail": "%s is now %s; writes take the new ID" % (ref, new),
+                                 "new_id": new})
+        return new
 
     def task(self, task_id: str) -> Dict[str, Any]:
         ix = self.index()
