@@ -97,8 +97,11 @@ export function SearchBar() {
       e.preventDefault();
       setPanelOpen(true);
       const d = e.key === 'ArrowDown' ? 1 : -1;
-      keyboardMove.current = true;
-      setActive((i) => (i + d + flat.length) % flat.length);
+      const next = (active + d + flat.length) % flat.length;
+      // Only a move that changes `active` re-runs the scroll effect to consume the flag;
+      // with a single result nothing changes and a stale flag would scroll a later results change.
+      if (next !== active) keyboardMove.current = true;
+      setActive(next);
     } else if (e.key === 'Enter') {
       const hit = flat[active];
       if (hit !== undefined && panelOpen) {

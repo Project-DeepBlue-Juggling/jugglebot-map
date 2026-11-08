@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { DoneRoute } from '../drawer/routes';
 import { mapTask } from '../../test/mapFixtures';
 import { renderApp } from '../../test/renderApp';
@@ -7,8 +7,13 @@ import { createState, makeServer, type TestState } from '../../test/server';
 
 let state: TestState;
 let server: ReturnType<typeof makeServer>;
+let scroll: ReturnType<typeof vi.fn>;
+// jsdom has no scrollIntoView, so the property is absent by default.
+const realScrollIntoView = Element.prototype.scrollIntoView;
 
 beforeEach(() => {
+  scroll = vi.fn();
+  Element.prototype.scrollIntoView = scroll;
   window.localStorage.clear();
   state = createState();
   state.tasks = [
@@ -36,6 +41,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  Element.prototype.scrollIntoView = realScrollIntoView;
   cleanup();
   server.resetHandlers();
   server.close();
@@ -93,9 +99,8 @@ describe('header search', () => {
   });
 
   it('an arrow key scrolls the newly active option into view, a hover does not', async () => {
-    const scroll = vi.fn();
-    // jsdom has no scrollIntoView.
-    Element.prototype.scrollIntoView = scroll;
+    // The hover half covers the flag gate in the scroll effect (a hover moves `active` and must
+    // not scroll); it cannot cover the flag reset in onMouseEnter, which the effect already did.
     renderApp('/done', <DoneRoute />);
     await typeQuery('cup');
     const first = await screen.findByRole('option', { name: /Cup wobble/ });
@@ -108,6 +113,19 @@ describe('header search', () => {
     scroll.mockClear();
     fireEvent.mouseEnter(first);
     await waitFor(() => expect(first).toHaveAttribute('aria-selected', 'true'));
+    expect(scroll).not.toHaveBeenCalled();
+  });
+
+  it('an arrow key with a single result does not leave a stray scroll for the next results change', async () => {
+    renderApp('/done', <DoneRoute />);
+    await typeQuery('rattle');
+    await screen.findByRole('option', { name: /Cup rattle fixed/ });
+    const results = screen.getByRole('listbox', { name: 'Search results' });
+    await waitFor(() => expect(within(results).getAllByRole('option')).toHaveLength(1));
+    scroll.mockClear();
+    fireEvent.keyDown(box(), { key: 'ArrowDown' });
+    fireEvent.change(box(), { target: { value: 'cup' } });
+    await screen.findByRole('option', { name: /Cup wobble/ });
     expect(scroll).not.toHaveBeenCalled();
   });
 
