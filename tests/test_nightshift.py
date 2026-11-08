@@ -145,9 +145,9 @@ none
 def test_report_questions_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F811
     """JB-132: the served report's questions table carries a "Your answer" column read from
     each ticket's ## Answer; the committed file is not changed."""
-    short = "JB-40"
+    short = "TKT-40"
     with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
-        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: JB-40\nkind: ticket", 1))
+        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: TKT-40\nkind: ticket", 1))
     path = os.path.join(ns_repo, "docs", "night-shift", "2026-11-01.md")
     with open(path, "w") as fh:
         fh.write(REPORT_WITH_QUESTIONS % short)
@@ -224,11 +224,11 @@ def test_report_held_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F81
     not answered yet, the answer, ticket not found; "none" is empty; an older Held table
     without the column is untouched."""
     with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
-        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: JB-40\nkind: ticket", 1))
+        fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: TKT-40\nkind: ticket", 1))
     d = os.path.join(ns_repo, "docs", "night-shift")
     path = os.path.join(d, "2026-11-02.md")
     with open(path, "w") as fh:
-        fh.write(REPORT_WITH_HELD % ("JB-40", "JB-40"))
+        fh.write(REPORT_WITH_HELD % ("TKT-40", "TKT-40"))
     with open(os.path.join(d, "2026-11-01.md"), "w") as fh:
         fh.write(REPORT_OLD_HELD)
     git(ns_repo, "add", "-A")
@@ -239,21 +239,21 @@ def test_report_held_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F81
         before = c.get(NS + "/reports/2026-11-02").text
         assert "| Respond in | Your answer |" in before
         assert "|---|---|---|---|---|---|---|" in before
-        assert "| JB-40 | _not answered yet_ |" in before
+        assert "| TKT-40 | _not answered yet_ |" in before
         assert "| JB-32 | Plant | night-shift/2026-11-02-JB-32 | (b) audit | a Sitting | none |  |" in before
         assert "| JB-999 | _ticket not found_ |" in before
         r = c.post(NS + "/questions/%s/answer" % qid, json={"answer": "Apply the fix, merge."})
         assert r.status_code == 200, r.text
         after = c.get(NS + "/reports/2026-11-02").text
-        assert "| JB-40 | Apply the fix, merge. |" in after
-        assert "| JB-40 | Hold or merge? | JB-135 | | Apply the fix, merge. |" in after
-        assert open(path).read() == REPORT_WITH_HELD % ("JB-40", "JB-40")
+        assert "| TKT-40 | Apply the fix, merge. |" in after
+        assert "| TKT-40 | Hold or merge? | JB-135 | | Apply the fix, merge. |" in after
+        assert open(path).read() == REPORT_WITH_HELD % ("TKT-40", "TKT-40")
         assert c.get(NS + "/reports/2026-11-01").text == REPORT_OLD_HELD
 
 
 def test_report_questions_table_reads_a_per_kind_ticket_id(ns_repo, git_env):  # noqa: F811
-    """T-U10: the answer column fills when the report's ticket cell is BUG-/TKT-style, and the
-    legacy JB-n form beside it still works."""
+    """T-U10: the answer column fills when the report's ticket cell is BUG-/TKT-style (the old JB-n
+    ticket cell no longer names an Item: P5 made IDs per kind only)."""
     short = "TKT-40"
     with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
         fh.write(QUESTION.replace("---\nkind: ticket", "---\nid: TKT-40\nkind: ticket", 1))

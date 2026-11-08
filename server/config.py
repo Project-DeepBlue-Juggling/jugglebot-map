@@ -72,8 +72,8 @@ def ensure_mapkit(repo_root: str) -> None:
         sys.path.insert(0, repo_root)
     try:
         # every mapkit.ids name the app calls (map-item-ids P1 / item-id-per-kind): a pre-P1 mapkit fails here, at start
-        from mapkit.ids import (add_order, allocate, canonical_ref, duplicates, ref_ids,  # noqa: F401
-                                set_id, split_ref, stem, typed_ref)
+        from mapkit.ids import (add_order, allocate, canonical_ref, duplicates, parse_ref,  # noqa: F401
+                                ref_ids, set_id, split_ref, stem)
         import mapkit.items  # noqa: F401
         import mapkit.plans  # noqa: F401
     except ImportError as exc:

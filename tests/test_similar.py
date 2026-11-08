@@ -43,11 +43,11 @@ def test_duplicate_of_an_open_item_is_refused_even_with_allow_similar(c, title):
         assert r.status_code == 409, extra
         body = r.json()
         assert body["code"] == "duplicate" and body["similar"] == []
-        assert body["detail"] == "Already filed as JB-3: Wobbly leg"
+        assert body["detail"] == "Already filed as BUG-3: Wobbly leg"
         d = body["duplicate"]
         assert (d["short_id"], d["stem"], d["status"], d["exact"]) == (
-            "JB-3", "bug-wobbly-leg", "inbox", True)
-        assert c.get("%s/%s" % (turl(c), d["id"])).json()["short_id"] == "JB-3"
+            "BUG-3", "bug-wobbly-leg", "inbox", True)
+        assert c.get("%s/%s" % (turl(c), d["id"])).json()["short_id"] == "BUG-3"
     assert n_items(c) == before
 
 
@@ -57,9 +57,9 @@ def test_similar_is_refused_until_allowed(c):
     assert r.status_code == 409
     body = r.json()
     assert body["code"] == "similar" and body["duplicate"] is None
-    assert [m["short_id"] for m in body["similar"]] == ["JB-3"]
+    assert [m["short_id"] for m in body["similar"]] == ["BUG-3"]
     assert body["similar"][0]["exact"] is False and body["similar"][0]["score"] >= 0.8
-    assert "JB-3 (inbox) Wobbly leg" in body["detail"]
+    assert "BUG-3 (inbox) Wobbly leg" in body["detail"]
     assert n_items(c) == before
     r = c.post(turl(c), json={"kind": "idea", "title": "Wobbly legs", "allow_similar": True})
     assert r.status_code == 201 and r.json()["title"] == "Wobbly legs"
@@ -81,7 +81,7 @@ def test_unrelated_title_files_normally(c):
 
 
 def test_the_same_title_as_a_closed_item_is_only_similar(c):
-    r = c.patch("%s/JB-3" % turl(c), json={"status": "complete"})
+    r = c.patch("%s/BUG-3" % turl(c), json={"status": "complete"})
     assert r.status_code == 200
     r = c.post(turl(c), json={"kind": "bug", "title": "Wobbly leg"})
     assert r.status_code == 409 and r.json()["code"] == "similar"
