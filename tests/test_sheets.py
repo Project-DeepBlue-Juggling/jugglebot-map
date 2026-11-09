@@ -101,6 +101,23 @@ def test_save_verdict_step_writes_item(c, rb_repo):
     assert open(os.path.join(rb_repo, "map", "bug-lvl.md")).read().count("## Sitting result") == 2
 
 
+def test_unchanged_verdict_resave_adds_no_item_result(c, rb_repo):
+    body = {"verdicts": {"BUG-1": {"verdict": "pass", "notes": "clean"}}, "date": "2026-11-10", "time": "10:30"}
+    assert c.post("/api/v1/sheets/%s/steps/2" % NAME, json=body).status_code == 200
+    again = c.post("/api/v1/sheets/%s/steps/2" % NAME, json=dict(body, comments="comment added later"))
+    assert again.status_code == 200
+    assert again.json()["steps"]["2"]["comments"] == "comment added later"
+    assert open(os.path.join(rb_repo, "map", "bug-lvl.md")).read().count("## Sitting result") == 1
+
+
+def test_impossible_date_is_a_refusal_and_writes_nothing(c, rb_repo):
+    r = c.post("/api/v1/sheets/%s/steps/2" % NAME, json={
+        "verdicts": {"BUG-1": {"verdict": "pass", "notes": ""}}, "date": "2026-13-45"})
+    assert r.status_code == 422
+    assert not os.path.exists(_res_path(rb_repo))
+    assert "## Sitting result" not in open(os.path.join(rb_repo, "map", "bug-lvl.md")).read()
+
+
 @pytest.mark.parametrize("n,body", [
     (1, {"verdicts": {"BUG-1": {"verdict": "pass", "notes": ""}}}),   # a verdict on a step with none
     (2, {"status": "done"}),                                         # a status on a verdict step

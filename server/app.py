@@ -191,8 +191,8 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         try:
             out = sheetlib.enrich(raw, cfg.repo_root)
             results = sheetlib.load_results(cfg.repo_root, name)
-        except sheetlib.SheetError as exc:
-            raise ApiError(422, {"detail": str(exc)})
+        except (sheetlib.SheetError, TypeError, ValueError, AttributeError) as exc:
+            raise ApiError(422, {"detail": "unreadable sheet: %s" % (exc,)})
         for st in out.get("steps") or []:
             for sv in st.get("serves") or []:
                 hits = ix.by_short.get(sv.get("item"), [])
@@ -470,6 +470,10 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         kwargs: Dict[str, Any] = {}
         if time is not None and "time" in inspect.signature(append_sitting_result).parameters:
             kwargs["time"] = time
+        try:  # the range check only append_sitting_result knows, before anything is written
+            append_sitting_result("", date, "pending", "", **kwargs)
+        except ValueError as exc:
+            raise ApiError(422, {"detail": str(exc)})
         with store._lock:
             store._writable()
             sheet = _load_sheet(name)
@@ -487,6 +491,12 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
                     raise ApiError(422, {"detail": "%s is not an Item" % item_id})
                 nodes[item_id] = hits[0]
             for item_id, box in verdicts.items():  # the Item's own Sitting result, as /runbook does
+                # An unchanged verdict is a re-save (a comment edit, a double click, a retry): one
+                # result on the Item, because /sitting-debrief acts on each Item's results.
+                prior = (results.get("verdicts", {}).get(n) or {}).get(item_id) or {}
+                if prior.get("verdict") == box["verdict"] and \
+                        prior.get("notes") == " ".join(str(box.get("notes", "")).split()):
+                    continue
                 node = store._node(store.index(), nodes[item_id].id, write=True)
                 t = store.index().task(node, cfg.repo_root)
                 notes = (str(box.get("notes", "")).strip() + " (sheet %s, step %d)" % (name, n)).strip()
