@@ -1,13 +1,13 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useProjects } from '../api/hooks';
 
-/** Project pages a bare path may name (`/now?item=JB-5`). */
+/** Project pages a bare path may name (`/now?item=BUG-5`). */
 const PAGES = ['/now', '/done', '/night-shift', '/next-sitting', '/dictionary'];
 
 /**
  * The bare `/` route and every unmatched path: go to the one project, keeping a
  * page name (`/now`, `/done`, `/dictionary`) and the query, so a shared
- * `/now?item=JB-5` still opens that drawer; any other path lands on the front page.
+ * `/now?item=BUG-5` still opens that drawer; any other path lands on the front page.
  */
 export default function RootRedirect() {
   const { data: projects, isLoading } = useProjects();

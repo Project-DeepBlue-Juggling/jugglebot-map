@@ -20,7 +20,7 @@ export function NightShiftView(p: NightShiftViewProps) {
   const listRef = useRef<HTMLUListElement>(null);
   // After a save the answered card leaves the list; the cursor goes to the next
   // question's box (or the previous one when the last was answered), ready to type
-  // (JB-132). A failed save keeps the cursor and the text where they were.
+  // (BUG-46). A failed save keeps the cursor and the text where they were.
   const answerAndAdvance = async (id: string, text: string) => {
     const ids = p.questions.map((q) => q.id);
     const at = ids.indexOf(id);

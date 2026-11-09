@@ -161,7 +161,7 @@ describe('five-field new-item modal', () => {
     for (const name of ['Title', 'Description', 'Pathway (optional)']) {
       expect(within(form).getByLabelText(name)).toBeEnabled();
     }
-    // Kind and Priority are pill radio groups (JB-71).
+    // Kind and Priority are pill radio groups (FEAT-24).
     for (const name of ['Kind', 'Priority (optional)']) {
       expect(within(form).getByRole('radiogroup', { name })).toBeInTheDocument();
     }
@@ -252,7 +252,7 @@ describe('five-field new-item modal', () => {
     expect(posted).toMatchObject({ kind: 'feature', title: 'Leg buzz', priority: 'medium' });
   });
 
-  it('Ctrl+Enter or Cmd+Enter creates from any field, once; a bare Enter does not (JB-78)', async () => {
+  it('Ctrl+Enter or Cmd+Enter creates from any field, once; a bare Enter does not (BUG-22)', async () => {
     renderApp('/', <FrontRoute />);
     await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
     const form = await screen.findByTestId('new-item-form');
@@ -283,7 +283,7 @@ describe('five-field new-item modal', () => {
     expect(posts).toBe(1);
   });
 
-  it('the description is multi-line: Enter adds a line, the newlines reach the POST (JB-91)', async () => {
+  it('the description is multi-line: Enter adds a line, the newlines reach the POST (IDEA-6)', async () => {
     renderApp('/', <FrontRoute />);
     await userEvent.click(await screen.findByRole('button', { name: '+ New' }));
     const form = await screen.findByTestId('new-item-form');
@@ -501,7 +501,7 @@ describe('P4 audit fixes (drawer)', () => {
 describe('new-item title screen (mapkit.similar via the server 409)', () => {
   const match = (over: Record<string, unknown> = {}) => ({
     id: 'u103',
-    short_id: 'JB-103',
+    short_id: 'BUG-103',
     stem: 'bug-records',
     kind: 'bug',
     title: 'Records window stays floating',
@@ -532,7 +532,7 @@ describe('new-item title screen (mapkit.similar via the server 409)', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
     const alert = await within(form).findByTestId('title-conflict');
     expect(alert).toHaveTextContent('Similar items already exist');
-    expect(alert).toHaveTextContent('JB-103 (inbox) Records window stays floating');
+    expect(alert).toHaveTextContent('BUG-103 (inbox) Records window stays floating');
     expect(bodies[0]).not.toHaveProperty('allow_similar');
     // Editing the title drops the warning: the new title is screened anew.
     await userEvent.type(within(form).getByLabelText('Title'), '!');
@@ -556,7 +556,7 @@ describe('new-item title screen (mapkit.similar via the server 409)', () => {
         posts += 1;
         return HttpResponse.json(
           {
-            detail: 'Already filed as JB-103: Records window stays floating',
+            detail: 'Already filed as BUG-103: Records window stays floating',
             code: 'duplicate',
             duplicate: match({ exact: true, score: 1 }),
             similar: [],
@@ -568,7 +568,7 @@ describe('new-item title screen (mapkit.similar via the server 409)', () => {
     await userEvent.click(within(form).getByRole('button', { name: 'Create' }));
     const alert = await within(form).findByTestId('title-conflict');
     expect(alert).toHaveTextContent(
-      'Already filed as JB-103 (inbox) Records window stays floating',
+      'Already filed as BUG-103 (inbox) Records window stays floating',
     );
     expect(within(form).getByRole('button', { name: 'Create' })).toBeDisabled();
     fireEvent.keyDown(within(form).getByLabelText('Title'), { key: 'Enter', ctrlKey: true });

@@ -231,7 +231,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             node = store._node(ix, task_id)  # 404s an unknown id: nothing request-supplied reaches git
             path = node.path
             links = [str(x) for x in ((node.item.meta.get("links") or []) if node.item else [])]
-        return history.get(node.id, path, links)  # canonical uuid: JB-12 and its uuid share one entry
+        return history.get(node.id, path, links)  # canonical uuid: BUG-12 and its uuid share one entry
 
     @r.patch(P + "/tasks/{task_id}", response_model=Task)
     async def patch_task(project_id: str, task_id: str, request: Request) -> Any:
@@ -319,7 +319,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             raise ApiError(400, {"detail": "date must be YYYY-MM-DD"})
         if text is None:
             raise ApiError(404, {"detail": "no report for " + date})
-        with store._lock:  # the questions table gains each ticket's live answer (JB-132)
+        with store._lock:  # the questions table gains each ticket's live answer (BUG-46)
             text = nightshift.annotate_answers(text, store.index(), cfg.repo_root)
         return PlainTextResponse(text, media_type="text/markdown")
 

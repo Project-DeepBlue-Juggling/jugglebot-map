@@ -2,7 +2,7 @@ import type { Task } from '../api/schemas';
 import { effortRank, isBreakSized } from './metrics';
 
 /**
- * Inbox wall orders (owner, 2026-10-28, JB-77). The viewer picks one in the
+ * Inbox wall orders (owner, 2026-10-28, FEAT-26). The viewer picks one in the
  * wall header; the choice is remembered per browser (`InboxWall`).
  *
  * - `type`: bug, feature, idea, then newest filed first within a kind.
@@ -124,7 +124,7 @@ function rated(ra: number, rb: number, unrated: number, dir: number): number {
   return dir * (ra - rb);
 }
 
-/** The wall's optional filters (JB-77 follow-on: item metrics). */
+/** The wall's optional filters (FEAT-26 follow-on: item metrics). */
 export interface WallFilter {
   /** Only effort <= s, hardware none, owner none (and a confirmed diagnosis for a bug). */
   breakSized: boolean;

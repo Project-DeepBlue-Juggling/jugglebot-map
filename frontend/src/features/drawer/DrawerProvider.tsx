@@ -17,8 +17,8 @@ interface DrawerState {
 
 /**
  * The open item is URL state: `?item=<ref>` on the current page, where an Item
- * is written by its short ID (`?item=JB-12`) and a plan or phase by its uuid; a
- * pasted `?item=jb12`, `?item=12` or uuid resolves to the same drawer. An Item
+ * is written by its short ID (`?item=BUG-12`) and a plan or phase by its uuid; a
+ * pasted `?item=bug12`, `?item=12` or uuid resolves to the same drawer. An Item
  * not yet pushed is written by its uuid (its short ID may still be renumbered),
  * and the URL takes the `JB-` form once the push lands. Opening pushes
  * a history entry (so Back closes it, and in-drawer links walk back through the
@@ -82,7 +82,7 @@ export function DrawerProvider({ children }: { children: ReactNode }) {
   }, [depth, location.pathname, location.search, navigate]);
 
   // Keep the URL on the open Item's settled name: an unpushed Item's uuid (a
-  // renumber must not swap the drawer to another Item), then `JB-n` once pushed.
+  // renumber must not swap the drawer to another Item), then `BUG-n` once pushed.
   const settled = openId === null ? null : itemParam(tasks, openId);
   useEffect(() => {
     if (param === null || settled === null || settled === param) return;

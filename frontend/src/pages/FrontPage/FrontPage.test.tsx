@@ -82,7 +82,7 @@ describe('PathwayTile', () => {
   });
 
   it('gives each open plan of a two-plan Pathway its own row, bar and every remaining phase', () => {
-    // Owner, 2026-10-27 (JB-70): e.g. Two-ball oval carries two plans.
+    // Owner, 2026-10-27 (FEAT-23): e.g. Two-ball oval carries two plans.
     page([
       mapTask({ id: 'pw', title: 'Oval' }),
       ...planWithPhases('oval', 'pw', ['complete', ...Array(6).fill('not_started')]),
@@ -272,7 +272,7 @@ describe('Front page CSS contract (one-scroll rule)', () => {
   });
 });
 
-describe('Inbox wall sort (JB-77)', () => {
+describe('Inbox wall sort (FEAT-26)', () => {
   const inbox = [
     mapTask({
       id: 'idea-old',

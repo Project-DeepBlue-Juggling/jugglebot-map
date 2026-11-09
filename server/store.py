@@ -149,7 +149,7 @@ class Index:
     plans: Dict[str, Plan] = field(default_factory=dict)        # filename -> Plan
     nodes: Dict[str, Node] = field(default_factory=dict)        # task id -> Node
     by_ref: Dict[str, Node] = field(default_factory=dict)
-    by_short: Dict[str, List[Node]] = field(default_factory=dict)  # canonical ID string (JB-3, BUG-3) -> Item nodes
+    by_short: Dict[str, List[Node]] = field(default_factory=dict)  # canonical ID string (BUG-3, FEAT-3) -> Item nodes
     unpushed: frozenset = frozenset()  # stems the git writer has not pushed (refreshed per read)
     unloadable: List[Any] = field(default_factory=list)  # skipped map files; their id: still counts
     errors: List[Dict[str, str]] = field(default_factory=list)
@@ -518,7 +518,7 @@ class Store:
 
         Always returns the node, whose ``id`` is the canonical uuid. Bare digits
         on a write are refused, matching mapkit: a one-digit typo lands on another
-        real Item. ``BUG-3``, ``FEAT-3`` and ``JB-3`` are distinct keys.
+        real Item. ``BUG-3`` and ``FEAT-3`` are distinct keys.
         """
         node = ix.nodes.get(task_id)
         if node is not None:
@@ -562,12 +562,8 @@ class Store:
             table = legacy(self.repo_root)
         except (OSError, KeyError, ValueError):
             return None
-        lr = getattr(ids, "legacy_ref", None)
-        if lr:
-            return lr(text, table)
-        # a pre-P5 mapkit has no legacy_ref: fall back to its typed_ref (goes at P6)
-        tr = getattr(ids, "typed_ref", None)
-        return table.get(tr(text)) if tr else None
+        legacy_ref = getattr(ids, "legacy_ref", None)
+        return legacy_ref(text, table) if legacy_ref else None
 
     def task(self, task_id: str) -> Dict[str, Any]:
         ix = self.index()

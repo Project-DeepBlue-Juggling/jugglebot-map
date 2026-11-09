@@ -21,7 +21,7 @@ export function KindPill({
 }
 
 /**
- * A kind pill plus an Item's short ID in muted mono (`Bug JB-12`, `Bug BUG-12` on a per-kind tree). While the app
+ * A kind pill plus an Item's short ID in muted mono (`Bug BUG-12`). While the app
  * has not pushed the Item yet its ID is provisional (a rebase may renumber it), so
  * it reads fainter with an "unsent" tag and nobody quotes an ID that is about to change.
  */

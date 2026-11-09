@@ -24,7 +24,7 @@ const PRIORITY_PILLS = ['', ...PRIORITY_OPTIONS] as const;
 
 /**
  * The new-item modal: seven fields (kind, title, description, priority, effort, hardware, pathway).
- * The description is a multi-line textarea (JB-91): Enter adds a line, Ctrl+Enter creates.
+ * The description is a multi-line textarea (IDEA-6): Enter adds a line, Ctrl+Enter creates.
  * Kind and Priority are pill buttons; the form opens on the Kind pills.
  * One column at every width (no responsive breakpoints), `w-full max-w-md` plus a
  * viewport-bounded scrolling body, so it fits a 400 px window.
@@ -81,7 +81,7 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  // Ctrl+Enter / Cmd+Enter creates from any field (JB-78), as it saves in the
+  // Ctrl+Enter / Cmd+Enter creates from any field (BUG-22), as it saves in the
   // drawer. preventDefault stops the browser's own Enter-submit in a text
   // input firing a second time.
   const onKeyDown = (e: ReactKeyboardEvent<HTMLFormElement>) => {
@@ -161,7 +161,7 @@ export default function NewItemModal({ onClose }: { onClose: () => void }) {
           <label className={LABEL} htmlFor="new-line">
             Description
           </label>
-          {/* Multi-line (JB-91): Enter is a new line, Ctrl+Enter still creates. */}
+          {/* Multi-line (IDEA-6): Enter is a new line, Ctrl+Enter still creates. */}
           <textarea
             id="new-line"
             className={clsx(FIELD, 'min-h-[5rem] resize-y')}

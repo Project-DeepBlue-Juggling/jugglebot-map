@@ -5,7 +5,7 @@ const UNCHOSEN =
   'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700';
 
 /**
- * One choice as a row of pill buttons (owner, 2026-10-27, JB-71). Native radios
+ * One choice as a row of pill buttons (owner, 2026-10-27, FEAT-24). Native radios
  * under the pills keep the keyboard behaviour: Tab lands on the chosen pill, the
  * arrow keys move and choose, Tab moves on.
  */
