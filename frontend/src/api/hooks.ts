@@ -4,7 +4,7 @@ import { useApi } from './useApi';
 import { qk } from './queryKeys';
 import { useActiveProjectId } from '../projects/useActiveProject';
 import { useAuth } from '../auth/useAuth';
-import type { Verdict } from './schemas';
+import type { SheetStepBody, Verdict } from './schemas';
 import type {
   CurrentUser,
   DependencyCreateBody,
@@ -272,6 +272,37 @@ export function useSaveSittingResult() {
         prev?.map((t) => (t.id === task.id ? task : t)),
       );
       void qc.invalidateQueries({ queryKey: qk.runbook });
+    },
+  });
+}
+
+// -- Sitting sheets ----------------------------------------------------------
+
+export function useSheets() {
+  const api = useApi();
+  return useQuery({ queryKey: qk.sheets, queryFn: () => api.getSheets() });
+}
+
+export function useSheet(name: string | null) {
+  const api = useApi();
+  return useQuery({
+    queryKey: qk.sheet(name ?? ''),
+    queryFn: () => api.getSheet(name ?? ''),
+    enabled: name !== null,
+  });
+}
+
+/** Save one step's boxes. The sheet, the list and the Items' tasks refetch (verdicts land on Items). */
+export function useSaveSheetStep() {
+  const api = useApi();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { name: string; n: number; body: SheetStepBody }) =>
+      api.saveSheetStep(v.name, v.n, v.body),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.sheets });
+      void qc.invalidateQueries({ queryKey: qk.runbook });
+      void qc.invalidateQueries({ queryKey: ['projects'] });
     },
   });
 }

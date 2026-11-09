@@ -263,6 +263,7 @@ export function makeServer(state: TestState) {
     http.get('http://localhost:8000/api/v1/runbook', () =>
       HttpResponse.json({ rigs: [], blocks: [], needs_section: [], questions: [], page: '' }),
     ),
+    http.get('http://localhost:8000/api/v1/sheets', () => HttpResponse.json({ sheets: [] })),
     http.get('http://localhost:8000/api/v1/night-shift/reports', () => HttpResponse.json([])),
     http.get('http://localhost:8000/api/v1/night-shift/questions', () => HttpResponse.json([])),
     http.get('http://localhost:8000/api/v1/nightly', () =>

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { AuthClient } from '../auth/types';
-import type { Verdict } from './schemas';
+import type { SheetStepBody, Verdict } from './schemas';
 import {
   CurrentUser,
   DependencyEdge,
@@ -10,6 +10,9 @@ import {
   NightlyStatus,
   NightShiftQuestionList,
   Runbook,
+  Sheet,
+  SheetList,
+  SheetResults,
   NightShiftReportList,
   NightShiftSummary,
   Project,
@@ -152,6 +155,17 @@ export function createApiClient(auth: AuthClient) {
       taskId: string,
       body: { date: string; time?: string | undefined; verdict: Verdict; notes: string },
     ) => request(`/runbook/${encodeURIComponent(taskId)}/result`, jsonInit('POST', body), Task),
+
+    // -- Sitting sheets
+    getSheets: () => request('/sheets', jsonInit('GET'), SheetList),
+    getSheet: (name: string) =>
+      request(`/sheets/${encodeURIComponent(name)}`, jsonInit('GET'), Sheet),
+    saveSheetStep: (name: string, n: number, body: SheetStepBody) =>
+      request(
+        `/sheets/${encodeURIComponent(name)}/steps/${n}`,
+        jsonInit('POST', body),
+        SheetResults,
+      ),
 
     // -- Glossary (read-only)
     getGlossary: (projectId: string) =>
