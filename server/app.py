@@ -91,6 +91,13 @@ async def _json_body(request: Request) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _results_json(results: Dict[str, Any]) -> Dict[str, Any]:
+    """Results with step numbers as JSON string keys (YAML keeps them ints)."""
+    return {"schema": results.get("schema"),
+            "steps": {str(k): v for k, v in (results.get("steps") or {}).items()},
+            "verdicts": {str(k): v for k, v in (results.get("verdicts") or {}).items()}}
+
+
 def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str] = None,
                git: Optional[bool] = None, debounce_ms: int = DEFAULT_DEBOUNCE_MS,
                watch_ms: int = DEFAULT_WATCH_MS, watch: bool = True) -> FastAPI:
@@ -168,6 +175,31 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
 
     r = APIRouter()
     P = "/projects/{project_id}"
+
+    def _load_sheet(name: str) -> Dict[str, Any]:
+        from mapkit import sheet as sheetlib
+        if not sheetlib.valid_name(name) or not os.path.exists(sheetlib.sheet_path(cfg.repo_root, name)):
+            raise ApiError(404, {"detail": "no sheet %s" % name})
+        try:
+            return sheetlib.load_sheet(sheetlib.sheet_path(cfg.repo_root, name))
+        except sheetlib.SheetError as exc:
+            raise ApiError(422, {"detail": str(exc)})
+
+    def _sheet_payload(ix: Any, name: str) -> Dict[str, Any]:
+        from mapkit import sheet as sheetlib
+        raw = _load_sheet(name)
+        try:
+            out = sheetlib.enrich(raw, cfg.repo_root)
+            results = sheetlib.load_results(cfg.repo_root, name)
+        except sheetlib.SheetError as exc:
+            raise ApiError(422, {"detail": str(exc)})
+        for st in out.get("steps") or []:
+            for sv in st.get("serves") or []:
+                hits = ix.by_short.get(sv.get("item"), [])
+                sv["task_id"] = hits[0].id if len(hits) == 1 else None
+        out["name"] = name
+        out["results"] = _results_json(results)
+        return out
 
     def _project(project_id: str) -> None:
         if project_id != PROJECT_ID:
@@ -401,6 +433,68 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             if body.get("if_unchanged_since"):
                 patch["if_unchanged_since"] = body["if_unchanged_since"]
             return store.update(node.id, patch)
+
+    # --- Sitting sheets (IDEA-19): one ordered page for one Sitting ---------------
+    @r.get("/sheets")
+    def sheets_list() -> Any:
+        from mapkit import sheet as sheetlib
+        return {"sheets": sheetlib.list_sheets(cfg.repo_root)}
+
+    @r.get("/sheets/{name}")
+    def sheets_get(name: str) -> Any:
+        with store._lock:
+            return _sheet_payload(store.index(), name)
+
+    @r.post("/sheets/{name}/steps/{n}")
+    async def sheets_save_step(name: str, n: int, request: Request) -> Any:
+        """Save step ``n``'s boxes: validate, write each verdict to its Item, then the results file."""
+        import inspect
+        from mapkit import sheet as sheetlib
+        from mapkit import sitting
+        from mapkit.sitting import append_sitting_result
+        body = await _json_body(request)
+        date, time = body.get("date"), body.get("time")
+        if not isinstance(date, str) or not nightshift.DATE_RE.match(date):
+            raise ApiError(422, {"detail": "date must be YYYY-MM-DD"})
+        if time is not None and not (isinstance(time, str) and re.match(r"^\d{2}:\d{2}$", time)):
+            raise ApiError(422, {"detail": "time must be HH:MM"})
+        status, comments, verdicts = body.get("status"), body.get("comments", ""), body.get("verdicts") or {}
+        if status is not None and not isinstance(status, str):
+            raise ApiError(422, {"detail": "status must be text"})
+        if not isinstance(comments, str):
+            raise ApiError(422, {"detail": "comments must be text"})
+        if not isinstance(verdicts, dict) or not all(
+                isinstance(k, str) and isinstance(v, dict) and isinstance(v.get("notes", ""), str)
+                for k, v in verdicts.items()):
+            raise ApiError(422, {"detail": "verdicts must map an Item ID to {verdict, notes}"})
+        kwargs: Dict[str, Any] = {}
+        if time is not None and "time" in inspect.signature(append_sitting_result).parameters:
+            kwargs["time"] = time
+        with store._lock:
+            store._writable()
+            sheet = _load_sheet(name)
+            results = sheetlib.load_results(cfg.repo_root, name)
+            try:  # pure: a bad request writes nothing
+                new = sheetlib.apply_step_result(sheet, results, n, status, comments, verdicts,
+                                                 date if time is None else "%s %s" % (date, time))
+            except sheetlib.SheetError as exc:
+                raise ApiError(422, {"detail": str(exc)})
+            ix = store.index()
+            nodes = {}
+            for item_id in verdicts:
+                hits = ix.by_short.get(item_id, [])
+                if len(hits) != 1 or hits[0].item is None:
+                    raise ApiError(422, {"detail": "%s is not an Item" % item_id})
+                nodes[item_id] = hits[0]
+            for item_id, box in verdicts.items():  # the Item's own Sitting result, as /runbook does
+                node = store._node(store.index(), nodes[item_id].id, write=True)
+                t = store.index().task(node, cfg.repo_root)
+                notes = (str(box.get("notes", "")).strip() + " (sheet %s, step %d)" % (name, n)).strip()
+                store.update(node.id, {"description": append_sitting_result(
+                    t["description"], date, box["verdict"], notes, **kwargs)})
+            path = sheetlib.write_results(cfg.repo_root, name, new)
+            store._commit(path, "Sitting sheet %s step %d" % (name, n))
+            return _results_json(new)
 
     # --- health and events ----------------------------------------------------
     @r.get("/health", response_model=Health)
