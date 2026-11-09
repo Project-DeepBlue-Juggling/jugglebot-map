@@ -180,11 +180,11 @@ describe('short IDs', () => {
   const tasks = [
     mapTask({ id: 'a', kind: 'bug', title: 'Leg wobble', short_id: 'BUG-12' }),
     mapTask({ id: 'b', kind: 'bug', title: 'BUG-12 mentioned in a title', short_id: 'BUG-30' }),
-    mapTask({ id: 'c', kind: 'feature', title: 'Other', short_id: 'FEAT-120' }),
+    mapTask({ id: 'c', kind: 'bug', title: 'Other', short_id: 'BUG-120' }),
     mapTask({ id: 'd', kind: 'idea', title: 'Closed one', status: 'complete', short_id: 'IDEA-7' }),
   ];
 
-  it('an exact ID ranks first, its group leads, and FEAT-120 is not a match for BUG-12', () => {
+  it('an exact ID ranks first, its group leads, and BUG-120 is not a match for BUG-12', () => {
     for (const q of ['BUG-12', 'bug12', 'bug-12', '12', ' 12 ']) {
       const groups = searchMap(tasks, undefined, q);
       expect(groups[0]?.key).toBe('bug');
