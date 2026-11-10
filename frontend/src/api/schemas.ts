@@ -575,6 +575,8 @@ export const Sheet = z.object({
   results: SheetResults,
   /** `mapkit sheet check` against the Items and firmware now; non-empty = the sheet is stale. */
   check_errors: z.array(z.string()),
+  /** State word -> one-sentence description (mapkit.sheet.STATE_HELP); `{}` on an older mapkit. */
+  state_help: z.record(z.string(), z.string()),
 });
 export type Sheet = z.infer<typeof Sheet>;
 

@@ -89,7 +89,7 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
       ) : sheet.data === undefined ? (
         <div className="p-6 text-slate-500 dark:text-slate-400">Loading the sheet…</div>
       ) : (
-        <div className="p-6">
+        <div className="p-2 sm:p-4">
           <SheetView
             key={sheet.data.name}
             sheet={sheet.data}

@@ -198,12 +198,13 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
                 hits = ix.by_short.get(sv.get("item"), [])
                 sv["task_id"] = hits[0].id if len(hits) == 1 else None
         out["name"] = name
+        out["state_help"] = dict(getattr(sheetlib, "STATE_HELP", {}) or {})
         out["results"] = _results_json(results)
         # The sheet against the Items and firmware as they are NOW: a flash or a new Sitting
         # section after the sheet was written shows as a banner, not as a silently stale step.
         check = getattr(sheetlib, "check_sheet", None)
         try:
-            out["check_errors"] = list(check(raw, cfg.repo_root)) if check is not None else []
+            out["check_errors"] = list(check(raw, cfg.repo_root, live=True)) if check is not None else []
         except Exception as exc:  # noqa: BLE001 - a check that cannot run is itself a warning
             out["check_errors"] = ["the sheet check could not run: %s" % (exc,)]
         return out
