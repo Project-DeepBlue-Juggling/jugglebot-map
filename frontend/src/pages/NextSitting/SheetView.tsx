@@ -1,14 +1,26 @@
-import { useId, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+} from 'react';
 import clsx from 'clsx';
 import {
   VERDICTS,
   type Sheet,
   type SheetServe,
   type SheetStep,
+  type SheetStepResult,
+  type SheetVerdictResult,
   type SheetStepBody,
   type Verdict,
 } from '../../api/schemas';
 import { copyText } from './copyText';
+import { rowRenderProbe } from './rowRenderProbe';
 import { VERDICT_COLOUR, VERDICT_HINT, VERDICT_LABEL } from './verdictLabels';
 
 export interface SheetViewProps {
@@ -24,6 +36,7 @@ interface Draft {
   verdicts: Record<string, { verdict: Verdict | null; notes: string }>;
 }
 
+type SavedVerdicts = Record<string, SheetVerdictResult>;
 type StepStatus = 'done' | 'problem' | 'skipped';
 const STATUS_LABEL: Record<StepStatus, string> = {
   done: 'Done',
@@ -143,13 +156,15 @@ function CommentIcon() {
   );
 }
 
-function savedDraft(sheet: Sheet, step: SheetStep): Draft {
-  const saved = sheet.results.steps[String(step.n)];
-  const verdicts = sheet.results.verdicts[String(step.n)] ?? {};
+function savedDraft(
+  saved: SheetStepResult | undefined,
+  verdicts: SavedVerdicts | undefined,
+  step: SheetStep,
+): Draft {
   const out: Draft = { comments: saved?.comments ?? '', verdicts: {} };
   for (const sv of step.serves) {
     if (!sv.verdict) continue;
-    const v = verdicts[sv.item];
+    const v = verdicts?.[sv.item];
     out.verdicts[sv.item] = {
       verdict:
         v !== undefined && (VERDICTS as readonly string[]).includes(v.verdict)
@@ -162,57 +177,103 @@ function savedDraft(sheet: Sheet, step: SheetStep): Draft {
 }
 
 const verdictItems = (step: SheetStep) => step.serves.filter((s) => s.verdict);
-const savedStatus = (sheet: Sheet, step: SheetStep): string | null =>
-  sheet.results.steps[String(step.n)]?.status ?? null;
 /** Done = a simple step ticked done or skipped, or a verdict step with a saved verdict for every Item. */
-function isDone(sheet: Sheet, step: SheetStep): boolean {
+function isDone(
+  saved: SheetStepResult | undefined,
+  verdicts: SavedVerdicts | undefined,
+  step: SheetStep,
+): boolean {
   const vr = verdictItems(step);
   if (vr.length === 0) {
-    const s = savedStatus(sheet, step);
+    const s = saved?.status;
     return s === 'done' || s === 'skipped';
   }
-  const saved = sheet.results.verdicts[String(step.n)] ?? {};
-  return vr.every((sv) => saved[sv.item] !== undefined);
+  return vr.every((sv) => verdicts?.[sv.item] !== undefined);
 }
-const savedAtOf = (sheet: Sheet, step: SheetStep): string | undefined =>
-  [
-    sheet.results.steps[String(step.n)]?.saved_at,
-    ...Object.values(sheet.results.verdicts[String(step.n)] ?? {}).map((v) => v.saved_at),
-  ]
+const savedAtOf = (
+  saved: SheetStepResult | undefined,
+  verdicts: SavedVerdicts | undefined,
+): string | undefined =>
+  [saved?.saved_at, ...Object.values(verdicts ?? {}).map((v) => v.saved_at)]
     .filter((s): s is string => s !== undefined)
     .sort()
     .pop();
 
 interface RowProps {
   step: SheetStep;
-  sheet: Sheet;
+  stateHelp: Record<string, string>;
+  saved: SheetStepResult | undefined;
+  savedVerdicts: SavedVerdicts | undefined;
   current: boolean;
-  saving: boolean;
-  draft: Draft;
-  onDraft: (d: Draft) => void;
-  onSave: (status?: StepStatus) => void;
+  /** What the operator typed and has not saved, by step number; outlives a fold or a rollback. */
+  draftsRef: MutableRefObject<Map<number, Draft>>;
+  /** Resolves true when the server took the save (false keeps the typed boxes). */
+  onSaveStep: (n: number, body: Omit<SheetStepBody, 'date' | 'time'>) => Promise<boolean>;
   onOpen: (taskId: string) => void;
-  /** Set for a done step that is expanded: the number collapses it again. */
-  onCollapse: (() => void) | null;
+  /** True for a folded step the operator expanded: the number collapses it again. */
+  open: boolean;
+  onToggle: (n: number) => void;
 }
 
-function StepRow({
+const StepRow = memo(function StepRow({
   step,
-  sheet,
+  stateHelp,
+  saved,
+  savedVerdicts,
   current,
-  saving,
-  draft,
-  onDraft,
-  onSave,
+  draftsRef,
+  onSaveStep,
   onOpen,
-  onCollapse,
+  open,
+  onToggle,
 }: RowProps) {
+  rowRenderProbe.hook?.(step.n);
   const [commentOpen, setCommentOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // The typed draft is local to the row, so a keystroke renders this row and no other.
+  const [typed, setTyped] = useState<Draft | null>(() => draftsRef.current.get(step.n) ?? null);
+  const draft = useMemo(
+    () => typed ?? savedDraft(saved, savedVerdicts, step),
+    [typed, saved, savedVerdicts, step],
+  );
+  const onDraft = (d: Draft) => {
+    draftsRef.current.set(step.n, d);
+    setTyped(d);
+  };
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const onSave = async (s?: StepStatus) => {
+    const body: Omit<SheetStepBody, 'date' | 'time'> = { comments: draft.comments };
+    if (verdictItems(step).length > 0) {
+      const verdicts: Record<string, { verdict: Verdict; notes: string }> = {};
+      for (const [item, v] of Object.entries(draft.verdicts))
+        if (v.verdict !== null) verdicts[item] = { verdict: v.verdict, notes: v.notes };
+      body.verdicts = verdicts;
+    } else if (s !== undefined) {
+      body.status = s;
+    }
+    setSaving(true);
+    try {
+      const ok = await onSaveStep(step.n, body);
+      if (ok) {
+        draftsRef.current.delete(step.n);
+        if (mounted.current) setTyped(null);
+      }
+    } finally {
+      if (mounted.current) setSaving(false);
+    }
+  };
+  const onCollapse = open ? () => onToggle(step.n) : null;
   const verdictRows = verdictItems(step);
   const isVerdict = verdictRows.length > 0;
-  const status = savedStatus(sheet, step);
-  const savedVerdicts = sheet.results.verdicts[String(step.n)] ?? {};
-  const savedAt = savedAtOf(sheet, step);
+  const status = saved?.status ?? null;
+  const priorVerdicts = savedVerdicts ?? {};
+  const savedAt = savedAtOf(saved, savedVerdicts);
   const ready =
     draft.comments.trim() !== '' || Object.values(draft.verdicts).some((v) => v.verdict !== null);
   const hasComment =
@@ -237,7 +298,7 @@ function StepRow({
       aria-pressed={status === s}
       aria-label={STATUS_LABEL[s]}
       title={tip}
-      onClick={() => onSave(s)}
+      onClick={() => void onSave(s)}
       className={clsx(
         'h-5 w-5 rounded border text-center text-[11px] leading-4 disabled:opacity-60',
         status === s
@@ -258,9 +319,9 @@ function StepRow({
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !saving) {
           e.preventDefault();
           if (isVerdict) {
-            if (ready) onSave();
+            if (ready) void onSave();
           } else if (status === 'done' || status === 'problem' || status === 'skipped')
-            onSave(status);
+            void onSave(status);
         }
       }}
       className={clsx(
@@ -325,7 +386,7 @@ function StepRow({
           {step.from_.length === 0 ? (
             <StateChip word="Launch down" help="No launch is running; Terminal 1 is free." />
           ) : (
-            step.from_.map((w) => <StateChip key={w} word={w} help={sheet.state_help[w]} />)
+            step.from_.map((w) => <StateChip key={w} word={w} help={stateHelp[w]} />)
           )}
         </span>
         {step.serves.length > 0 && (
@@ -386,7 +447,7 @@ function StepRow({
         {isVerdict &&
           verdictRows.map((sv) => {
             const d = draft.verdicts[sv.item] ?? { verdict: null, notes: '' };
-            const prior = savedVerdicts[sv.item];
+            const prior = priorVerdicts[sv.item];
             return (
               <div
                 key={sv.item}
@@ -428,7 +489,7 @@ function StepRow({
             <button
               type="button"
               disabled={!ready || saving}
-              onClick={() => onSave()}
+              onClick={() => void onSave()}
               className="rounded bg-slate-900 px-2 text-[11px] leading-5 font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
             >
               {saving ? 'Saving…' : 'Save'}
@@ -465,7 +526,7 @@ function StepRow({
                 <button
                   type="button"
                   disabled={!ready || saving}
-                  onClick={() => onSave()}
+                  onClick={() => void onSave()}
                   className={tiny}
                 >
                   Save comment
@@ -476,7 +537,7 @@ function StepRow({
                     key={s}
                     type="button"
                     disabled={saving}
-                    onClick={() => onSave(s)}
+                    onClick={() => void onSave(s)}
                     className={tiny}
                   >
                     {`Save as ${s}`}
@@ -486,7 +547,7 @@ function StepRow({
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={() => onSave(status as StepStatus)}
+                  onClick={() => void onSave(status as StepStatus)}
                   className={tiny}
                 >
                   {saving ? 'Saving…' : 'Save comment'}
@@ -498,23 +559,24 @@ function StepRow({
       </div>
     </li>
   );
-}
+});
 
 /** A step folded to one line: saved as done, or all its Items deselected in the picker. */
-function FoldedRow({
+const FoldedRow = memo(function FoldedRow({
   step,
   kind,
-  sheet,
-  onExpand,
+  status,
+  savedAt,
+  onToggle,
   onOpen,
 }: {
   step: SheetStep;
   kind: 'done' | 'dim';
-  sheet: Sheet;
-  onExpand: () => void;
+  status: string | null;
+  savedAt: string | undefined;
+  onToggle: (n: number) => void;
   onOpen: (taskId: string) => void;
 }) {
-  const savedAt = savedAtOf(sheet, step);
   return (
     <li
       id={`sheet-step-${step.n}`}
@@ -527,20 +589,20 @@ function FoldedRow({
       <button
         type="button"
         aria-label={`Expand step ${step.n}`}
-        onClick={onExpand}
+        onClick={() => onToggle(step.n)}
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
       >
         <span className="w-6 shrink-0 text-right font-mono text-[11px]">{step.n}</span>
         {kind === 'done' && (
           <span
             className={
-              savedStatus(sheet, step) === 'skipped'
+              status === 'skipped'
                 ? 'text-slate-500 dark:text-slate-400'
                 : 'text-emerald-600 dark:text-emerald-400'
             }
             aria-hidden
           >
-            {savedStatus(sheet, step) === 'skipped' ? '–' : '✓'}
+            {status === 'skipped' ? '–' : '✓'}
           </span>
         )}
         <span className={clsx('truncate', kind === 'done' && muted)}>{step.title}</span>
@@ -562,7 +624,7 @@ function FoldedRow({
       )}
     </li>
   );
-}
+});
 
 // -- grouping and the Item picker -------------------------------------------------------
 
@@ -618,8 +680,7 @@ function storeDeselected(name: string, list: string[]) {
 
 /** One Sitting sheet: its steps in order, grouped by launch; drafts keyed by step number. */
 export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
-  const [drafts, setDrafts] = useState<Record<number, Draft>>({});
-  const [saving, setSaving] = useState<number | null>(null);
+  const draftsRef = useRef<Map<number, Draft>>(new Map());
   const [deselected, setDeselected] = useState<string[]>(() => loadDeselected(sheet.name));
   /** Folded steps the operator opened (done ones and dimmed ones). */
   const [opened, setOpened] = useState<number[]>([]);
@@ -641,35 +702,25 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
       for (const sv of st.serves) if (!seen.has(sv.item)) seen.set(sv.item, sv);
     return [...seen.values()];
   }, [sheet.steps]);
-  const save = async (step: SheetStep, status?: StepStatus) => {
-    const d = drafts[step.n] ?? savedDraft(sheet, step);
-    const body: Omit<SheetStepBody, 'date' | 'time'> = { comments: d.comments };
-    if (verdictItems(step).length > 0) {
-      const verdicts: Record<string, { verdict: Verdict; notes: string }> = {};
-      for (const [item, v] of Object.entries(d.verdicts))
-        if (v.verdict !== null) verdicts[item] = { verdict: v.verdict, notes: v.notes };
-      body.verdicts = verdicts;
-    } else if (status !== undefined) {
-      body.status = status;
-    }
-    setSaving(step.n);
-    try {
-      const ok = await onSaveStep(step.n, body);
-      if (ok)
-        setDrafts((prev) =>
-          Object.fromEntries(Object.entries(prev).filter(([k]) => Number(k) !== step.n)),
-        );
-    } finally {
-      setSaving(null);
-    }
-  };
+  // Stable callbacks (the latest props behind a ref) so memoised rows skip re-rendering.
+  const latest = useRef({ onOpen, onSaveStep });
+  useEffect(() => {
+    latest.current = { onOpen, onSaveStep };
+  });
+  const stableOpen = useCallback((id: string) => latest.current.onOpen(id), []);
+  const stableSave = useCallback(
+    (n: number, body: Omit<SheetStepBody, 'date' | 'time'>) => latest.current.onSaveStep(n, body),
+    [],
+  );
   const goCurrent = () => {
     const el = document.getElementById(`sheet-step-${current ?? ''}`);
     if (el !== null && typeof el.scrollIntoView === 'function')
       el.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
-  const toggleOpened = (n: number) =>
-    setOpened((o) => (o.includes(n) ? o.filter((x) => x !== n) : [...o, n]));
+  const toggleOpened = useCallback(
+    (n: number) => setOpened((o) => (o.includes(n) ? o.filter((x) => x !== n) : [...o, n])),
+    [],
+  );
   const dimmed = (step: SheetStep) =>
     step.serves.length > 0 && step.serves.every((s) => deselected.includes(s.item));
   return (
@@ -739,7 +790,9 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
         </button>
       </div>
       {groups.map((g) => {
-        const done = g.steps.filter((s) => isDone(sheet, s)).length;
+        const done = g.steps.filter((s) =>
+          isDone(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
+        ).length;
         let prevKey: string | null = null;
         return (
           <section key={g.key} data-testid="launch-group">
@@ -769,7 +822,7 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
                       ) : (
                         <ItemLinks
                           serves={[...new Map(step.serves.map((s) => [s.item, s])).values()]}
-                          onOpen={onOpen}
+                          onOpen={stableOpen}
                         />
                       )}
                     </li>,
@@ -778,26 +831,30 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
                 }
                 const open = opened.includes(step.n);
                 const isCur = step.n === current;
+                const saved = sheet.results.steps[String(step.n)];
+                const savedVerdicts = sheet.results.verdicts[String(step.n)];
                 if (dimmed(step) && !open)
                   out.push(
                     <FoldedRow
                       key={step.n}
                       step={step}
                       kind="dim"
-                      sheet={sheet}
-                      onExpand={() => toggleOpened(step.n)}
-                      onOpen={onOpen}
+                      status={saved?.status ?? null}
+                      savedAt={savedAtOf(saved, savedVerdicts)}
+                      onToggle={toggleOpened}
+                      onOpen={stableOpen}
                     />,
                   );
-                else if (isDone(sheet, step) && !open && !isCur)
+                else if (isDone(saved, savedVerdicts, step) && !open && !isCur)
                   out.push(
                     <FoldedRow
                       key={step.n}
                       step={step}
                       kind="done"
-                      sheet={sheet}
-                      onExpand={() => toggleOpened(step.n)}
-                      onOpen={onOpen}
+                      status={saved?.status ?? null}
+                      savedAt={savedAtOf(saved, savedVerdicts)}
+                      onToggle={toggleOpened}
+                      onOpen={stableOpen}
                     />,
                   );
                 else
@@ -805,14 +862,15 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
                     <StepRow
                       key={step.n}
                       step={step}
-                      sheet={sheet}
+                      stateHelp={sheet.state_help}
+                      saved={saved}
+                      savedVerdicts={savedVerdicts}
                       current={isCur}
-                      saving={saving === step.n}
-                      draft={drafts[step.n] ?? savedDraft(sheet, step)}
-                      onDraft={(d) => setDrafts((prev) => ({ ...prev, [step.n]: d }))}
-                      onSave={(s) => void save(step, s)}
-                      onOpen={onOpen}
-                      onCollapse={open ? () => toggleOpened(step.n) : null}
+                      draftsRef={draftsRef}
+                      onSaveStep={stableSave}
+                      onOpen={stableOpen}
+                      open={open}
+                      onToggle={toggleOpened}
                     />,
                   );
                 return out;

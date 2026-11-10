@@ -185,7 +185,67 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         except sheetlib.SheetError as exc:
             raise ApiError(422, {"detail": str(exc)})
 
+    sheet_cache: Dict[str, Any] = {}
+    sheet_parse_cache: Dict[str, Any] = {}
+
+    def _stat_sig(path: str) -> Any:
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size)
+
+    def _sheet_sig(name: str) -> Any:
+        """Everything a sheet payload is computed from, as file stats (no reads, ~300 stats).
+
+        The sheet, its results, every Item file under map/ (an in-place edit changes a file's mtime
+        and size, not the directory's) and the firmware source the check reads. A save, an Item
+        edit or a flash therefore changes the key, so a cached payload is never stale.
+        """
+        from mapkit import sheet as sheetlib
+        map_dir = os.path.join(cfg.repo_root, "map")
+        items = []
+        try:
+            for ent in sorted(os.listdir(map_dir)):
+                sig = _stat_sig(os.path.join(map_dir, ent))
+                if sig is not None:
+                    items.append((ent, sig))
+        except OSError:
+            pass
+        return (_stat_sig(sheetlib.sheet_path(cfg.repo_root, name)),
+                _stat_sig(sheetlib.results_path(cfg.repo_root, name)),
+                _stat_sig(map_dir), tuple(items),
+                _stat_sig(os.path.join(cfg.repo_root, getattr(sheetlib, "FW_SOURCE", ""))))
+
+    def _load_sheet_ro(name: str) -> Dict[str, Any]:
+        """``_load_sheet`` memoised on the file's stat (the pure-Python YAML parse is ~190 ms).
+
+        Read-only callers only (the save handler looks a step up and never mutates it).
+        """
+        from mapkit import sheet as sheetlib
+        if not sheetlib.valid_name(name):
+            return _load_sheet(name)
+        sig = _stat_sig(sheetlib.sheet_path(cfg.repo_root, name))
+        hit = sheet_parse_cache.get(name)
+        if sig is not None and hit is not None and hit[0] == sig:
+            return hit[1]
+        out = _load_sheet(name)
+        sheet_parse_cache[name] = (sig, out)
+        return out
+
     def _sheet_payload(ix: Any, name: str) -> Dict[str, Any]:
+        from mapkit import sheet as sheetlib
+        if not sheetlib.valid_name(name):
+            return _sheet_payload_uncached(ix, name)  # the 404
+        sig = _sheet_sig(name)
+        hit = sheet_cache.get(name)
+        if hit is not None and hit[0] == sig:
+            return hit[1]
+        out = _sheet_payload_uncached(ix, name)
+        sheet_cache[name] = (sig, out)
+        return out
+
+    def _sheet_payload_uncached(ix: Any, name: str) -> Dict[str, Any]:
         from mapkit import sheet as sheetlib
         raw = _load_sheet(name)
         try:
@@ -484,7 +544,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             raise ApiError(422, {"detail": str(exc)})
         with store._lock:
             store._writable()
-            sheet = _load_sheet(name)
+            sheet = _load_sheet_ro(name)
             results = sheetlib.load_results(cfg.repo_root, name)
             try:  # pure: a bad request writes nothing
                 new = sheetlib.apply_step_result(sheet, results, n, status, comments, verdicts,

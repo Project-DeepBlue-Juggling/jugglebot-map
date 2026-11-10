@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { HttpResponse, delay, http } from 'msw';
 import { NextSittingRoute } from '../../features/drawer/routes';
 import { renderApp } from '../../test/renderApp';
+import { rowRenderProbe } from './rowRenderProbe';
 import { createState, makeServer, type TestState } from '../../test/server';
 
 const API = 'http://localhost:8000/api/v1';
@@ -372,5 +373,69 @@ describe('Sitting sheet page', () => {
     expect(screen.queryByRole('tooltip')).toBeNull();
     fireEvent.focus(chip);
     expect(chip).toHaveAttribute('aria-describedby', screen.getByRole('tooltip').id);
+  });
+
+  it('typing in one row renders only that row', async () => {
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    fireEvent.click(screen.getByRole('button', { name: 'Comment on step 2' }));
+    const box = screen.getByLabelText('Comments for step 2');
+    const seen: number[] = [];
+    rowRenderProbe.hook = (n) => seen.push(n);
+    try {
+      fireEvent.change(box, { target: { value: 'a' } });
+      fireEvent.change(box, { target: { value: 'ab' } });
+    } finally {
+      rowRenderProbe.hook = null;
+    }
+    expect(box).toHaveValue('ab');
+    expect(seen.length).toBeGreaterThan(0);
+    expect(new Set(seen)).toEqual(new Set([2]));
+  });
+
+  it('a status click shows at once, before the POST resolves', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((res) => (release = res));
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/1`, async () => {
+        await gate;
+        return HttpResponse.json(
+          results({
+            steps: { '1': { status: 'done', comments: '', saved_at: '2026-11-10 09:00' } },
+          }),
+        );
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    fireEvent.click(
+      within(screen.getAllByTestId('sheet-step')[0] as HTMLElement).getByRole('button', {
+        name: 'Done',
+      }),
+    );
+    expect(await screen.findByTestId('sheet-step-done')).toBeInTheDocument();
+    expect(screen.getByTestId('launch-progress')).toHaveTextContent('1/3');
+    release();
+    await waitFor(() => expect(screen.getByTestId('launch-progress')).toHaveTextContent('1/3'));
+  });
+
+  it('an optimistic status rolls back when the server refuses (422)', async () => {
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/1`, async () => {
+        await delay(30);
+        return HttpResponse.json({ detail: 'nope' }, { status: 422 });
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    fireEvent.click(
+      within(screen.getAllByTestId('sheet-step')[0] as HTMLElement).getByRole('button', {
+        name: 'Done',
+      }),
+    );
+    expect(await screen.findByTestId('sheet-step-done')).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByTestId('sheet-step-done')).toBeNull());
+    expect(screen.getAllByTestId('sheet-step')).toHaveLength(3);
+    expect(screen.getByTestId('launch-progress')).toHaveTextContent('0/3');
   });
 });

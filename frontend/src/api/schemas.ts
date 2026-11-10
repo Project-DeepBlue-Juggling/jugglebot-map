@@ -555,11 +555,13 @@ export const SheetStepResult = z.object({
   comments: z.string(),
   saved_at: z.string(),
 });
+export type SheetStepResult = z.infer<typeof SheetStepResult>;
 export const SheetVerdictResult = z.object({
   verdict: z.string(),
   notes: z.string(),
   saved_at: z.string(),
 });
+export type SheetVerdictResult = z.infer<typeof SheetVerdictResult>;
 /** Step numbers are JSON string keys here (YAML keeps them ints server-side). */
 export const SheetResults = z.object({
   steps: z.record(z.string(), SheetStepResult),

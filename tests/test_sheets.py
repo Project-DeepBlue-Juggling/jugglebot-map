@@ -153,3 +153,56 @@ def test_writer_commits_a_dirty_results_file(rb_repo):
     assert left["map/sheets/%s.results.yaml" % NAME] == ("Sitting sheet %s.results" % NAME, False)
     w._commit(["Sitting sheet x"])
     assert git(rb_repo, "status", "--porcelain").strip() == ""
+
+
+def test_payload_cache_hits_then_results_write_invalidates(c, rb_repo, monkeypatch):
+    from mapkit import sheet as sheetlib
+    name = c.get("/api/v1/sheets").json()["sheets"][0]["name"]
+    calls = []
+    real = sheetlib.enrich
+    monkeypatch.setattr(sheetlib, "enrich", lambda *a, **k: calls.append(1) or real(*a, **k))
+    first = c.get("/api/v1/sheets/%s" % name).json()
+    assert c.get("/api/v1/sheets/%s" % name).json() == first
+    assert len(calls) == 1  # the second GET was served from the cache
+    # a results write by anything (here: straight to the file) must not leave a stale answer
+    p = _res_path(rb_repo)
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("schema: 1\nsteps:\n  1: {status: done, comments: x, saved_at: '2026-11-10 10:00'}\nverdicts: {}\n")
+    after = c.get("/api/v1/sheets/%s" % name).json()
+    assert len(calls) == 2
+    assert after["results"]["steps"]["1"]["status"] == "done"
+
+
+def test_payload_cache_invalidated_by_item_edit_save_and_sheet_edit(c, rb_repo, monkeypatch):
+    from mapkit import sheet as sheetlib
+    calls = []
+    real = sheetlib.enrich
+    monkeypatch.setattr(sheetlib, "enrich", lambda *a, **k: calls.append(1) or real(*a, **k))
+    url = "/api/v1/sheets/%s" % NAME
+    first = c.get(url).json()
+    assert first["steps"][1]["serves"][0]["title"] == "Level one"
+    c.get(url)
+    assert len(calls) == 1
+    # an Item edited in place (new commit pulled into the clone) changes what the sheet shows
+    p = os.path.join(rb_repo, "map", "bug-lvl.md")
+    with open(p, encoding="utf-8") as fh:
+        text = fh.read()
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write(text.replace("Level one", "Level uno"))
+    assert c.get(url).json()["steps"][1]["serves"][0]["title"] == "Level uno"
+    assert len(calls) == 2
+    # a save through the API invalidates too
+    r = c.post(url + "/steps/1", json={"status": "done", "date": "2026-11-10", "time": "10:00"})
+    assert r.status_code == 200
+    assert c.get(url).json()["results"]["steps"]["1"]["status"] == "done"
+    assert len(calls) == 3
+    # the sheet file itself (stat changes) and the parse cache the save path uses
+    sp = os.path.join(rb_repo, "map", "sheets", NAME + ".yaml")
+    with open(sp, encoding="utf-8") as fh:
+        body = fh.read()
+    with open(sp, "w", encoding="utf-8") as fh:
+        fh.write(body.replace("Step 3 title", "Step three"))
+    assert c.get(url).json()["steps"][2]["title"] == "Step three"
+    r = c.post(url + "/steps/3", json={"status": "done", "date": "2026-11-10", "time": "10:01"})
+    assert r.status_code == 200
