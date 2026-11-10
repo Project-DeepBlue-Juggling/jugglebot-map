@@ -91,6 +91,13 @@ async def _json_body(request: Request) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _results_json(results: Dict[str, Any]) -> Dict[str, Any]:
+    """Results with step numbers as JSON string keys (YAML keeps them ints)."""
+    return {"schema": results.get("schema"),
+            "steps": {str(k): v for k, v in (results.get("steps") or {}).items()},
+            "verdicts": {str(k): v for k, v in (results.get("verdicts") or {}).items()}}
+
+
 def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str] = None,
                git: Optional[bool] = None, debounce_ms: int = DEFAULT_DEBOUNCE_MS,
                watch_ms: int = DEFAULT_WATCH_MS, watch: bool = True) -> FastAPI:
@@ -169,6 +176,99 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     r = APIRouter()
     P = "/projects/{project_id}"
 
+    def _load_sheet(name: str) -> Dict[str, Any]:
+        from mapkit import sheet as sheetlib
+        if not sheetlib.valid_name(name) or not os.path.exists(sheetlib.sheet_path(cfg.repo_root, name)):
+            raise ApiError(404, {"detail": "no sheet %s" % name})
+        try:
+            return sheetlib.load_sheet(sheetlib.sheet_path(cfg.repo_root, name))
+        except sheetlib.SheetError as exc:
+            raise ApiError(422, {"detail": str(exc)})
+
+    sheet_cache: Dict[str, Any] = {}
+    sheet_parse_cache: Dict[str, Any] = {}
+
+    def _stat_sig(path: str) -> Any:
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size)
+
+    def _sheet_sig(name: str) -> Any:
+        """Everything a sheet payload is computed from, as file stats (no reads, ~300 stats).
+
+        The sheet, its results, every Item file under map/ (an in-place edit changes a file's mtime
+        and size, not the directory's) and the firmware source the check reads. A save, an Item
+        edit or a flash therefore changes the key, so a cached payload is never stale.
+        """
+        from mapkit import sheet as sheetlib
+        map_dir = os.path.join(cfg.repo_root, "map")
+        items = []
+        try:
+            for ent in sorted(os.listdir(map_dir)):
+                sig = _stat_sig(os.path.join(map_dir, ent))
+                if sig is not None:
+                    items.append((ent, sig))
+        except OSError:
+            pass
+        return (_stat_sig(sheetlib.sheet_path(cfg.repo_root, name)),
+                _stat_sig(sheetlib.results_path(cfg.repo_root, name)),
+                _stat_sig(map_dir), tuple(items),
+                _stat_sig(os.path.join(cfg.repo_root, getattr(sheetlib, "FW_SOURCE", ""))))
+
+    def _load_sheet_ro(name: str) -> Dict[str, Any]:
+        """``_load_sheet`` memoised on the file's stat (the pure-Python YAML parse is ~190 ms).
+
+        Read-only callers only (the save handler looks a step up and never mutates it).
+        """
+        from mapkit import sheet as sheetlib
+        if not sheetlib.valid_name(name):
+            return _load_sheet(name)
+        sig = _stat_sig(sheetlib.sheet_path(cfg.repo_root, name))
+        hit = sheet_parse_cache.get(name)
+        if sig is not None and hit is not None and hit[0] == sig:
+            return hit[1]
+        out = _load_sheet(name)
+        sheet_parse_cache[name] = (sig, out)
+        return out
+
+    def _sheet_payload(ix: Any, name: str) -> Dict[str, Any]:
+        from mapkit import sheet as sheetlib
+        if not sheetlib.valid_name(name):
+            return _sheet_payload_uncached(ix, name)  # the 404
+        sig = _sheet_sig(name)
+        hit = sheet_cache.get(name)
+        if hit is not None and hit[0] == sig:
+            return hit[1]
+        out = _sheet_payload_uncached(ix, name)
+        sheet_cache[name] = (sig, out)
+        return out
+
+    def _sheet_payload_uncached(ix: Any, name: str) -> Dict[str, Any]:
+        from mapkit import sheet as sheetlib
+        raw = _load_sheet(name)
+        try:
+            out = sheetlib.enrich(raw, cfg.repo_root)
+            results = sheetlib.load_results(cfg.repo_root, name)
+        except (sheetlib.SheetError, TypeError, ValueError, AttributeError) as exc:
+            raise ApiError(422, {"detail": "unreadable sheet: %s" % (exc,)})
+        for st in out.get("steps") or []:
+            for sv in st.get("serves") or []:
+                hits = ix.by_short.get(sv.get("item"), [])
+                sv["task_id"] = hits[0].id if len(hits) == 1 else None
+        out["name"] = name
+        out["state_help"] = dict(getattr(sheetlib, "STATE_HELP", {}) or {})
+        out["results"] = _results_json(results)
+        # The sheet against the Items and firmware as they are NOW: a flash or a new Sitting
+        # section after the sheet was written shows as a banner, not as a silently stale step.
+        check = getattr(sheetlib, "check_sheet", None)
+        try:
+            out["check_errors"] = list(check(raw, cfg.repo_root, live=True)) if check is not None else []
+        except Exception as exc:  # noqa: BLE001 - a check that cannot run is itself a warning
+            out["check_errors"] = ["the sheet check could not run: %s" % (exc,)]
+        return out
+
     def _project(project_id: str) -> None:
         if project_id != PROJECT_ID:
             raise ApiError(404, {"detail": "project not found"})
@@ -231,7 +331,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             node = store._node(ix, task_id)  # 404s an unknown id: nothing request-supplied reaches git
             path = node.path
             links = [str(x) for x in ((node.item.meta.get("links") or []) if node.item else [])]
-        return history.get(node.id, path, links)  # canonical uuid: JB-12 and its uuid share one entry
+        return history.get(node.id, path, links)  # canonical uuid: BUG-12 and its uuid share one entry
 
     @r.patch(P + "/tasks/{task_id}", response_model=Task)
     async def patch_task(project_id: str, task_id: str, request: Request) -> Any:
@@ -319,7 +419,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             raise ApiError(400, {"detail": "date must be YYYY-MM-DD"})
         if text is None:
             raise ApiError(404, {"detail": "no report for " + date})
-        with store._lock:  # the questions table gains each ticket's live answer (JB-132)
+        with store._lock:  # the questions table gains each ticket's live answer (BUG-46)
             text = nightshift.annotate_answers(text, store.index(), cfg.repo_root)
         return PlainTextResponse(text, media_type="text/markdown")
 
@@ -401,6 +501,78 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             if body.get("if_unchanged_since"):
                 patch["if_unchanged_since"] = body["if_unchanged_since"]
             return store.update(node.id, patch)
+
+    # --- Sitting sheets (IDEA-19): one ordered page for one Sitting ---------------
+    @r.get("/sheets")
+    def sheets_list() -> Any:
+        from mapkit import sheet as sheetlib
+        return {"sheets": sheetlib.list_sheets(cfg.repo_root)}
+
+    @r.get("/sheets/{name}")
+    def sheets_get(name: str) -> Any:
+        with store._lock:
+            return _sheet_payload(store.index(), name)
+
+    @r.post("/sheets/{name}/steps/{n}")
+    async def sheets_save_step(name: str, n: int, request: Request) -> Any:
+        """Save step ``n``'s boxes: validate, write each verdict to its Item, then the results file."""
+        import inspect
+        from mapkit import sheet as sheetlib
+        from mapkit import sitting
+        from mapkit.sitting import append_sitting_result
+        body = await _json_body(request)
+        date, time = body.get("date"), body.get("time")
+        if not isinstance(date, str) or not nightshift.DATE_RE.match(date):
+            raise ApiError(422, {"detail": "date must be YYYY-MM-DD"})
+        if time is not None and not (isinstance(time, str) and re.match(r"^\d{2}:\d{2}$", time)):
+            raise ApiError(422, {"detail": "time must be HH:MM"})
+        status, comments, verdicts = body.get("status"), body.get("comments", ""), body.get("verdicts") or {}
+        if status is not None and not isinstance(status, str):
+            raise ApiError(422, {"detail": "status must be text"})
+        if not isinstance(comments, str):
+            raise ApiError(422, {"detail": "comments must be text"})
+        if not isinstance(verdicts, dict) or not all(
+                isinstance(k, str) and isinstance(v, dict) and isinstance(v.get("notes", ""), str)
+                for k, v in verdicts.items()):
+            raise ApiError(422, {"detail": "verdicts must map an Item ID to {verdict, notes}"})
+        kwargs: Dict[str, Any] = {}
+        if time is not None and "time" in inspect.signature(append_sitting_result).parameters:
+            kwargs["time"] = time
+        try:  # the range check only append_sitting_result knows, before anything is written
+            append_sitting_result("", date, "pending", "", **kwargs)
+        except ValueError as exc:
+            raise ApiError(422, {"detail": str(exc)})
+        with store._lock:
+            store._writable()
+            sheet = _load_sheet_ro(name)
+            results = sheetlib.load_results(cfg.repo_root, name)
+            try:  # pure: a bad request writes nothing
+                new = sheetlib.apply_step_result(sheet, results, n, status, comments, verdicts,
+                                                 date if time is None else "%s %s" % (date, time))
+            except sheetlib.SheetError as exc:
+                raise ApiError(422, {"detail": str(exc)})
+            ix = store.index()
+            nodes = {}
+            for item_id in verdicts:
+                hits = ix.by_short.get(item_id, [])
+                if len(hits) != 1 or hits[0].item is None:
+                    raise ApiError(422, {"detail": "%s is not an Item" % item_id})
+                nodes[item_id] = hits[0]
+            for item_id, box in verdicts.items():  # the Item's own Sitting result, as /runbook does
+                # An unchanged verdict is a re-save (a comment edit, a double click, a retry): one
+                # result on the Item, because /sitting-debrief acts on each Item's results.
+                prior = (results.get("verdicts", {}).get(n) or {}).get(item_id) or {}
+                if prior.get("verdict") == box["verdict"] and \
+                        prior.get("notes") == " ".join(str(box.get("notes", "")).split()):
+                    continue
+                node = store._node(store.index(), nodes[item_id].id, write=True)
+                t = store.index().task(node, cfg.repo_root)
+                notes = (str(box.get("notes", "")).strip() + " (sheet %s, step %d)" % (name, n)).strip()
+                store.update(node.id, {"description": append_sitting_result(
+                    t["description"], date, box["verdict"], notes, **kwargs)})
+            path = sheetlib.write_results(cfg.repo_root, name, new)
+            store._commit(path, "Sitting sheet %s step %d" % (name, n))
+            return _results_json(new)
 
     # --- health and events ----------------------------------------------------
     @r.get("/health", response_model=Health)

@@ -1,5 +1,5 @@
 """Short Item IDs in the app (plan map-item-ids.md, P4): ``short_id`` on every Task,
-``/tasks/{JB-n}`` resolution, server-side allocation, ``id`` immutability, the
+``/tasks/{BUG-n}`` (per-kind) resolution, server-side allocation, ``id`` immutability, the
 history cache key, and the git writer's post-rebase repair of its own Items."""
 from __future__ import annotations
 
@@ -228,24 +228,19 @@ def test_ensure_mapkit_and_the_app_need_neither_typed_ref_nor_prefix(cx, monkeyp
         monkeypatch.delattr(ids, name, raising=False)
     ensure_mapkit(cx.app.state.config.repo_root)
     assert cx.get(url(cx, "BUG-3")).json()["short_id"] == "BUG-3"
-    if hasattr(ids, "legacy_ref"):  # a P4 mapkit has only the typed_ref fallback, deleted just above
-        assert cx.get(url(cx, "JB-64")).json()["short_id"] == "BUG-3"
-        assert cx.patch(url(cx, "JB-64"), json={"title": "x"}).status_code == 422
+    assert cx.get(url(cx, "JB-64")).json()["short_id"] == "BUG-3"
+    assert cx.patch(url(cx, "JB-64"), json={"title": "x"}).status_code == 422
 
 
-def test_a_pre_p5_mapkit_without_legacy_ref_still_translates_a_read(cx, monkeypatch):
-    """The fallback branch: no ``legacy_ref``, an old-form ``typed_ref`` stand-in (goes at P6)."""
+def test_a_mapkit_without_legacy_ref_resolves_no_old_id_and_does_not_crash(cx, monkeypatch):
+    """The ``typed_ref`` fallback is gone: with no ``legacy_ref`` an old-form ID is nobody's, on a
+    read and on a write, and the app keeps serving per-kind IDs."""
     from mapkit import ids
     monkeypatch.delattr(ids, "legacy_ref", raising=False)
-    monkeypatch.setattr(ids, "typed_ref", lambda t: t.strip().upper().replace("JB", "JB-", 1)
-                        if "-" not in t else t.strip().upper(), raising=False)
-    want = cx.get(url(cx, "BUG-3")).json()
     for ref in ("JB-64", "jb-64"):
-        r = cx.get(url(cx, ref))
-        assert r.status_code == 200 and r.json() == want, ref
-    assert cx.get(url(cx, "JB-99")).status_code == 404
-    w = cx.patch(url(cx, "JB-64"), json={"title": "x"})
-    assert w.status_code == 422 and w.json()["new_id"] == "BUG-3"
+        assert cx.get(url(cx, ref)).status_code == 404, ref
+    assert cx.patch(url(cx, "JB-64"), json={"title": "x"}).status_code == 404
+    assert cx.get(url(cx, "BUG-3")).json()["short_id"] == "BUG-3"
 
 
 def test_bare_number_lists_every_kind_on_a_read_and_a_write_refuses_it(ck):
@@ -354,7 +349,7 @@ def test_two_own_unpushed_items_colliding_after_the_rebase_are_both_renumbered(i
 
 
 def test_an_item_on_origin_not_yet_pulled_still_bumps_the_next_id(id_remote):
-    """JB-100: the tree has the seed Items; BUG-4 and BUG-5 sit on ``origin/main`` (fetched, never merged
+    """BUG-36: the tree has the seed Items; BUG-4 and BUG-5 sit on ``origin/main`` (fetched, never merged
     into the checkout), so the server numbers from max(tree, origin) and gives BUG-6. The tree
     alone would say BUG-4, the 2026-10-28 collision."""
     repo, bare, other = id_remote

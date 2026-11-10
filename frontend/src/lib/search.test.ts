@@ -178,28 +178,28 @@ describe('searchMap', () => {
 
 describe('short IDs', () => {
   const tasks = [
-    mapTask({ id: 'a', kind: 'bug', title: 'Leg wobble', short_id: 'JB-12' }),
-    mapTask({ id: 'b', kind: 'bug', title: 'JB-12 mentioned in a title', short_id: 'JB-30' }),
-    mapTask({ id: 'c', kind: 'feature', title: 'Other', short_id: 'JB-120' }),
-    mapTask({ id: 'd', kind: 'idea', title: 'Closed one', status: 'complete', short_id: 'JB-7' }),
+    mapTask({ id: 'a', kind: 'bug', title: 'Leg wobble', short_id: 'BUG-12' }),
+    mapTask({ id: 'b', kind: 'bug', title: 'BUG-12 mentioned in a title', short_id: 'BUG-30' }),
+    mapTask({ id: 'c', kind: 'bug', title: 'Other', short_id: 'BUG-120' }),
+    mapTask({ id: 'd', kind: 'idea', title: 'Closed one', status: 'complete', short_id: 'IDEA-7' }),
   ];
 
-  it('an exact ID ranks first, its group leads, and JB-120 is not a match for JB-12', () => {
-    for (const q of ['JB-12', 'jb12', 'jb-12', '12', ' 12 ']) {
+  it('an exact ID ranks first, its group leads, and BUG-120 is not a match for BUG-12', () => {
+    for (const q of ['BUG-12', 'bug12', 'bug-12', '12', ' 12 ']) {
       const groups = searchMap(tasks, undefined, q);
       expect(groups[0]?.key).toBe('bug');
-      expect(groups[0]?.hits[0]).toMatchObject({ id: 'a', tier: -1, shortId: 'JB-12' });
+      expect(groups[0]?.hits[0]).toMatchObject({ id: 'a', tier: -1, shortId: 'BUG-12' });
       expect(groups.some((g) => g.hits.some((h) => h.id === 'c'))).toBe(false);
     }
   });
 
-  it('a bare 1 does not ID-match JB-12', () => {
+  it('a bare 1 does not ID-match BUG-12', () => {
     const hits = searchMap(tasks, undefined, '1').flatMap((g) => g.hits);
     expect(hits.some((h) => h.tier === -1)).toBe(false);
   });
 
   it('a closed Item named by its ID still comes first', () => {
-    const groups = searchMap(tasks, undefined, 'JB-7');
+    const groups = searchMap(tasks, undefined, 'IDEA-7');
     expect(groups[0]?.key).toBe('idea');
     expect(groups[0]?.hits[0]).toMatchObject({ id: 'd', tier: -1, closed: true });
   });

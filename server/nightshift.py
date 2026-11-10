@@ -57,7 +57,7 @@ def read_report(repo_root: str, date: str) -> Optional[str]:
 
 
 def _by_id(ix: Any, cell: str) -> List[Any]:
-    """Item nodes whose canonical ID (``JB-3`` or ``BUG-3``, either form) is ``cell``; a
+    """Item nodes whose canonical ID (``BUG-3``, per kind) is ``cell``; a
     report cell that is not a canonical ID (``none``, a stem) names nothing."""
     from mapkit import ids
     return ix.by_short.get(cell, []) if ids.canonical_ref(cell) else []
@@ -245,7 +245,7 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
     def info(ref: str) -> Dict[str, Any]:
         node = ix.resolve(ref) if ref else None
         if node is None and ref:
-            # mapkit names an Item by its ID (JB-n or BUG-n) when it has one; resolve() takes stems only
+            # mapkit names an Item by its ID (BUG-n, per kind) when it has one; resolve() takes stems only
             hits = _by_id(ix, ref)
             node = hits[0] if len(hits) == 1 else None
         if node is None:

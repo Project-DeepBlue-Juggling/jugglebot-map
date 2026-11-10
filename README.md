@@ -83,21 +83,21 @@ Identity: an item's id is `uuid5(mapkit ITEM_NAMESPACE, slug)`, a plan's the sam
 step's of `<filename>#<normalised step id>`. Plans and steps are read-only here (edit the plan file);
 their `editable` is false.
 
-Short IDs: every Item also carries `short_id` (`JB-<n>`, frontmatter `id:`, from `mapkit.ids`; `null` for
-plans, phases and an Item without one). `/tasks/{task_id}` accepts the uuid or the short ID (`JB-12`,
-`jb12`, any case); a bare `12` is accepted on GET only, and PATCH and DELETE answer 422 for it. A
+Short IDs: every Item also carries `short_id` (`BUG-<n>`, frontmatter `id:`, from `mapkit.ids`; `null` for
+plans, phases and an Item without one). `/tasks/{task_id}` accepts the uuid or the short ID (`BUG-12`,
+`bug12`, any case); a bare `12` is accepted on GET only, and PATCH and DELETE answer 422 for it. A
 duplicated ID answers 409 and shows on `/health`. `POST /tasks` allocates the next ID (1 + max over the
 index, the `id:` lines of files the index skipped, and `origin/main`) and refuses a supplied one (422); a
 PATCH whose `id` or `short_id` differs from the current value is 422. The git writer, after its
 `pull --rebase`, renumbers every Item it added and has not pushed whose ID the rebase brought in on another
-file (`map: renumber JB-a -> JB-b <stem>`, its own commit) and refreshes the index; its other subjects stay
+file (`map: renumber BUG-a -> BUG-b <stem>`, its own commit) and refreshes the index; its other subjects stay
 `map: <titles>` with no ID. The renumber loads `map/` leniently, like the index: a malformed Item is
 skipped but its `id:` line still counts, so it neither stops the push nor gets its ID handed out again.
 `unpushed` is true for an Item this clone filed whose push has not landed (from git at start, so it
 survives a restart): its short ID is provisional, the UI shows it muted with an "unsent" marker, and the
 drawer writes that Item's uuid into `?item=` (a renumber must not reopen the drawer on another writer's
-Item), switching to `?item=JB-<n>` once the push lands. A bare page link keeps its page and query through the
-redirect to the project (`/now?item=JB-5`). The server needs a checkout whose `mapkit` has
+Item), switching to `?item=BUG-<n>` once the push lands. A bare page link keeps its page and query through the
+redirect to the project (`/now?item=BUG-5`). The server needs a checkout whose `mapkit` has
 `ids.py`.
 
 The conflict token is the task's `updated_at`: send it as

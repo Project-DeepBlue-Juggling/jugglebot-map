@@ -14,7 +14,7 @@ function Harness() {
   );
 }
 
-describe('MarkdownField auto-grow keeps the drawer scroller in place (JB-151)', () => {
+describe('MarkdownField auto-grow keeps the drawer scroller in place (BUG-59)', () => {
   it('does not let the collapse to height:auto reset the scroller on a keystroke', () => {
     render(<Harness />);
     const scroller = screen.getByTestId('scroller');

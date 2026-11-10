@@ -38,7 +38,7 @@ def ns_repo(tmp_path, git_env):  # noqa: F811
     os.makedirs(os.path.join(repo, "docs", "night-shift"))
     for d, t in (("2026-10-30", "Night Shift 2026-10-30"), ("2026-10-31", "Night Shift 2026-10-31")):
         with open(os.path.join(repo, "docs", "night-shift", d + ".md"), "w") as fh:
-            fh.write("# %s\n\n## Summary\n\nJB-12 done.\n" % t)
+            fh.write("# %s\n\n## Summary\n\nBUG-12 done.\n" % t)
     with open(os.path.join(repo, "docs", "night-shift", "notes.md"), "w") as fh:
         fh.write("# not a report\n")
     with open(os.path.join(repo, "map", "ticket-wobbly-question.md"), "w") as fh:
@@ -134,8 +134,8 @@ REPORT_WITH_QUESTIONS = """# Night Shift 2026-11-01
 ## Questions for the Operator
 | Ticket | Question | Blocks | Note |
 |---|---|---|---|
-| %s | Which leg first? | JB-12 | |
-| JB-999 | Gone? | JB-12 | |
+| %s | Which leg first? | BUG-12 | |
+| TKT-999 | Gone? | BUG-12 | |
 
 ## Unfinished
 none
@@ -143,7 +143,7 @@ none
 
 
 def test_report_questions_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F811
-    """JB-132: the served report's questions table carries a "Your answer" column read from
+    """BUG-46: the served report's questions table carries a "Your answer" column read from
     each ticket's ## Answer; the committed file is not changed."""
     short = "TKT-40"
     with open(os.path.join(ns_repo, "map", "ticket-wobbly-question.md"), "w") as fh:
@@ -163,20 +163,20 @@ def _check_answer_column(c, path, short):
     before = c.get(NS + "/reports/2026-11-01").text
     assert "| Ticket | Question | Blocks | Note | Your answer |" in before
     assert "|---|---|---|---|---|" in before
-    assert "| %s | Which leg first? | JB-12 | | _not answered yet_ |" % short in before
-    assert "| JB-999 | Gone? | JB-12 | | _ticket not found_ |" in before
+    assert "| %s | Which leg first? | BUG-12 | | _not answered yet_ |" % short in before
+    assert "| TKT-999 | Gone? | BUG-12 | | _ticket not found_ |" in before
     r = c.post(NS + "/questions/%s/answer" % qid, json={"answer": "Leg 3 first.\n\nThen | leg 1."})
     assert r.status_code == 200, r.text
     after = c.get(NS + "/reports/2026-11-01").text
-    assert "| %s | Which leg first? | JB-12 | | Leg 3 first. Then \\| leg 1. |" % short in after
+    assert "| %s | Which leg first? | BUG-12 | | Leg 3 first. Then \\| leg 1. |" % short in after
     assert open(path).read() == REPORT_WITH_QUESTIONS % short  # the snapshot is untouched
     assert after.splitlines()[-2:] == ["## Unfinished", "none"]
 
 
 def test_report_without_a_questions_table_is_unchanged(c, ns_repo):
     body = c.get(NS + "/reports/2026-10-31").text
-    assert body == "# Night Shift 2026-10-31\n\n## Summary\n\nJB-12 done.\n"
-    legacy = "# Night Shift 2026-10-29\n\n## Questions for the Operator\nJB-5 | Which? (parent JB-1)\n"
+    assert body == "# Night Shift 2026-10-31\n\n## Summary\n\nBUG-12 done.\n"
+    legacy = "# Night Shift 2026-10-29\n\n## Questions for the Operator\nTKT-5 | Which? (parent BUG-1)\n"
     with open(os.path.join(ns_repo, "docs", "night-shift", "2026-10-29.md"), "w") as fh:
         fh.write(legacy)
     assert c.get(NS + "/reports/2026-10-29").text == legacy
@@ -194,14 +194,14 @@ REPORT_WITH_HELD = """# Night Shift 2026-11-02
 ## Held
 | Item | What it is | Branch | Why the gate held it | What unblocks it | Respond in |
 |---|---|---|---|---|---|
-| JB-135 | Hover | night-shift/2026-11-02-JB-135 | (b) audit note | your call | %s |
-| JB-32 | Plant | night-shift/2026-11-02-JB-32 | (b) audit | a Sitting | none |
-| JB-33 | Other | night-shift/2026-11-02-JB-33 | (b) audit | your call | JB-999 |
+| BUG-135 | Hover | night-shift/2026-11-02-BUG-135 | (b) audit note | your call | %s |
+| BUG-32 | Plant | night-shift/2026-11-02-BUG-32 | (b) audit | a Sitting | none |
+| BUG-33 | Other | night-shift/2026-11-02-BUG-33 | (b) audit | your call | TKT-999 |
 
 ## Questions for the Operator
 | Ticket | Question | Blocks | Note |
 |---|---|---|---|
-| %s | Hold or merge? | JB-135 | |
+| %s | Hold or merge? | BUG-135 | |
 
 ## Unfinished
 none
@@ -212,7 +212,7 @@ REPORT_OLD_HELD = """# Night Shift 2026-11-01
 ## Held
 | Item | What it is | Branch | Why | What unblocks it |
 |---|---|---|---|---|
-| JB-135 | Hover | b | (b) x | your call |
+| BUG-135 | Hover | b | (b) x | your call |
 
 ## Unfinished
 none
@@ -240,13 +240,13 @@ def test_report_held_table_gains_the_live_answer(ns_repo, git_env):  # noqa: F81
         assert "| Respond in | Your answer |" in before
         assert "|---|---|---|---|---|---|---|" in before
         assert "| TKT-40 | _not answered yet_ |" in before
-        assert "| JB-32 | Plant | night-shift/2026-11-02-JB-32 | (b) audit | a Sitting | none |  |" in before
-        assert "| JB-999 | _ticket not found_ |" in before
+        assert "| BUG-32 | Plant | night-shift/2026-11-02-BUG-32 | (b) audit | a Sitting | none |  |" in before
+        assert "| TKT-999 | _ticket not found_ |" in before
         r = c.post(NS + "/questions/%s/answer" % qid, json={"answer": "Apply the fix, merge."})
         assert r.status_code == 200, r.text
         after = c.get(NS + "/reports/2026-11-02").text
         assert "| TKT-40 | Apply the fix, merge. |" in after
-        assert "| TKT-40 | Hold or merge? | JB-135 | | Apply the fix, merge. |" in after
+        assert "| TKT-40 | Hold or merge? | BUG-135 | | Apply the fix, merge. |" in after
         assert open(path).read() == REPORT_WITH_HELD % ("TKT-40", "TKT-40")
         assert c.get(NS + "/reports/2026-11-01").text == REPORT_OLD_HELD
 

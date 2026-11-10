@@ -12,7 +12,7 @@ export interface QuestionCardProps {
 
 /**
  * One open question: the Item it blocks, the question, a textarea and a Save button.
- * Ctrl+Enter (Cmd+Enter on a Mac) in the textarea saves, like the button (JB-132).
+ * Ctrl+Enter (Cmd+Enter on a Mac) in the textarea saves, like the button (BUG-46).
  */
 export function QuestionCard({ question: q, onOpen, onAnswer }: QuestionCardProps) {
   const [text, setText] = useState('');

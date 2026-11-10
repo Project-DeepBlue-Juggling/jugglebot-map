@@ -35,7 +35,7 @@ function saveSort(v: WallOrder): void {
 }
 
 /**
- * The wall's order as a segmented control (JB-77). Native radios under the
+ * The wall's order as a segmented control (FEAT-26). Native radios under the
  * segments keep the keyboard behaviour of the new-item pills: Tab lands on the
  * chosen segment, the arrow keys move and choose.
  */

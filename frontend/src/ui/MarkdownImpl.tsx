@@ -51,7 +51,7 @@ function remarkLiteralHtml() {
 }
 
 /**
- * Short-ID mentions (`JB-<n>`, `BUG-<n>`) of KNOWN Items become links (exact, case-sensitive,
+ * Short-ID mentions (`BUG-<n>`, `FEAT-<n>`, ...) of KNOWN Items become links (exact, case-sensitive,
  * word-bounded; an unknown ID stays text). Text inside a link or a code span is
  * left alone: inline code is its own node type, and links are not descended.
  */
@@ -85,7 +85,7 @@ function remarkItemIds(ids: ReadonlyMap<string, string>) {
   return () => (tree: MdNode) => walk(tree);
 }
 
-/** A linkified short ID (`JB-<n>` or `BUG-<n>`): opens that Item in the drawer. */
+/** A linkified short ID (`BUG-<n>`, per kind): opens that Item in the drawer. */
 function ItemRef({ shortId, children }: { shortId: string; children: ReactNode }) {
   const links = useContext(ItemLinkCtx);
   const id = links?.ids.get(shortId);

@@ -27,7 +27,7 @@ export function hasModifier(e: KeyboardEvent): boolean {
 }
 
 /** True for Ctrl+Enter or Cmd+Enter: "save" in the drawer and "create" in
- *  the new-item modal (JB-78). Unlike the plain-letter shortcuts it fires
+ *  the new-item modal (BUG-22). Unlike the plain-letter shortcuts it fires
  *  from inside inputs and textareas, where a bare Enter stays text or the
  *  browser's own implicit submit. */
 export function isSubmitChord(e: { key: string; ctrlKey: boolean; metaKey: boolean }): boolean {
