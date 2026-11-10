@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import clsx from 'clsx';
 import { VERDICTS, type RunbookRow as Row, type Verdict } from '../../api/schemas';
 import { KindPill } from '../../ui/ShortId';
+import { VERDICT_COLOUR, VERDICT_HINT, VERDICT_LABEL } from './verdictLabels';
 
 export interface RunbookRowProps {
   row: Row;
@@ -10,18 +11,6 @@ export interface RunbookRowProps {
 }
 
 const label = 'text-xs font-semibold uppercase text-slate-500 dark:text-slate-400';
-
-const VERDICT_LABEL: Record<Verdict, string> = { pass: 'Pass', fail: 'Fail', pending: 'Pending' };
-const VERDICT_HINT: Record<Verdict, string> = {
-  pass: 'Flown and passed',
-  fail: 'Flown and failed',
-  pending: 'Flown, but the pass needs the logs or an analysis: /sitting-debrief decides',
-};
-const VERDICT_COLOUR: Record<string, string> = {
-  pass: 'text-emerald-700 dark:text-emerald-400',
-  fail: 'text-red-700 dark:text-red-400',
-  pending: 'text-amber-700 dark:text-amber-400',
-};
 
 /** One hardware check: its Sitting section, and the pass / fail / pending strip. */
 export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {

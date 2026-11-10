@@ -37,7 +37,7 @@ describe('Markdown', () => {
 
   it('sizes a table to its content, caps a cell at 500 px and never breaks the first column', async () => {
     const c = await show(
-      ['| Item | What |', '|---|---|', '| JB-120 | a long sentence |'].join('\n'),
+      ['| Item | What |', '|---|---|', '| BUG-120 | a long sentence |'].join('\n'),
     );
     const table = c.querySelector('table');
     expect(table?.className).toMatch(/\bw-max\b/);

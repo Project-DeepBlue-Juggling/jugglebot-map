@@ -12,11 +12,11 @@ let server: ReturnType<typeof makeServer>;
 
 const question = {
   id: 'q1',
-  short_id: 'JB-130',
+  short_id: 'TKT-130',
   title: 'Which leg first?',
   body: 'Should the night shift fix leg 3 first?',
   parent_id: 'bug1',
-  parent_short_id: 'JB-12',
+  parent_short_id: 'BUG-12',
   parent_kind: 'bug',
   parent_ticket_type: null,
   parent_title: 'Wobbly leg',
@@ -33,7 +33,7 @@ beforeEach(() => {
       kind: 'bug',
       title: 'Wobbly leg',
       status: 'inbox',
-      short_id: 'JB-12',
+      short_id: 'BUG-12',
     }),
   ];
   server = makeServer(state);
@@ -84,7 +84,7 @@ describe('Night Shift page', () => {
     expect(await screen.findByText('Summary 2026-10-30')).toBeInTheDocument();
   });
 
-  it('links JB-<n> in the report to its Item, with the kind pill, and opens it', async () => {
+  it('links BUG-<n> in the report to its Item, with the kind pill, and opens it', async () => {
     server.use(
       http.get(`${BASE}/reports`, () =>
         HttpResponse.json([
@@ -92,16 +92,16 @@ describe('Night Shift page', () => {
         ]),
       ),
       http.get(`${BASE}/reports/:date`, () =>
-        HttpResponse.text('Held JB-12 and JB-99.', {
+        HttpResponse.text('Held BUG-12 and BUG-99.', {
           headers: { 'content-type': 'text/markdown' },
         }),
       ),
     );
     renderApp('/night-shift', <NightShiftRoute />);
-    const link = await screen.findByRole('button', { name: 'JB-12' });
+    const link = await screen.findByRole('button', { name: 'BUG-12' });
     const report = screen.getByTestId('night-shift-report');
     expect(within(report).getByTestId('kind-pill')).toHaveTextContent('Bug');
-    expect(within(report).getAllByTestId('kind-pill')).toHaveLength(1); // JB-99 is unknown
+    expect(within(report).getAllByTestId('kind-pill')).toHaveLength(1); // BUG-99 is unknown
     expect(link).toBeInTheDocument();
   });
 
@@ -135,7 +135,7 @@ describe('Night Shift page', () => {
     );
     renderApp('/night-shift', <NightShiftRoute />);
     const card = await screen.findByTestId('question-card');
-    expect(card).toHaveTextContent('JB-12');
+    expect(card).toHaveTextContent('BUG-12');
     expect(within(card).getByTestId('kind-pill')).toHaveTextContent('Bug');
     expect(card).toHaveTextContent('Wobbly leg');
     expect(card).toHaveTextContent('Which leg first?');
@@ -154,8 +154,8 @@ describe('Night Shift page', () => {
     await waitFor(() => expect(screen.queryByTestId('night-shift-badge')).toBeNull());
   });
 
-  it('Ctrl+Enter saves and the cursor moves to the next question (JB-132)', async () => {
-    const second = { ...question, id: 'q2', short_id: 'JB-131', title: 'Which hand?' };
+  it('Ctrl+Enter saves and the cursor moves to the next question (BUG-46)', async () => {
+    const second = { ...question, id: 'q2', short_id: 'TKT-131', title: 'Which hand?' };
     const posted: unknown[] = [];
     server.use(
       http.get(`${BASE}/questions`, () => HttpResponse.json([question, second])),
@@ -211,7 +211,7 @@ describe('Night Shift page', () => {
   it('clicking the parent opens the drawer', async () => {
     server.use(http.get(`${BASE}/questions`, () => HttpResponse.json([question])));
     renderApp('/night-shift', <NightShiftRoute />);
-    fireEvent.click(await screen.findByRole('button', { name: /JB-12.*Wobbly leg/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /BUG-12.*Wobbly leg/ }));
     expect(await screen.findByRole('complementary', { name: 'Item drawer' })).toBeVisible();
   });
 });

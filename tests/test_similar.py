@@ -2,7 +2,7 @@
 
 A duplicate of an open Item is a 409 ``code: duplicate`` that ``allow_similar`` cannot
 override (a retry after a client timeout must be answered, not filed again; the
-2026-10-30 Robot-tab retries filed JB-103 four times). A near title is a 409
+2026-10-30 Robot-tab retries filed BUG-38 four times). A near title is a 409
 ``code: similar`` listing the matches until the client resends with ``allow_similar``.
 """
 from __future__ import annotations

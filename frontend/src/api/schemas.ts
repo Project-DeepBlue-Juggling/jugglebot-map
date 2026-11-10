@@ -162,7 +162,7 @@ export const Task = z.object({
   source_path: z.string(),
   editable: z.boolean(),
   pathway_id: z.string().nullable(),
-  // Short Item ID (`JB-<n>` or `BUG-<n>`) (null for plans, phases and an Item without one) and
+  // Short Item ID (`BUG-<n>`, per kind) (null for plans, phases and an Item without one) and
   // whether the app has pushed the Item yet (an unpushed ID may still be renumbered).
   short_id: z.string().nullable(),
   unpushed: z.boolean(),
@@ -420,7 +420,12 @@ export type NightShiftSummary = z.infer<typeof NightShiftSummary>;
 
 // -- Next Sitting Runbook (server/nightshift.py `runbook`) --
 
-export const RunbookResult = z.object({ date: z.string(), time: z.string().nullable(), verdict: z.string(), notes: z.string() });
+export const RunbookResult = z.object({
+  date: z.string(),
+  time: z.string().nullable(),
+  verdict: z.string(),
+  notes: z.string(),
+});
 export type RunbookResult = z.infer<typeof RunbookResult>;
 /** A typed Sitting result. `pending`: flown, but the pass needs the logs; the debrief decides. */
 export type Verdict = 'pass' | 'fail' | 'pending';
@@ -492,3 +497,95 @@ export const Runbook = z.object({
   page: z.string(),
 });
 export type Runbook = z.infer<typeof Runbook>;
+
+// -- Sitting sheets (server/app.py `/sheets`; mapkit.sheet.enrich) --
+
+export const SheetSummary = z.object({
+  name: z.string(),
+  date: z.string(),
+  rig: z.string(),
+  steps: z.number(),
+  saved: z.number(),
+});
+export type SheetSummary = z.infer<typeof SheetSummary>;
+export const SheetList = z.object({ sheets: z.array(SheetSummary) });
+
+export const SheetServe = z.object({
+  item: z.string(),
+  /** Empty when the step serves the Item without citing a do step (mapkit.sheet.enrich fills it). */
+  do: z.array(z.number()),
+  /** This step takes a verdict for the Item. */
+  verdict: z.boolean(),
+  title: z.string(),
+  priority: z.string(),
+  is_open: z.boolean(),
+  stem: z.string().nullable(),
+  kind: z.string().nullable(),
+  pass_text: z.string().nullable(),
+  /** The store's task id, null when the Item is gone. */
+  task_id: z.string().nullable(),
+});
+export type SheetServe = z.infer<typeof SheetServe>;
+
+export const SheetAction = z.object({
+  where: z.string(),
+  text: z.string().nullish(),
+  command: z.string().nullish(),
+});
+export type SheetAction = z.infer<typeof SheetAction>;
+
+export const SheetStep = z.object({
+  n: z.number(),
+  kind: z.string(),
+  title: z.string(),
+  from_: z.array(z.string()),
+  to: z.array(z.string()),
+  actions: z.array(SheetAction),
+  see: z.string(),
+  stop_if: z.string(),
+  record: z.string().nullish(),
+  new_launch: z.boolean().nullish(),
+  optional: z.boolean(),
+  serves: z.array(SheetServe),
+});
+export type SheetStep = z.infer<typeof SheetStep>;
+
+export const SheetStepResult = z.object({
+  status: z.string().nullable(),
+  comments: z.string(),
+  saved_at: z.string(),
+});
+export type SheetStepResult = z.infer<typeof SheetStepResult>;
+export const SheetVerdictResult = z.object({
+  verdict: z.string(),
+  notes: z.string(),
+  saved_at: z.string(),
+});
+export type SheetVerdictResult = z.infer<typeof SheetVerdictResult>;
+/** Step numbers are JSON string keys here (YAML keeps them ints server-side). */
+export const SheetResults = z.object({
+  steps: z.record(z.string(), SheetStepResult),
+  verdicts: z.record(z.string(), z.record(z.string(), SheetVerdictResult)),
+});
+export type SheetResults = z.infer<typeof SheetResults>;
+
+export const Sheet = z.object({
+  name: z.string(),
+  date: z.string(),
+  rig: z.string(),
+  steps: z.array(SheetStep),
+  results: SheetResults,
+  /** `mapkit sheet check` against the Items and firmware now; non-empty = the sheet is stale. */
+  check_errors: z.array(z.string()),
+  /** State word -> one-sentence description (mapkit.sheet.STATE_HELP); `{}` on an older mapkit. */
+  state_help: z.record(z.string(), z.string()),
+});
+export type Sheet = z.infer<typeof Sheet>;
+
+export interface SheetStepBody {
+  status?: 'done' | 'problem' | 'skipped' | undefined;
+  comments?: string | undefined;
+  verdicts?: Record<string, { verdict: Verdict; notes: string }> | undefined;
+  date: string;
+  time?: string | undefined;
+}

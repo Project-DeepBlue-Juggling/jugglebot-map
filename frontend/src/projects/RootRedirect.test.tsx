@@ -49,17 +49,17 @@ function mount(path: string) {
 const loc = () => screen.findByTestId('loc');
 
 describe('RootRedirect', () => {
-  it('/now?item=JB-5 keeps the page and the query', async () => {
-    mount('/now?item=JB-5');
+  it('/now?item=BUG-5 keeps the page and the query', async () => {
+    mount('/now?item=BUG-5');
     await waitFor(async () =>
-      expect((await loc()).textContent).toMatch(/^\/projects\/[^/]+\/now\?item=JB-5$/),
+      expect((await loc()).textContent).toMatch(/^\/projects\/[^/]+\/now\?item=BUG-5$/),
     );
   });
 
-  it('/?item=JB-5 keeps the query on the front page', async () => {
-    mount('/?item=JB-5');
+  it('/?item=BUG-5 keeps the query on the front page', async () => {
+    mount('/?item=BUG-5');
     await waitFor(async () =>
-      expect((await loc()).textContent).toMatch(/^\/projects\/[^/]+\?item=JB-5$/),
+      expect((await loc()).textContent).toMatch(/^\/projects\/[^/]+\?item=BUG-5$/),
     );
   });
 

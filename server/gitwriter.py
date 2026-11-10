@@ -204,7 +204,8 @@ class GitWriter:
         return True
 
     def _uncommitted(self) -> "OrderedDict[str, Any]":
-        """``{rel path: (title, untracked)}`` for every dirty ``map/*.md`` file.
+        """``{rel path: (title, untracked)}`` for every dirty ``map/*.md`` file
+        (and ``map/sheets/*.yaml``, a Sitting sheet's results).
 
         Only this writer edits its clone, so a dirty file is an API edit whose
         commit never ran. An untracked one is a new Item: its short ID is
@@ -226,10 +227,14 @@ class GitWriter:
             code, rel = e[:2], e[3:]
             if code[0] in "RC":
                 i += 1  # a rename carries its source path as the next entry
-            if not rel.endswith(".md"):
+            is_sheet = rel.endswith(".yaml") and "/sheets/" in "/" + rel
+            if not (rel.endswith(".md") or is_sheet):
                 continue
             path = os.path.join(self.repo_root, rel)
             title = rel
+            if is_sheet:  # a Sitting sheet's results file: never an Item, never "unsent"
+                out[rel] = ("Sitting sheet " + os.path.basename(rel)[:-len(".yaml")], False)
+                continue
             try:
                 title = load_item(path).meta.get("title") or rel
             except (ItemError, OSError, UnicodeDecodeError):

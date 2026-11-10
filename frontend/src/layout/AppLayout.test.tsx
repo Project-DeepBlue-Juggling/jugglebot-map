@@ -94,7 +94,7 @@ describe('AppLayout', () => {
       expect(screen.queryByRole('complementary', { name: 'Item drawer' })).toBeNull(),
     );
 
-    // Ctrl+Enter in the new-item modal creates the item (JB-78; the drawer's
+    // Ctrl+Enter in the new-item modal creates the item (BUG-22; the drawer's
     // Ctrl+Enter save is covered in DrawerReading.test.tsx).
     fireEvent.keyDown(document.body, { key: 'n' });
     const modal = await screen.findByRole('dialog', { name: 'New item' });

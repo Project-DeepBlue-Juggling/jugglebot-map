@@ -14,11 +14,11 @@ let server: ReturnType<typeof makeServer>;
 const row = (over: Record<string, unknown>) => ({
   hardware: 'robot',
   task_id: 'b1',
-  short_id: 'JB-1',
+  short_id: 'BUG-1',
   title: 'Level check',
   kind: 'bug',
   ticket_type: null,
-  pathway_short_id: 'JB-9',
+  pathway_short_id: 'PWAY-9',
   pathway_title: 'Alpha',
   priority: 'high',
   setup: ['level'],
@@ -53,9 +53,9 @@ beforeEach(() => {
           row({}),
           row({
             task_id: 'b2',
-            short_id: 'JB-2',
+            short_id: 'BUG-2',
             title: 'Beta check',
-            pathway_short_id: 'JB-8',
+            pathway_short_id: 'PWAY-8',
             pathway_title: 'Beta',
             branch: 'night-shift/x',
             minutes: 5,
@@ -68,7 +68,7 @@ beforeEach(() => {
         rows: [
           row({
             task_id: 'b3',
-            short_id: 'JB-3',
+            short_id: 'BUG-3',
             title: 'Armed check',
             setup: ['level', 'armed'],
             minutes: 20,
@@ -82,7 +82,7 @@ beforeEach(() => {
           row({
             hardware: 'bench-hand',
             task_id: 'b5',
-            short_id: 'JB-6',
+            short_id: 'BUG-6',
             title: 'Hand check',
             minutes: 7,
           }),
@@ -93,7 +93,7 @@ beforeEach(() => {
       {
         hardware: 'bench-leg',
         task_id: 'b4',
-        short_id: 'JB-4',
+        short_id: 'BUG-4',
         title: 'No section',
         kind: 'bug',
         ticket_type: null,
@@ -155,12 +155,12 @@ describe('Next Sitting page', () => {
     rb.questions = [
       {
         task_id: 'q1',
-        short_id: 'JB-5',
+        short_id: 'TKT-5',
         title: 'Which hand?',
         kind: 'ticket',
         ticket_type: 'question',
         parent_task_id: 'b1',
-        parent_short_id: 'JB-1',
+        parent_short_id: 'BUG-1',
         parent_kind: 'bug',
         parent_ticket_type: null,
       },

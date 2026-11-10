@@ -31,6 +31,9 @@ export function SearchBar() {
   const [wantGlossary, setWantGlossary] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // Set by an arrow key and consumed by the scroll effect in the same commit: only a
+  // keyboard move scrolls the list. (The onMouseEnter reset is defence in depth only.)
+  const keyboardMove = useRef(false);
   const tasks = useTasks();
   const glossary = useGlossary({ enabled: wantGlossary });
 
@@ -95,7 +98,12 @@ export function SearchBar() {
       e.preventDefault();
       setPanelOpen(true);
       const d = e.key === 'ArrowDown' ? 1 : -1;
-      setActive((i) => (i + d + flat.length) % flat.length);
+      const next = (active + d + flat.length) % flat.length;
+      // Only a move that changes `active` re-runs the scroll effect to consume the flag
+      // (it always runs: the arrow key opens the panel and `flat` is non-empty);
+      // with a single result nothing changes and a stale flag would scroll a later results change.
+      if (next !== active) keyboardMove.current = true;
+      setActive(next);
     } else if (e.key === 'Enter') {
       const hit = flat[active];
       if (hit !== undefined && panelOpen) {
@@ -107,6 +115,15 @@ export function SearchBar() {
 
   const showPanel = panelOpen && debounced.trim() !== '';
   const optionId = (hit: SearchHit) => `search-opt-${hit.group}-${hit.id}`;
+  const activeOptionId = flat[active] !== undefined ? optionId(flat[active]) : undefined;
+
+  // Bring the arrow-keyed option into view. A hover sets `active` too but must not
+  // scroll the list under the pointer, so only a keyboard move counts.
+  useEffect(() => {
+    if (!showPanel || !keyboardMove.current || activeOptionId === undefined) return;
+    keyboardMove.current = false;
+    document.getElementById(activeOptionId)?.scrollIntoView({ block: 'nearest' });
+  }, [active, showPanel, activeOptionId]);
 
   return (
     <div
@@ -191,7 +208,11 @@ export function SearchBar() {
                     role="option"
                     aria-selected={isActive}
                     data-closed={hit.closed ? 'true' : 'false'}
-                    onMouseEnter={() => setActive(flat.indexOf(hit))}
+                    onMouseEnter={() => {
+                      // Defence in depth: the scroll effect already consumed the flag, so no effect today.
+                      keyboardMove.current = false;
+                      setActive(flat.indexOf(hit));
+                    }}
                     onClick={() => choose(hit)}
                     className={clsx(
                       'flex cursor-pointer items-baseline gap-2 px-3 py-1 text-sm',

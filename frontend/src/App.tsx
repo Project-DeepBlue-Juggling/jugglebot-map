@@ -57,7 +57,7 @@ export default function App({ authClient: injectedAuthClient }: AppProps = {}) {
                       <Route path="dictionary" element={<DictionaryRoute />} />
                     </Route>
                     <Route path="/" element={<RootRedirect />} />
-                    {/* A bare page path keeps its page and query (`/now?item=JB-5`). */}
+                    {/* A bare page path keeps its page and query (`/now?item=BUG-5`). */}
                     <Route path="*" element={<RootRedirect />} />
                   </Route>
                 </Routes>

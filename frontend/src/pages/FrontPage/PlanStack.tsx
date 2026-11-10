@@ -11,7 +11,7 @@ const finished = (t: Task) => {
 };
 
 /**
- * A Pathway with two or more plans (owner, 2026-10-27, JB-70): each open plan on
+ * A Pathway with two or more plans (owner, 2026-10-27, FEAT-23): each open plan on
  * its own row (name in full, its own bar, every remaining phase below it), then one grey
  * line for the finished plans.
  */
