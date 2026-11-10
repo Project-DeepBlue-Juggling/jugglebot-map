@@ -280,6 +280,33 @@ describe('Next Sitting page', () => {
     expect(pass).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('the row is read-only while its save is in flight, so typed text is not wiped; editable after', async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    server.use(
+      http.post(`${URL}/:id/result`, async () => {
+        await gate;
+        return HttpResponse.json(state.tasks[0]);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const first = (await screen.findAllByTestId('runbook-row'))[0];
+    const notes = within(first).getByRole('textbox') as HTMLTextAreaElement;
+    fireEvent.click(within(first).getByRole('button', { name: 'Pass' }));
+    fireEvent.change(notes, { target: { value: 'smooth' } });
+    fireEvent.keyDown(notes, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(notes).toHaveAttribute('readonly'));
+    expect(within(first).getByRole('button', { name: 'Pass' })).toBeDisabled();
+    expect(within(first).getByRole('button', { name: 'Fail' })).toBeDisabled();
+    release();
+    await waitFor(() => expect(notes).not.toHaveAttribute('readonly'));
+    expect(notes.value).toBe('');
+    expect(within(first).getByRole('button', { name: 'Pass' })).toBeEnabled();
+    expect(within(first).getByRole('button', { name: 'Fail' })).toBeEnabled();
+  });
+
   it('Ctrl+Enter during IME composition does not save', async () => {
     let posts = 0;
     server.use(

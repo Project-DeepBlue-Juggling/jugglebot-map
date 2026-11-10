@@ -99,6 +99,7 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
               key={v}
               type="button"
               aria-pressed={verdict === v}
+              disabled={saving}
               title={VERDICT_HINT[v]}
               onClick={() => setVerdict(v)}
               className={clsx(
@@ -115,6 +116,7 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
         <textarea
           aria-label={`Notes for ${row.short_id}`}
           value={notes}
+          readOnly={saving}
           onChange={(e) => setNotes(e.target.value)}
           onKeyDown={(e) => {
             if (e.nativeEvent.isComposing || e.keyCode === 229) return;
