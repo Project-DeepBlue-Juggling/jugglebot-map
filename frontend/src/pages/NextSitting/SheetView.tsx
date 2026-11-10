@@ -376,6 +376,23 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
   };
   return (
     <div>
+      {sheet.check_errors.length > 0 && (
+        <div
+          role="alert"
+          data-testid="sheet-stale"
+          className="mb-4 rounded-lg border border-red-500 bg-red-50 p-3 text-sm text-red-900 dark:bg-red-950 dark:text-red-200"
+        >
+          <p className="font-semibold">
+            This sheet no longer matches the Items or the firmware. Ask a Session to fix it, or run
+            /sitting-sheet again, before you fly from it.
+          </p>
+          <ul className="mt-1 list-disc pl-5">
+            {sheet.check_errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <ol ref={listRef} className="flex flex-col gap-4">
         {sheet.steps.map((step) => (
           <StepCard

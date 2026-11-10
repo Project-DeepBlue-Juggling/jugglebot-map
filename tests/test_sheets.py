@@ -62,6 +62,7 @@ def test_list_and_get(c):
     assert [(r["name"], r["rig"], r["steps"], r["saved"]) for r in rows] == [(NAME, "robot", 3, 0)]
     data = c.get("/api/v1/sheets/" + NAME).json()
     assert data["name"] == NAME and data["results"] == {"schema": 1, "steps": {}, "verdicts": {}}
+    assert isinstance(data["check_errors"], list)
     s1, s2, s3 = data["steps"]
     assert s1["new_launch"] is True and s1["from_"] == [] and s1["optional"] is False
     sv = s2["serves"][0]

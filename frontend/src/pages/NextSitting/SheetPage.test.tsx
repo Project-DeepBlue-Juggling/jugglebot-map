@@ -46,6 +46,7 @@ beforeEach(() => {
     date: '2026-11-10',
     rig: 'robot',
     results: results(),
+    check_errors: [],
     steps: [
       step({ n: 1, kind: 'setup', title: 'Launch', new_launch: true, from_: [], to: ['launched'] }),
       step({
@@ -106,6 +107,15 @@ describe('Sitting sheet page', () => {
     expect(within(launch).getByRole('button', { name: 'Done' })).toBeInTheDocument();
     expect(launch).toHaveAttribute('data-current', 'true');
     expect(screen.getByRole('button', { name: 'Go to current step 1 of 3' })).toBeInTheDocument();
+  });
+
+  it('shows a stale-sheet banner listing the check errors', async () => {
+    sheet = { ...sheet, check_errors: ['step 4: names can-bridge v42, but the tree expects v43'] };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const banner = await screen.findByTestId('sheet-stale');
+    expect(within(banner).getByText(/no longer matches/)).toBeInTheDocument();
+    expect(within(banner).getByText(/expects v43/)).toBeInTheDocument();
+    expect(screen.getAllByTestId('sheet-step')).toHaveLength(3);
   });
 
   it('saves verdicts per Item with the date, and shows the saved time', async () => {

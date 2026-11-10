@@ -512,6 +512,7 @@ export const SheetList = z.object({ sheets: z.array(SheetSummary) });
 
 export const SheetServe = z.object({
   item: z.string(),
+  /** Empty when the step serves the Item without citing a do step (mapkit.sheet.enrich fills it). */
   do: z.array(z.number()),
   /** This step takes a verdict for the Item. */
   verdict: z.boolean(),
@@ -572,6 +573,8 @@ export const Sheet = z.object({
   rig: z.string(),
   steps: z.array(SheetStep),
   results: SheetResults,
+  /** `mapkit sheet check` against the Items and firmware now; non-empty = the sheet is stale. */
+  check_errors: z.array(z.string()),
 });
 export type Sheet = z.infer<typeof Sheet>;
 
