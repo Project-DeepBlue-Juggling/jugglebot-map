@@ -581,7 +581,7 @@ export const Sheet = z.object({
 export type Sheet = z.infer<typeof Sheet>;
 
 export interface SheetStepBody {
-  status?: 'done' | 'problem' | undefined;
+  status?: 'done' | 'problem' | 'skipped' | undefined;
   comments?: string | undefined;
   verdicts?: Record<string, { verdict: Verdict; notes: string }> | undefined;
   date: string;

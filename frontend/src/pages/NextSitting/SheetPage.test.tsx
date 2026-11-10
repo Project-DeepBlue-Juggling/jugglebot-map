@@ -194,6 +194,30 @@ describe('Sitting sheet page', () => {
     expect(screen.getAllByTestId('sheet-step')).toHaveLength(2);
   });
 
+  it('Skipped is one click, folds the step with a dash and counts toward progress', async () => {
+    let posted: unknown = null;
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/1`, async ({ request }) => {
+        posted = await request.json();
+        sheet = {
+          ...sheet,
+          results: results({
+            steps: { '1': { status: 'skipped', comments: '', saved_at: '2026-11-10 09:00' } },
+          }),
+        };
+        return HttpResponse.json(sheet.results as Record<string, unknown>);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    const first = screen.getAllByTestId('sheet-step')[0] as HTMLElement;
+    fireEvent.click(within(first).getByRole('button', { name: 'Skipped' }));
+    await waitFor(() => expect(posted).toMatchObject({ status: 'skipped', comments: '' }));
+    const folded = await screen.findByTestId('sheet-step-done');
+    expect(folded).toHaveTextContent('–');
+    expect(screen.getByTestId('launch-progress')).toHaveTextContent('1/3');
+  });
+
   it('Problem is one click too; the comment pop-out saves a comment with a status', async () => {
     const posts: unknown[] = [];
     server.use(

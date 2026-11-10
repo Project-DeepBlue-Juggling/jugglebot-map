@@ -24,7 +24,12 @@ interface Draft {
   verdicts: Record<string, { verdict: Verdict | null; notes: string }>;
 }
 
-type StepStatus = 'done' | 'problem';
+type StepStatus = 'done' | 'problem' | 'skipped';
+const STATUS_LABEL: Record<StepStatus, string> = {
+  done: 'Done',
+  problem: 'Problem',
+  skipped: 'Skipped',
+};
 
 const muted = 'text-slate-500 dark:text-slate-400';
 const lbl = clsx('mr-1 text-[11px] lowercase', muted);
@@ -159,10 +164,13 @@ function savedDraft(sheet: Sheet, step: SheetStep): Draft {
 const verdictItems = (step: SheetStep) => step.serves.filter((s) => s.verdict);
 const savedStatus = (sheet: Sheet, step: SheetStep): string | null =>
   sheet.results.steps[String(step.n)]?.status ?? null;
-/** Done = a simple step ticked done, or a verdict step with a saved verdict for every Item. */
+/** Done = a simple step ticked done or skipped, or a verdict step with a saved verdict for every Item. */
 function isDone(sheet: Sheet, step: SheetStep): boolean {
   const vr = verdictItems(step);
-  if (vr.length === 0) return savedStatus(sheet, step) === 'done';
+  if (vr.length === 0) {
+    const s = savedStatus(sheet, step);
+    return s === 'done' || s === 'skipped';
+  }
   const saved = sheet.results.verdicts[String(step.n)] ?? {};
   return vr.every((sv) => saved[sv.item] !== undefined);
 }
@@ -227,7 +235,7 @@ function StepRow({
       type="button"
       disabled={saving}
       aria-pressed={status === s}
-      aria-label={s === 'done' ? 'Done' : 'Problem'}
+      aria-label={STATUS_LABEL[s]}
       title={tip}
       onClick={() => onSave(s)}
       className={clsx(
@@ -251,7 +259,8 @@ function StepRow({
           e.preventDefault();
           if (isVerdict) {
             if (ready) onSave();
-          } else if (status === 'done' || status === 'problem') onSave(status);
+          } else if (status === 'done' || status === 'problem' || status === 'skipped')
+            onSave(status);
         }
       }}
       className={clsx(
@@ -277,6 +286,12 @@ function StepRow({
           <>
             {statusBtn('done', '✓', 'Done', 'border-emerald-600 bg-emerald-600 text-white')}
             {statusBtn('problem', '!', 'Problem', 'border-red-600 bg-red-600 text-white')}
+            {statusBtn(
+              'skipped',
+              '–',
+              'Skipped (not flown this Sitting)',
+              'border-slate-500 bg-slate-500 text-white',
+            )}
           </>
         )}
         <button
@@ -320,6 +335,11 @@ function StepRow({
         )}
         {status === 'problem' && (
           <span className="text-[11px] font-semibold text-red-700 dark:text-red-400">problem</span>
+        )}
+        {status === 'skipped' && (
+          <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+            skipped
+          </span>
         )}
         {savedAt !== undefined && (
           <span
@@ -451,7 +471,7 @@ function StepRow({
                   Save comment
                 </button>
               ) : status === null ? (
-                (['done', 'problem'] as const).map((s) => (
+                (['done', 'problem', 'skipped'] as const).map((s) => (
                   <button
                     key={s}
                     type="button"
@@ -459,7 +479,7 @@ function StepRow({
                     onClick={() => onSave(s)}
                     className={tiny}
                   >
-                    {s === 'done' ? 'Save as done' : 'Save as problem'}
+                    {`Save as ${s}`}
                   </button>
                 ))
               ) : (
@@ -512,8 +532,15 @@ function FoldedRow({
       >
         <span className="w-6 shrink-0 text-right font-mono text-[11px]">{step.n}</span>
         {kind === 'done' && (
-          <span className="text-emerald-600 dark:text-emerald-400" aria-hidden>
-            ✓
+          <span
+            className={
+              savedStatus(sheet, step) === 'skipped'
+                ? 'text-slate-500 dark:text-slate-400'
+                : 'text-emerald-600 dark:text-emerald-400'
+            }
+            aria-hidden
+          >
+            {savedStatus(sheet, step) === 'skipped' ? '–' : '✓'}
           </span>
         )}
         <span className={clsx('truncate', kind === 'done' && muted)}>{step.title}</span>
