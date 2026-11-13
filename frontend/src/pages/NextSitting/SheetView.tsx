@@ -696,10 +696,10 @@ function SheetRail({
   current: number | null;
 }) {
   return (
-    <div className="w-2 shrink-0 sm:w-2.5" aria-hidden="true">
+    <div className="w-1 shrink-0" aria-hidden="true">
       <div
         data-testid="sheet-rail"
-        className="sticky top-0 flex h-[calc(100vh-3.5rem)] flex-col gap-1 py-1"
+        className="sticky top-0 flex h-[calc(100vh-3.5rem)] flex-col gap-1.5 py-1"
       >
         {groups.map((g) => {
           const done = g.steps.filter((s) =>
@@ -714,7 +714,7 @@ function SheetRail({
               data-total={g.steps.length}
               data-current={at >= 0 ? 'true' : undefined}
               style={{ flexGrow: g.steps.length, flexBasis: 0 }}
-              className="relative min-h-1 w-full overflow-visible rounded-full bg-slate-200 dark:bg-slate-700"
+              className="relative min-h-1 w-full overflow-visible rounded-full bg-slate-300 dark:bg-slate-700"
             >
               <div
                 data-testid="sheet-rail-fill"
@@ -725,7 +725,7 @@ function SheetRail({
                 <div
                   data-testid="sheet-rail-marker"
                   style={{ top: `${(100 * at) / g.steps.length}%` }}
-                  className="absolute left-1/2 size-2.5 -translate-x-1/2 rounded-full border-2 border-white bg-sky-500 dark:border-slate-900"
+                  className="absolute left-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-500 ring-2 ring-white dark:ring-slate-900"
                 />
               )}
             </div>
@@ -781,7 +781,7 @@ export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProp
   const dimmed = (step: SheetStep) =>
     step.serves.length > 0 && step.serves.every((s) => deselected.includes(s.item));
   return (
-    <div className="flex gap-1.5 sm:gap-2">
+    <div className="flex gap-2">
       <SheetRail sheet={sheet} groups={groups} current={current} />
       <div className="min-w-0 flex-1">
         {sheet.check_errors.length > 0 && (
