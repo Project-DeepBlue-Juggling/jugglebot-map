@@ -198,7 +198,9 @@ describe('Next Sitting page', () => {
               rows: [
                 row({
                   has_result: true,
-                  results: [{ date: localToday(), time: '14:05', verdict: 'pass', notes: 'smooth' }],
+                  results: [
+                    { date: localToday(), time: '14:05', verdict: 'pass', notes: 'smooth' },
+                  ],
                 }),
               ],
             },
@@ -216,7 +218,9 @@ describe('Next Sitting page', () => {
     fireEvent.change(within(first).getByRole('textbox'), { target: { value: 'smooth' } });
     fireEvent.click(save);
     await waitFor(() =>
-      expect(screen.getByTestId('runbook-result')).toHaveTextContent(`${localToday()} 14:05 · pass, smooth`),
+      expect(screen.getByTestId('runbook-result')).toHaveTextContent(
+        `${localToday()} 14:05 · pass, smooth`,
+      ),
     );
     expect(posted).toEqual({
       date: localToday(),
@@ -271,7 +275,9 @@ describe('Next Sitting page', () => {
     fireEvent.change(notes, { target: { value: 'smooth' } });
     fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
     await waitFor(() => expect(posts).toBe(1));
-    await waitFor(() => expect(within(first).getByRole('button', { name: 'Save result' })).toBeEnabled());
+    await waitFor(() =>
+      expect(within(first).getByRole('button', { name: 'Save result' })).toBeEnabled(),
+    );
     expect(notes.value).toBe('smooth');
     expect(pass).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
@@ -342,7 +348,14 @@ describe('Next Sitting page', () => {
               rows: [
                 row({
                   has_result: true,
-                  results: [{ date: localToday(), time: '14:06', verdict: 'pending', notes: 'check the bag' }],
+                  results: [
+                    {
+                      date: localToday(),
+                      time: '14:06',
+                      verdict: 'pending',
+                      notes: 'check the bag',
+                    },
+                  ],
                 }),
               ],
             },
@@ -357,9 +370,15 @@ describe('Next Sitting page', () => {
     fireEvent.change(within(first).getByRole('textbox'), { target: { value: 'check the bag' } });
     fireEvent.click(within(first).getByRole('button', { name: 'Save result' }));
     await waitFor(() =>
-      expect(screen.getByTestId('runbook-result')).toHaveTextContent(`${localToday()} 14:06 · pending, check the bag`),
+      expect(screen.getByTestId('runbook-result')).toHaveTextContent(
+        `${localToday()} 14:06 · pending, check the bag`,
+      ),
     );
-    expect(posted).toMatchObject({ date: localToday(), verdict: 'pending', notes: 'check the bag' });
+    expect(posted).toMatchObject({
+      date: localToday(),
+      verdict: 'pending',
+      notes: 'check the bag',
+    });
   });
 
   it('keeps the save controls open and lists every result, legacy ones date-only', async () => {

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type MutableRefObject,
+  type ReactNode,
 } from 'react';
 import clsx from 'clsx';
 import {
@@ -28,6 +29,8 @@ export interface SheetViewProps {
   onOpen: (taskId: string) => void;
   /** Saves one step; resolves true when the server took it (false keeps the typed boxes). */
   onSaveStep: (n: number, body: Omit<SheetStepBody, 'date' | 'time'>) => Promise<boolean>;
+  /** Rendered at the right end of the frozen Items banner (the All Items button). */
+  trailing?: ReactNode;
 }
 
 /** What the operator has typed on one step and not saved yet. */
@@ -679,7 +682,61 @@ function storeDeselected(name: string, list: string[]) {
 }
 
 /** One Sitting sheet: its steps in order, grouped by launch; drafts keyed by step number. */
-export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
+/**
+ * A thin index down the left edge: one segment per group, as tall as its step count, filled from
+ * the top by the steps done, with a dot at the current step. Decoration only (aria-hidden).
+ */
+function SheetRail({
+  sheet,
+  groups,
+  current,
+}: {
+  sheet: Sheet;
+  groups: Group[];
+  current: number | null;
+}) {
+  return (
+    <div className="w-2 shrink-0 sm:w-2.5" aria-hidden="true">
+      <div
+        data-testid="sheet-rail"
+        className="sticky top-0 flex h-[calc(100vh-3.5rem)] flex-col gap-1 py-1"
+      >
+        {groups.map((g) => {
+          const done = g.steps.filter((s) =>
+            isDone(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
+          ).length;
+          const at = g.steps.findIndex((s) => s.n === current);
+          return (
+            <div
+              key={g.key}
+              data-testid="sheet-rail-segment"
+              data-done={done}
+              data-total={g.steps.length}
+              data-current={at >= 0 ? 'true' : undefined}
+              style={{ flexGrow: g.steps.length, flexBasis: 0 }}
+              className="relative min-h-1 w-full overflow-visible rounded-full bg-slate-200 dark:bg-slate-700"
+            >
+              <div
+                data-testid="sheet-rail-fill"
+                style={{ height: `${(100 * done) / g.steps.length}%` }}
+                className="w-full rounded-full bg-emerald-500 dark:bg-emerald-400"
+              />
+              {at >= 0 && (
+                <div
+                  data-testid="sheet-rail-marker"
+                  style={{ top: `${(100 * at) / g.steps.length}%` }}
+                  className="absolute left-1/2 size-2.5 -translate-x-1/2 rounded-full border-2 border-white bg-sky-500 dark:border-slate-900"
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProps) {
   const draftsRef = useRef<Map<number, Draft>>(new Map());
   const [deselected, setDeselected] = useState<string[]>(() => loadDeselected(sheet.name));
   /** Folded steps the operator opened (done ones and dimmed ones). */
@@ -724,175 +781,179 @@ export function SheetView({ sheet, onOpen, onSaveStep }: SheetViewProps) {
   const dimmed = (step: SheetStep) =>
     step.serves.length > 0 && step.serves.every((s) => deselected.includes(s.item));
   return (
-    <div>
-      {sheet.check_errors.length > 0 && (
+    <div className="flex gap-1.5 sm:gap-2">
+      <SheetRail sheet={sheet} groups={groups} current={current} />
+      <div className="min-w-0 flex-1">
+        {sheet.check_errors.length > 0 && (
+          <div
+            role="alert"
+            data-testid="sheet-stale"
+            className="mb-2 rounded border border-red-500 bg-red-50 p-2 text-sm text-red-900 dark:bg-red-950 dark:text-red-200"
+          >
+            <p className="font-semibold">
+              This sheet no longer matches the Items or the firmware. Ask a Session to fix it, or
+              run /sitting-sheet again, before you fly from it.
+            </p>
+            <ul className="mt-1 list-disc pl-5">
+              {sheet.check_errors.map((e) => (
+                <li key={e}>{e}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div
-          role="alert"
-          data-testid="sheet-stale"
-          className="mb-2 rounded border border-red-500 bg-red-50 p-2 text-sm text-red-900 dark:bg-red-950 dark:text-red-200"
+          data-testid="item-picker"
+          className="sticky top-0 z-30 flex h-8 items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-slate-300 bg-white px-1 text-[11px] dark:border-slate-600 dark:bg-slate-900"
         >
-          <p className="font-semibold">
-            This sheet no longer matches the Items or the firmware. Ask a Session to fix it, or run
-            /sitting-sheet again, before you fly from it.
-          </p>
-          <ul className="mt-1 list-disc pl-5">
-            {sheet.check_errors.map((e) => (
-              <li key={e}>{e}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      <div
-        data-testid="item-picker"
-        className="sticky top-0 z-30 flex h-8 items-center gap-1 overflow-x-auto whitespace-nowrap border-b border-slate-300 bg-white px-1 text-[11px] dark:border-slate-600 dark:bg-slate-900"
-      >
-        <span className={muted}>Items</span>
-        {items.map((sv) => {
-          const on = !deselected.includes(sv.item);
-          const low = sv.priority === 'low';
-          return (
-            <button
-              key={sv.item}
-              type="button"
-              aria-pressed={on}
-              title={`${sv.title}${low ? ' (optional, low priority)' : ''}`}
-              onClick={() =>
-                changeDeselected(
-                  on ? [...deselected, sv.item] : deselected.filter((x) => x !== sv.item),
-                )
-              }
-              className={clsx(
-                'shrink-0 rounded border px-1.5 font-mono leading-5',
-                low && 'border-dashed italic',
-                on
-                  ? 'border-slate-700 bg-slate-800 text-white dark:border-slate-300 dark:bg-slate-200 dark:text-slate-900'
-                  : 'border-slate-300 text-slate-400 line-through dark:border-slate-600',
-              )}
-            >
-              {sv.item}
-              {low ? ' (opt)' : ''}
-            </button>
-          );
-        })}
-        <button
-          type="button"
-          className={clsx(tiny, 'shrink-0')}
-          onClick={() => changeDeselected([])}
-        >
-          All
-        </button>
-        <button
-          type="button"
-          className={clsx(tiny, 'shrink-0')}
-          onClick={() => changeDeselected(items.map((i) => i.item))}
-        >
-          None
-        </button>
-      </div>
-      {groups.map((g) => {
-        const done = g.steps.filter((s) =>
-          isDone(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
-        ).length;
-        let prevKey: string | null = null;
-        return (
-          <section key={g.key} data-testid="launch-group">
-            <div
-              data-testid="launch-header"
-              className="sticky top-8 z-20 flex h-6 items-center gap-2 border-b border-slate-300 bg-slate-100 px-1 text-xs dark:border-slate-600 dark:bg-slate-800"
-            >
-              <span className="font-semibold">{g.title}</span>
-              <span className={clsx('min-w-0 flex-1 truncate', muted)}>{g.label}</span>
-              <span data-testid="launch-progress" className="font-mono text-[11px]">
-                {done}/{g.steps.length}
-              </span>
-            </div>
-            <ol>
-              {g.steps.flatMap((step) => {
-                const key = itemKey(step);
-                const out = [];
-                if (key !== prevKey) {
-                  out.push(
-                    <li
-                      key={`sub-${step.n}`}
-                      data-testid="item-subheader"
-                      className="flex items-center gap-1 pl-1 pt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
-                    >
-                      {key === '' ? (
-                        'setup'
-                      ) : (
-                        <ItemLinks
-                          serves={[...new Map(step.serves.map((s) => [s.item, s])).values()]}
-                          onOpen={stableOpen}
-                        />
-                      )}
-                    </li>,
-                  );
-                  prevKey = key;
+          <span className={muted}>Items</span>
+          {items.map((sv) => {
+            const on = !deselected.includes(sv.item);
+            const low = sv.priority === 'low';
+            return (
+              <button
+                key={sv.item}
+                type="button"
+                aria-pressed={on}
+                title={`${sv.title}${low ? ' (optional, low priority)' : ''}`}
+                onClick={() =>
+                  changeDeselected(
+                    on ? [...deselected, sv.item] : deselected.filter((x) => x !== sv.item),
+                  )
                 }
-                const open = opened.includes(step.n);
-                const isCur = step.n === current;
-                const saved = sheet.results.steps[String(step.n)];
-                const savedVerdicts = sheet.results.verdicts[String(step.n)];
-                if (dimmed(step) && !open)
-                  out.push(
-                    <FoldedRow
-                      key={step.n}
-                      step={step}
-                      kind="dim"
-                      status={saved?.status ?? null}
-                      savedAt={savedAtOf(saved, savedVerdicts)}
-                      onToggle={toggleOpened}
-                      onOpen={stableOpen}
-                    />,
-                  );
-                else if (isDone(saved, savedVerdicts, step) && !open && !isCur)
-                  out.push(
-                    <FoldedRow
-                      key={step.n}
-                      step={step}
-                      kind="done"
-                      status={saved?.status ?? null}
-                      savedAt={savedAtOf(saved, savedVerdicts)}
-                      onToggle={toggleOpened}
-                      onOpen={stableOpen}
-                    />,
-                  );
-                else
-                  out.push(
-                    <StepRow
-                      key={step.n}
-                      step={step}
-                      stateHelp={sheet.state_help}
-                      saved={saved}
-                      savedVerdicts={savedVerdicts}
-                      current={isCur}
-                      draftsRef={draftsRef}
-                      onSaveStep={stableSave}
-                      onOpen={stableOpen}
-                      open={open}
-                      onToggle={toggleOpened}
-                    />,
-                  );
-                return out;
-              })}
-            </ol>
-          </section>
-        );
-      })}
-      <div className="sticky bottom-0 mt-2 flex justify-center bg-gradient-to-t from-white to-transparent py-1 dark:from-slate-900">
-        {current !== null ? (
+                className={clsx(
+                  'shrink-0 rounded border px-1.5 font-mono leading-5',
+                  low && 'border-dashed italic',
+                  on
+                    ? 'border-slate-700 bg-slate-800 text-white dark:border-slate-300 dark:bg-slate-200 dark:text-slate-900'
+                    : 'border-slate-300 text-slate-400 line-through dark:border-slate-600',
+                )}
+              >
+                {sv.item}
+                {low ? ' (opt)' : ''}
+              </button>
+            );
+          })}
           <button
             type="button"
-            onClick={goCurrent}
-            className="rounded-full bg-sky-700 px-3 py-1 text-xs font-medium text-white shadow hover:bg-sky-600"
+            className={clsx(tiny, 'shrink-0')}
+            onClick={() => changeDeselected([])}
           >
-            Go to current step {current} of {sheet.steps.length}
+            All
           </button>
-        ) : (
-          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
-            All {sheet.steps.length} steps saved
-          </span>
-        )}
+          <button
+            type="button"
+            className={clsx(tiny, 'shrink-0')}
+            onClick={() => changeDeselected(items.map((i) => i.item))}
+          >
+            None
+          </button>
+          {trailing !== undefined && <span className="ml-auto shrink-0 pl-2">{trailing}</span>}
+        </div>
+        {groups.map((g) => {
+          const done = g.steps.filter((s) =>
+            isDone(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
+          ).length;
+          let prevKey: string | null = null;
+          return (
+            <section key={g.key} data-testid="launch-group">
+              <div
+                data-testid="launch-header"
+                className="sticky top-8 z-20 flex h-6 items-center gap-2 border-b border-slate-300 bg-slate-100 px-1 text-xs dark:border-slate-600 dark:bg-slate-800"
+              >
+                <span className="font-semibold">{g.title}</span>
+                <span className={clsx('min-w-0 flex-1 truncate', muted)}>{g.label}</span>
+                <span data-testid="launch-progress" className="font-mono text-[11px]">
+                  {done}/{g.steps.length}
+                </span>
+              </div>
+              <ol>
+                {g.steps.flatMap((step) => {
+                  const key = itemKey(step);
+                  const out = [];
+                  if (key !== prevKey) {
+                    out.push(
+                      <li
+                        key={`sub-${step.n}`}
+                        data-testid="item-subheader"
+                        className="flex items-center gap-1 pl-1 pt-1 text-[11px] font-semibold text-slate-600 dark:text-slate-300"
+                      >
+                        {key === '' ? (
+                          'setup'
+                        ) : (
+                          <ItemLinks
+                            serves={[...new Map(step.serves.map((s) => [s.item, s])).values()]}
+                            onOpen={stableOpen}
+                          />
+                        )}
+                      </li>,
+                    );
+                    prevKey = key;
+                  }
+                  const open = opened.includes(step.n);
+                  const isCur = step.n === current;
+                  const saved = sheet.results.steps[String(step.n)];
+                  const savedVerdicts = sheet.results.verdicts[String(step.n)];
+                  if (dimmed(step) && !open)
+                    out.push(
+                      <FoldedRow
+                        key={step.n}
+                        step={step}
+                        kind="dim"
+                        status={saved?.status ?? null}
+                        savedAt={savedAtOf(saved, savedVerdicts)}
+                        onToggle={toggleOpened}
+                        onOpen={stableOpen}
+                      />,
+                    );
+                  else if (isDone(saved, savedVerdicts, step) && !open && !isCur)
+                    out.push(
+                      <FoldedRow
+                        key={step.n}
+                        step={step}
+                        kind="done"
+                        status={saved?.status ?? null}
+                        savedAt={savedAtOf(saved, savedVerdicts)}
+                        onToggle={toggleOpened}
+                        onOpen={stableOpen}
+                      />,
+                    );
+                  else
+                    out.push(
+                      <StepRow
+                        key={step.n}
+                        step={step}
+                        stateHelp={sheet.state_help}
+                        saved={saved}
+                        savedVerdicts={savedVerdicts}
+                        current={isCur}
+                        draftsRef={draftsRef}
+                        onSaveStep={stableSave}
+                        onOpen={stableOpen}
+                        open={open}
+                        onToggle={toggleOpened}
+                      />,
+                    );
+                  return out;
+                })}
+              </ol>
+            </section>
+          );
+        })}
+        <div className="sticky bottom-0 mt-2 flex justify-center bg-gradient-to-t from-white to-transparent py-1 dark:from-slate-900">
+          {current !== null ? (
+            <button
+              type="button"
+              onClick={goCurrent}
+              className="rounded-full bg-sky-700 px-3 py-1 text-xs font-medium text-white shadow hover:bg-sky-600"
+            >
+              Go to current step {current} of {sheet.steps.length}
+            </button>
+          ) : (
+            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+              All {sheet.steps.length} steps saved
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );

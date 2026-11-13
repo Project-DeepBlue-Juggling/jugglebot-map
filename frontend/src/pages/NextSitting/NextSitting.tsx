@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import clsx from 'clsx';
 import { ApiError } from '../../api/client';
 import {
   useRunbook,
@@ -50,40 +51,68 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
       </div>
     );
   }
+  const picker = (
+    <>
+      {list.length > 1 && (
+        <select
+          aria-label="Sheet"
+          value={name ?? ''}
+          onChange={(e) => setPicked(e.target.value)}
+          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+        >
+          {list.map((s) => (
+            <option key={s.name} value={s.name}>
+              {s.date} · {s.rig} ({s.saved}/{s.steps})
+            </option>
+          ))}
+        </select>
+      )}
+      {name !== null && list.length === 1 && (
+        <span className="text-sm text-slate-500 dark:text-slate-400">
+          {list[0]?.date} · {list[0]?.rig}
+        </span>
+      )}
+    </>
+  );
+  const toggleClass = 'shrink-0 text-sm text-slate-600 underline dark:text-slate-300';
+  const allItemsLink = (
+    <button
+      type="button"
+      aria-pressed={false}
+      onClick={() => setAllItems(true)}
+      className={toggleClass}
+    >
+      All Items
+    </button>
+  );
+  const backLink = (
+    <button
+      type="button"
+      aria-pressed={true}
+      onClick={() => setAllItems(false)}
+      className={clsx(toggleClass, 'ml-auto')}
+    >
+      Back to the sheet
+    </button>
+  );
   return (
     <div className="h-full overflow-auto">
-      <div className="flex flex-wrap items-center gap-3 px-6 pt-6">
-        <h1 className="text-xl font-semibold">Next Sitting</h1>
-        {list.length > 1 && (
-          <select
-            aria-label="Sheet"
-            value={name ?? ''}
-            onChange={(e) => setPicked(e.target.value)}
-            className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
-          >
-            {list.map((s) => (
-              <option key={s.name} value={s.name}>
-                {s.date} · {s.rig} ({s.saved}/{s.steps})
-              </option>
-            ))}
-          </select>
-        )}
-        {name !== null && list.length === 1 && (
-          <span className="text-sm text-slate-500 dark:text-slate-400">
-            {list[0]?.date} · {list[0]?.rig}
-          </span>
-        )}
-        <button
-          type="button"
-          aria-pressed={allItems}
-          onClick={() => setAllItems(!allItems)}
-          className="ml-auto text-sm text-slate-600 underline dark:text-slate-300"
-        >
-          {allItems ? 'Back to the sheet' : 'All Items'}
-        </button>
-      </div>
+      {!allItems && (
+        <div className="flex flex-wrap items-center gap-3 px-6 pt-6">
+          <h1 className="text-xl font-semibold">Next Sitting</h1>
+          {picker}
+        </div>
+      )}
       {allItems ? (
-        <RunbookPage onOpen={onOpen} />
+        <RunbookPage
+          onOpen={onOpen}
+          toolbar={
+            <>
+              {picker}
+              {backLink}
+            </>
+          }
+        />
       ) : sheet.error !== null ? (
         <div className="p-6 text-red-600 dark:text-red-400">Could not load the sheet.</div>
       ) : sheet.data === undefined ? (
@@ -93,6 +122,7 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
           <SheetView
             key={sheet.data.name}
             sheet={sheet.data}
+            trailing={allItemsLink}
             onOpen={onOpen}
             onSaveStep={async (n, body) => {
               try {
@@ -116,7 +146,13 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
 }
 
 /** The per-Item Runbook: loads it and saves a row's result with the save date and time. */
-function RunbookPage({ onOpen }: { onOpen: (taskId: string) => void }) {
+function RunbookPage({
+  onOpen,
+  toolbar,
+}: {
+  onOpen: (taskId: string) => void;
+  toolbar?: ReactNode;
+}) {
   const runbook = useRunbook();
   const save = useSaveSittingResult();
   const toast = useToast();
@@ -130,6 +166,7 @@ function RunbookPage({ onOpen }: { onOpen: (taskId: string) => void }) {
     <NextSittingView
       runbook={runbook.data}
       onOpen={onOpen}
+      toolbar={toolbar}
       onSave={async (id, verdict, notes) => {
         try {
           await save.mutateAsync({ id, date: localToday(), time: localTime(), verdict, notes });

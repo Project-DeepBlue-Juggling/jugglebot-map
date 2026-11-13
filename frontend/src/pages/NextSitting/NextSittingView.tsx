@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import clsx from 'clsx';
 import type { Runbook, Verdict } from '../../api/schemas';
 import { KindPill } from '../../ui/ShortId';
@@ -9,6 +9,8 @@ export interface NextSittingViewProps {
   runbook: Runbook;
   onOpen: (taskId: string) => void;
   onSave: (taskId: string, verdict: Verdict, notes: string) => Promise<boolean>;
+  /** Sheet picker and the way back, shown on the frozen title line. */
+  toolbar?: ReactNode;
 }
 
 const UNATTACHED = 'unattached';
@@ -24,7 +26,7 @@ function setupZero(page: string): string[] {
   return out;
 }
 
-export function NextSittingView({ runbook, onOpen, onSave }: NextSittingViewProps) {
+export function NextSittingView({ runbook, onOpen, onSave, toolbar }: NextSittingViewProps) {
   const [pathway, setPathway] = useState<string | null>(null);
   const pathways = useMemo(() => {
     const seen = new Map<string, string>();
@@ -44,13 +46,17 @@ export function NextSittingView({ runbook, onOpen, onSave }: NextSittingViewProp
   const before = setupZero(runbook.page);
   const empty = runbook.blocks.length === 0;
   return (
-    <div className="h-full overflow-auto p-6">
-      <h1 className="mb-4 text-xl font-semibold">Next Sitting</h1>
-      {empty ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400">No hardware checks waiting</p>
-      ) : (
-        <>
-          <div className="mb-4 flex flex-wrap gap-1" aria-label="Pathways">
+    <div className="px-6 pb-6">
+      <div
+        data-testid="runbook-banner"
+        className="sticky top-0 z-30 -mx-6 mb-4 border-b border-slate-200 bg-slate-50 px-6 pb-2 pt-6 dark:border-slate-700 dark:bg-slate-900"
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-xl font-semibold">Next Sitting</h1>
+          {toolbar}
+        </div>
+        {!empty && (
+          <div className="mt-2 flex flex-wrap gap-1" aria-label="Pathways">
             {[[null, 'All'] as const, ...pathways].map(([id, name]) => (
               <button
                 key={id ?? 'all'}
@@ -68,6 +74,12 @@ export function NextSittingView({ runbook, onOpen, onSave }: NextSittingViewProp
               </button>
             ))}
           </div>
+        )}
+      </div>
+      {empty ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">No hardware checks waiting</p>
+      ) : (
+        <>
           {before.length > 0 && (
             <section aria-label="Before power" className="mb-6">
               <h2 className="mb-1 text-base font-semibold">Before power</h2>
