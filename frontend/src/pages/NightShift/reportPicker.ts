@@ -30,20 +30,30 @@ export function monthLabel(date: string): string {
   return `${MONTHS_LONG[(m ?? 1) - 1] ?? ''} ${y ?? ''}`;
 }
 
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+export interface RowCells {
+  day: string;
+  /** merged / held / questions; a null count renders as a dash placeholder. */
+  counts: { cell: 'merged' | 'held' | 'questions'; n: number | null; unit: string }[];
+  /** True when the night has no counts at all (a stub or a failed night). */
+  noCounts: boolean;
+  /** The runner's status word when it is not OK; shown in place of the counts if they are absent. */
+  status: string | null;
+}
 
-/** `Fri 13 Nov · 1 merged · 2 held · 1 question`, plus ` · STATUS` for a night that did not finish. */
-export function optionLabel(r: NightShiftReportEntry, latest: boolean): string {
-  const parts = [dayLabel(r.date)];
-  if (r.merged != null && r.held != null && r.questions != null) {
-    parts.push(
-      `${r.merged} merged`,
-      `${r.held} held`,
-      plural(r.questions, 'question', 'questions'),
-    );
-  }
-  if (r.status != null && r.status !== 'OK') parts.push(r.status);
-  return (latest ? 'Latest · ' : '') + parts.join(' · ');
+/** The cells of one picker row: date, merged / held / questions (singular or plural unit), status. */
+export function rowCells(r: NightShiftReportEntry): RowCells {
+  const n = (v: number | null | undefined) => (v == null ? null : v);
+  const noCounts = r.merged == null && r.held == null && r.questions == null;
+  return {
+    day: dayLabel(r.date),
+    counts: [
+      { cell: 'merged', n: n(r.merged), unit: 'merged' },
+      { cell: 'held', n: n(r.held), unit: 'held' },
+      { cell: 'questions', n: n(r.questions), unit: r.questions === 1 ? 'question' : 'questions' },
+    ],
+    noCounts,
+    status: r.status != null && r.status !== 'OK' ? r.status : null,
+  };
 }
 
 export interface MonthGroup {

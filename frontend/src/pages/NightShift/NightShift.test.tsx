@@ -6,6 +6,11 @@ import { mapTask } from '../../test/mapFixtures';
 import { renderApp } from '../../test/renderApp';
 import { createState, makeServer, type TestState } from '../../test/server';
 
+const nth = <T,>(a: T[], i: number): T => {
+  const v = a[i];
+  if (v === undefined) throw new Error(`no element ${i}`);
+  return v;
+};
 const BASE = 'http://localhost:8000/api/v1/night-shift';
 let state: TestState;
 let server: ReturnType<typeof makeServer>;
@@ -79,24 +84,83 @@ describe('Night Shift page', () => {
     entry('2026-10-30'),
   ];
 
-  it('defaults to the newest report, labelled Latest, and groups the select by month', async () => {
+  const opener = () => screen.getByRole('button', { name: 'Report date' });
+  const openList = () => {
+    fireEvent.click(opener());
+    return screen.getByRole('listbox');
+  };
+
+  it('defaults to the newest report, labelled Latest, and groups the listbox by month', async () => {
     useReports(three());
     renderApp('/night-shift', <NightShiftRoute />);
     expect(await screen.findByText('Summary 2026-11-02')).toBeInTheDocument();
-    const select = screen.getByRole('combobox', { name: 'Report date' });
-    expect(select).toHaveValue('2026-11-02');
-    const groups = Array.from(select.querySelectorAll('optgroup'));
-    expect(groups.map((g) => g.label)).toEqual(['November 2026', 'October 2026']);
-    expect(
-      Array.from(groups[0]?.querySelectorAll('option') ?? []).map((o) => o.textContent),
-    ).toEqual(['Latest · Mon 2 Nov · 1 merged · 2 held · 1 question']);
-    expect(
-      Array.from(groups[1]?.querySelectorAll('option') ?? []).map((o) => o.textContent),
-    ).toEqual([
-      'Sat 31 Oct · 0 merged · 2 held · 0 questions · CLAUDE_FAILED',
-      'Fri 30 Oct · 1 merged · 2 held · 1 question',
+    expect(opener()).toHaveAttribute('aria-haspopup', 'listbox');
+    expect(opener()).toHaveTextContent('Mon 2 Nov');
+    expect(opener()).toHaveTextContent('Latest');
+    const box = openList();
+    const groups = within(box).getAllByRole('group');
+    expect(groups.map((g) => g.getAttribute('aria-label'))).toEqual([
+      'November 2026',
+      'October 2026',
     ]);
+    const opts = within(box).getAllByRole('option');
+    expect(opts.map((o) => o.getAttribute('aria-selected'))).toEqual(['true', 'false', 'false']);
+    expect(opts[0]).toHaveTextContent('Mon 2 Nov1 merged2 held1 questionLatest');
+    expect(opts[1]).toHaveTextContent('Sat 31 Oct0 merged2 held0 questionsCLAUDE_FAILED');
+    expect(opts[2]).toHaveTextContent('Fri 30 Oct1 merged2 held1 question');
     expect(screen.queryByRole('button', { name: 'Latest' })).toBeNull();
+  });
+
+  it('renders the three counts in separate cells and a dash for a missing count', async () => {
+    useReports([
+      entry('2026-11-02'),
+      entry('2026-11-01', { merged: null, held: null, questions: null, status: 'STUB' }),
+      entry('2026-10-31', { held: null }),
+    ]);
+    renderApp('/night-shift', <NightShiftRoute />);
+    await screen.findByText('Summary 2026-11-02');
+    const opts = within(openList()).getAllByRole('option');
+    const cell = (o: HTMLElement, k: string) => o.querySelector(`[data-cell="${k}"]`);
+    const first = ['merged', 'held', 'questions'].map((k) => cell(nth(opts, 0), k));
+    expect(first.every((c) => c !== null)).toBe(true);
+    expect(new Set(first).size).toBe(3);
+    expect(first.map((c) => c?.textContent)).toEqual(['1 merged', '2 held', '1 question']);
+    expect(opts[1]).toHaveTextContent('STUB');
+    expect(cell(nth(opts, 1), 'held')).toBeNull();
+    expect(cell(nth(opts, 2), 'held')?.textContent).toBe('– held');
+  });
+
+  it('opens from the keyboard, moves with arrows, Home and End, selects with Enter', async () => {
+    useReports(three());
+    renderApp('/night-shift', <NightShiftRoute />);
+    await screen.findByText('Summary 2026-11-02');
+    fireEvent.keyDown(opener(), { key: 'ArrowDown' });
+    const box = screen.getByRole('listbox');
+    const opts = within(box).getAllByRole('option');
+    expect(box).toHaveAttribute('aria-activedescendant', nth(opts, 0).id);
+    fireEvent.keyDown(box, { key: 'ArrowDown' });
+    expect(box).toHaveAttribute('aria-activedescendant', nth(opts, 1).id);
+    fireEvent.keyDown(box, { key: 'End' });
+    expect(box).toHaveAttribute('aria-activedescendant', nth(opts, 2).id);
+    fireEvent.keyDown(box, { key: 'Home' });
+    expect(box).toHaveAttribute('aria-activedescendant', nth(opts, 0).id);
+    fireEvent.keyDown(box, { key: 'End' });
+    fireEvent.keyDown(box, { key: 'Enter' });
+    expect(await screen.findByText('Summary 2026-10-30')).toBeInTheDocument();
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(opener()).toHaveFocus();
+  });
+
+  it('closes on Escape (focus back on the button) and on a click outside', async () => {
+    useReports(three());
+    renderApp('/night-shift', <NightShiftRoute />);
+    await screen.findByText('Summary 2026-11-02');
+    fireEvent.keyDown(openList(), { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(opener()).toHaveFocus();
+    openList();
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole('listbox')).toBeNull();
   });
 
   it('disables newer at the newest report and older at the oldest, and steps between', async () => {
@@ -118,13 +182,11 @@ describe('Night Shift page', () => {
     expect(screen.queryByRole('button', { name: 'Latest' })).toBeNull();
   });
 
-  it('switches by the select', async () => {
+  it('switches by clicking a row', async () => {
     useReports(three());
     renderApp('/night-shift', <NightShiftRoute />);
     await screen.findByText('Summary 2026-11-02');
-    fireEvent.change(screen.getByRole('combobox', { name: 'Report date' }), {
-      target: { value: '2026-10-30' },
-    });
+    fireEvent.click(nth(within(openList()).getAllByRole('option'), 2));
     expect(await screen.findByText('Summary 2026-10-30')).toBeInTheDocument();
   });
 
@@ -132,7 +194,7 @@ describe('Night Shift page', () => {
     useReports(three());
     renderApp('/night-shift?date=2026-10-31', <NightShiftRoute />);
     expect(await screen.findByText('Summary 2026-10-31')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Report date' })).toHaveValue('2026-10-31');
+    expect(opener()).toHaveTextContent('Sat 31 Oct');
     expect(screen.getByRole('button', { name: 'Latest' })).toBeInTheDocument();
   });
 
