@@ -392,9 +392,25 @@ export const NightShiftReportEntry = z.object({
   date: z.string(),
   path: z.string(),
   title: z.string(),
+  // Counts of the report's Item rows; null when the file could not be parsed.
+  merged: z.number().int().nullish(),
+  held: z.number().int().nullish(),
+  questions: z.number().int().nullish(),
+  status: z.string().nullish(),
 });
 export type NightShiftReportEntry = z.infer<typeof NightShiftReportEntry>;
 export const NightShiftReportList = z.array(NightShiftReportEntry);
+
+/** One line of the runner's docs/night-shift/history.jsonl (fields follow last_run.json). */
+export const NightShiftRun = z
+  .object({
+    date: z.string(),
+    status: z.string().nullish(),
+    detail: z.string().nullish(),
+  })
+  .passthrough();
+export type NightShiftRun = z.infer<typeof NightShiftRun>;
+export const NightShiftRunList = z.array(NightShiftRun);
 
 export const NightShiftQuestion = z.object({
   id: z.string(),

@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   useAnswerQuestion,
   useNightShiftQuestions,
   useNightShiftReport,
   useNightShiftReports,
+  useNightShiftRuns,
   useTasks,
 } from '../../api/hooks';
 import { ApiError } from '../../api/client';
@@ -25,8 +27,24 @@ export default function NightShift({ onOpen = noop }: NightShiftProps) {
   const questions = useNightShiftQuestions();
   const answer = useAnswerQuestion();
   const toast = useToast();
-  const [picked, setPicked] = useState<string | null>(null);
-  const date = picked ?? reports.data?.[0]?.date ?? null;
+  const runs = useNightShiftRuns();
+  const [params, setParams] = useSearchParams();
+  const latest = reports.data?.[0]?.date ?? null;
+  const asked = params.get('date');
+  // `?date=` names the report; a date with no report falls back to the latest, with a notice.
+  const known = asked !== null && (reports.data ?? []).some((r) => r.date === asked);
+  const date = known ? asked : latest;
+  const unknownDate = asked !== null && !known && reports.data !== undefined ? asked : null;
+  // Pushed (not replaced) so Back returns to the previous report; the newest is the bare URL.
+  const onPick = useCallback(
+    (d: string) => {
+      const next = new URLSearchParams(params);
+      if (d === latest) next.delete('date');
+      else next.set('date', d);
+      setParams(next);
+    },
+    [params, latest, setParams],
+  );
   const report = useNightShiftReport(date);
   const tasks = useTasks();
   // Short IDs (`BUG-<n>`, per kind) in the report and the question bodies link to that Item, with its kind pill.
@@ -46,7 +64,9 @@ export default function NightShift({ onOpen = noop }: NightShiftProps) {
       <NightShiftView
         reports={reports.data}
         date={date}
-        onPick={setPicked}
+        onPick={onPick}
+        unknownDate={unknownDate}
+        lastRun={runs.data?.[0] ?? null}
         report={report.data}
         reportError={report.isError ? report.error.message : null}
         questions={questions.data}

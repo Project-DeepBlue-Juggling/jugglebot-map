@@ -1,13 +1,17 @@
-import clsx from 'clsx';
 import { useRef } from 'react';
-import type { NightShiftQuestion, NightShiftReportEntry } from '../../api/schemas';
+import type { NightShiftQuestion, NightShiftReportEntry, NightShiftRun } from '../../api/schemas';
 import Markdown from '../../ui/Markdown';
 import { QuestionCard } from './QuestionCard';
+import { ReportPicker } from './ReportPicker';
 
 export interface NightShiftViewProps {
   reports: readonly NightShiftReportEntry[];
   date: string | null;
   onPick: (date: string) => void;
+  /** The `?date=` the URL asked for when no report has it (the latest is shown instead). */
+  unknownDate?: string | null | undefined;
+  /** The runner's newest history line, when the server has a history file. */
+  lastRun?: NightShiftRun | null | undefined;
   report: string | undefined;
   reportError: string | null;
   questions: readonly NightShiftQuestion[];
@@ -54,24 +58,13 @@ export function NightShiftView(p: NightShiftViewProps) {
           <p className="text-sm text-slate-500 dark:text-slate-400">No reports yet</p>
         ) : (
           <>
-            <div className="mb-4 flex flex-wrap gap-1">
-              {p.reports.map((r) => (
-                <button
-                  key={r.date}
-                  type="button"
-                  aria-pressed={r.date === p.date}
-                  onClick={() => p.onPick(r.date)}
-                  className={clsx(
-                    'rounded border px-2 py-0.5 text-xs',
-                    r.date === p.date
-                      ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
-                      : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700',
-                  )}
-                >
-                  {r.date}
-                </button>
-              ))}
-            </div>
+            <ReportPicker
+              reports={p.reports}
+              date={p.date}
+              onPick={p.onPick}
+              unknownDate={p.unknownDate}
+              lastRun={p.lastRun}
+            />
             <div className="text-sm" data-testid="night-shift-report">
               {p.reportError !== null && (
                 <p className="text-slate-500">Report unavailable: {p.reportError}</p>

@@ -28,7 +28,7 @@ from server.nightly import NightlyCache
 from server.gitwriter import DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
 from server.watcher import DEFAULT_WATCH_MS, Watcher
 from server.models import (Count, Dependency, Glossary, Health, Membership, NightShiftQuestion,
-                           NightShiftReport, NightShiftSummary, Project, Runbook, Task, TaskDetail, User)
+                           NightShiftReport, NightShiftRun, NightShiftSummary, Project, Runbook, Task, TaskDetail, User)
 
 log = logging.getLogger("jugglebot_map")
 
@@ -410,6 +410,10 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
     @r.get("/night-shift/reports", response_model=List[NightShiftReport])
     def night_reports() -> Any:
         return nightshift.list_reports(cfg.repo_root)
+
+    @r.get("/night-shift/runs", response_model=List[NightShiftRun])
+    def night_runs() -> Any:
+        return nightshift.list_runs(cfg.repo_root)
 
     @r.get("/night-shift/reports/{date}")
     def night_report(date: str) -> Any:

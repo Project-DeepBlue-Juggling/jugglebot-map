@@ -32,6 +32,23 @@ Should the night shift fix leg 3 first?
 """
 
 
+TABLES = """
+## Merged to main
+| Item | What it was | What changed | Commits |
+|---|---|---|---|
+| BUG-12 | a | b | abc |
+| IDEA-3 | a | b | def |
+
+## Held
+| Item | What it is | Respond in |
+|---|---|---|
+| BUG-80 | a | none |
+
+## Questions for the Operator
+none
+"""
+
+
 @pytest.fixture
 def ns_repo(tmp_path, git_env):  # noqa: F811
     repo = make_repo(str(tmp_path / "repo"))
@@ -69,7 +86,8 @@ def test_reports_newest_first_and_body(c):
     reps = c.get(NS + "/reports").json()
     assert [r["date"] for r in reps] == ["2026-10-31", "2026-10-30"]
     assert reps[0] == {"date": "2026-10-31", "path": "docs/night-shift/2026-10-31.md",
-                       "title": "Night Shift 2026-10-31"}
+                       "title": "Night Shift 2026-10-31", "merged": 0, "held": 0,
+                       "questions": 0, "status": "OK"}
     r = c.get(NS + "/reports/2026-10-30")
     assert r.status_code == 200 and r.headers["content-type"].startswith("text/markdown")
     assert r.text.startswith("# Night Shift 2026-10-30")
@@ -265,3 +283,55 @@ def test_report_questions_table_reads_a_per_kind_ticket_id(ns_repo, git_env):  #
     app = create_app(ns_repo, dist_dir=os.path.join(ns_repo, "no-dist"), git=False, watch=False)
     with TestClient(app) as c:
         _check_answer_column(c, path, short)
+
+
+def test_list_counts_and_stub_status(ns_repo, c):
+    d = os.path.join(ns_repo, "docs", "night-shift")
+    with open(os.path.join(d, "2026-11-01.md"), "w") as fh:
+        fh.write("# Night Shift 2026-11-01\n" + TABLES)
+    with open(os.path.join(d, "2026-11-02.md"), "w") as fh:
+        fh.write("# Night Shift 2026-11-02\n\n**Summary.** The night did not finish: status "
+                 "CLAUDE_FAILED. The runner wrote this page.\n\n## Merged to main\n"
+                 "none recorded (the orchestrator stopped before reporting)\n\n## Held\nnone\n")
+    reps = {r["date"]: r for r in c.get(NS + "/reports").json()}
+    assert (reps["2026-11-01"]["merged"], reps["2026-11-01"]["held"],
+            reps["2026-11-01"]["questions"], reps["2026-11-01"]["status"]) == (2, 1, 0, "OK")
+    assert (reps["2026-11-02"]["merged"], reps["2026-11-02"]["held"],
+            reps["2026-11-02"]["status"]) == (0, 0, "CLAUDE_FAILED")
+
+
+def test_report_counts_cached_by_mtime_and_null_when_unparsable(ns_repo, monkeypatch):
+    from server import nightshift
+    p = os.path.join(ns_repo, "docs", "night-shift", "2026-10-31.md")
+    with open(p, "a") as fh:
+        fh.write(TABLES)
+    assert nightshift.report_counts(p)["merged"] == 2
+    with open(p, "a") as fh:
+        fh.write("| FEAT-9 | extra |\n")  # still inside Questions: counted there, size moved
+    assert nightshift.report_counts(p)["questions"] == 1
+    assert nightshift.report_counts(os.path.join(ns_repo, "docs", "night-shift", "nope.md")) is None
+    from mapkit import night_shift_report as nsr
+
+    def boom(text):
+        raise ValueError("unparsable")
+
+    monkeypatch.setattr(nsr, "parse_report", boom)
+    with open(p, "a") as fh:
+        fh.write("\n")
+    assert nightshift.report_counts(p) is None  # parser refuses: null, not a crash
+
+
+def test_runs_missing_file_is_empty(c):
+    assert c.get(NS + "/runs").json() == []
+
+
+def test_runs_skips_malformed_lines_and_tolerates_missing_keys(ns_repo, c):
+    hist = os.path.join(ns_repo, "docs", "night-shift", "history.jsonl")
+    with open(hist, "w") as fh:
+        fh.write('{"date": "2026-11-12", "status": "NOTHING_NEW", "detail": "d", "cost_usd": 1.5}\n')
+        fh.write("not json\n[1, 2]\n{\"status\": \"OK\"}\n\n")
+        fh.write('{"date": "2026-11-13", "status": "OK"}\n')
+    runs = c.get(NS + "/runs").json()
+    assert [r["date"] for r in runs] == ["2026-11-13", "2026-11-12"]
+    assert runs[0] == {"date": "2026-11-13", "status": "OK", "detail": None}
+    assert runs[1]["cost_usd"] == 1.5

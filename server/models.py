@@ -172,6 +172,18 @@ class NightShiftReport(_Strict):
     date: str
     path: str
     title: str
+    merged: Optional[int] = None
+    held: Optional[int] = None
+    questions: Optional[int] = None
+    status: Optional[str] = None
+
+
+class NightShiftRun(BaseModel):
+    """One line of the runner's history; fields follow last_run.json and any may be absent."""
+    model_config = ConfigDict(extra="allow")
+    date: str
+    status: Optional[str] = None
+    detail: Optional[str] = None
 
 
 class NightShiftQuestion(_Strict):

@@ -25,6 +25,7 @@ export const qk = {
   nightShift: {
     reports: ['night-shift', 'reports'] as const,
     report: (date: string) => ['night-shift', 'reports', date] as const,
+    runs: ['night-shift', 'runs'] as const,
     questions: ['night-shift', 'questions'] as const,
     summary: ['night-shift', 'summary'] as const,
   },

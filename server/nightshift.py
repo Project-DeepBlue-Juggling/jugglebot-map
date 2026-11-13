@@ -10,6 +10,7 @@ writer) is shared with the drawer.
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any, Dict, List, Optional
@@ -30,7 +31,44 @@ def _title(path: str, fallback: str) -> str:
     return fallback
 
 
-def list_reports(repo_root: str) -> List[Dict[str, str]]:
+_ITEM_CELL_RE = re.compile(r"^(?:BUG|FEAT|IDEA|PWAY|TKT)-[1-9]\d*$")
+_STATUS_RE = re.compile(r"The night did not finish: status (\S+?)[.:,;]?(?:\s|$)")
+_COUNTS_CACHE: Dict[str, Any] = {}
+
+
+def report_counts(path: str) -> Optional[Dict[str, Any]]:
+    """``{merged, held, questions, status}`` for one report file, or None when unparsable.
+
+    The counts are the Item rows of the three sections (mapkit's ``night_shift_report``
+    row rules, one parser); ``none`` and ``none recorded`` lines are not rows. ``status`` is
+    ``OK`` for a normal report and the runner's status word for a stub. Cached by mtime.
+    """
+    try:
+        st = os.stat(path)
+        key = (st.st_mtime_ns, st.st_size)
+        hit = _COUNTS_CACHE.get(path)
+        if hit is not None and hit[0] == key:
+            return hit[1]
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
+        from mapkit import night_shift_report as nsr
+        parsed = nsr.parse_report(text)
+
+        def n(section: str) -> int:
+            rows = nsr.item_rows(parsed.get(section, []))
+            return sum(1 for r in rows if _ITEM_CELL_RE.match(nsr.cells(r)[0]))
+
+        m = _STATUS_RE.search(text)
+        out: Optional[Dict[str, Any]] = {
+            "merged": n("Merged to main"), "held": n("Held"),
+            "questions": n("Questions for the Operator"), "status": m.group(1) if m else "OK"}
+    except (OSError, ImportError, ValueError, IndexError):
+        return None
+    _COUNTS_CACHE[path] = (key, out)
+    return out
+
+
+def list_reports(repo_root: str) -> List[Dict[str, Any]]:
     d = os.path.join(repo_root, REPORT_DIR)
     try:
         names = os.listdir(d)
@@ -40,9 +78,44 @@ def list_reports(repo_root: str) -> List[Dict[str, str]]:
     for n in sorted(names, reverse=True):
         m = _FILE_RE.match(n)
         if m:
+            p = os.path.join(d, n)
+            c = report_counts(p)
             out.append({"date": m.group(1), "path": REPORT_DIR.replace(os.sep, "/") + "/" + n,
-                        "title": _title(os.path.join(d, n), "Night Shift " + m.group(1))})
+                        "title": _title(p, "Night Shift " + m.group(1)),
+                        "merged": c["merged"] if c else None, "held": c["held"] if c else None,
+                        "questions": c["questions"] if c else None,
+                        "status": c["status"] if c else None})
     return out
+
+
+HISTORY_FILE = os.path.join("docs", "night-shift", "history.jsonl")
+_RUN_KEYS = ("date", "status", "detail", "started", "finished", "duration_s", "cost_usd",
+             "main_commits_n", "delta", "unchanged", "preflight", "result")
+
+
+def list_runs(repo_root: str) -> List[Dict[str, Any]]:
+    """The runner's ``docs/night-shift/history.jsonl`` rows, newest date first.
+
+    Fields follow ``last_run.json``; a missing file is ``[]``, a malformed or non-object line is
+    skipped, and every row keeps only the keys it has (the reader tolerates absent ones).
+    A row carries ``date`` as a string or it is dropped.
+    """
+    try:
+        with open(os.path.join(repo_root, HISTORY_FILE), encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return []
+    rows: List[Dict[str, Any]] = []
+    for line in lines:
+        try:
+            obj = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(obj, dict) or not isinstance(obj.get("date"), str):
+            continue
+        rows.append({k: obj[k] for k in _RUN_KEYS if k in obj})
+    rows.sort(key=lambda r: r["date"], reverse=True)
+    return rows
 
 
 def read_report(repo_root: str, date: str) -> Optional[str]:

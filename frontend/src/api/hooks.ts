@@ -201,6 +201,11 @@ export function useNightShiftReports() {
   return useQuery({ queryKey: qk.nightShift.reports, queryFn: () => api.getNightShiftReports() });
 }
 
+export function useNightShiftRuns() {
+  const api = useApi();
+  return useQuery({ queryKey: qk.nightShift.runs, queryFn: () => api.getNightShiftRuns() });
+}
+
 export function useNightShiftReport(date: string | null) {
   const api = useApi();
   return useQuery({

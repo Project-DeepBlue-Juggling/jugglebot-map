@@ -14,6 +14,7 @@ import {
   SheetList,
   SheetResults,
   NightShiftReportList,
+  NightShiftRunList,
   NightShiftSummary,
   Project,
   ProjectList,
@@ -137,6 +138,7 @@ export function createApiClient(auth: AuthClient) {
     // -- Night Shift (reports read-only; an answer is one write through the store)
     getNightShiftReports: () =>
       request('/night-shift/reports', jsonInit('GET'), NightShiftReportList),
+    getNightShiftRuns: () => request('/night-shift/runs', jsonInit('GET'), NightShiftRunList),
     getNightShiftReport: (date: string) =>
       request(`/night-shift/reports/${encodeURIComponent(date)}`, jsonInit('GET'), z.string()),
     getNightShiftQuestions: () =>
