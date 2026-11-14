@@ -612,7 +612,8 @@ class Store:
         if self.read_only:
             raise ApiError(403, {"detail": self.read_only})
 
-    def _commit(self, path: str, title: str, created: bool = False) -> None:
+    def _commit(self, path: str, title: str, created: bool = False, batch: bool = False,
+                step: Optional[int] = None) -> None:
         """After a write: one coalesced ``invalidate`` and a debounced git commit."""
         with self._lock:
             self._ix = None
@@ -621,7 +622,7 @@ class Store:
         elif self._on_change is not None:
             self._on_change()
         if self.writer is not None:
-            self.writer.record(path, title, created=created)
+            self.writer.record(path, title, created=created, batch=batch, step=step)
 
     # --- tasks: create / update / delete -----------------------------------
     def create(self, body: Dict[str, Any], user: str = "harrison") -> Dict[str, Any]:

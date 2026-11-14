@@ -27,7 +27,18 @@ Safety rules, each pinned by a test:
   the server serves read-only under a warning banner;
 * a ``map/`` file left dirty by a process that died inside the debounce is
   committed at start (an untracked one counts as an unpushed new Item);
-* any failure in the flush, the short-ID renumber included, sets the banner.
+* any failure in the flush, the short-ID renumber included, sets the banner;
+* a Sitting sheet's results file is written in BATCH mode (``record(..., batch=True)``): it arms
+  ``batch_ms`` (20 minutes) of idleness instead of the short debounce, so a Sitting's per-step
+  saves become one commit, ``map: Sitting sheet <name> steps a-b``. The batch flushes on 20
+  minutes idle, on :meth:`flush_async` (the app calls it when a save completes a Launch group), on
+  ``POST /sheets/<name>/close`` (End Sitting), when ANY other flush runs (the flush takes every
+  pending path), at shutdown and, for a file left dirty, at start. A flush commits the sheet files
+  FIRST, each under its own subject, so an Item edit that triggers the flush never commits them
+  under its title. The files live in ``map/sheets/`` and the commit is pathspec-limited to them.
+  The auto-pull (``pull.sh``, ``--ff-only``) with a dirty results file still fast-forwards,
+  because only this writer edits that file and an incoming commit never carries it; a refusal
+  retries on the next timer tick, and the flush's own ``pull --rebase`` runs on a clean tree.
 
 The generated pages (``docs/project-map.md``, ``docs/glossary.md``) are
 regenerated AFTER the rebase and committed on top as their own ``map-bot``
@@ -61,6 +72,7 @@ BOT_EMAIL = "map-bot@jugglebot.local"
 BRANCH = "main"
 REMOTE = "origin"
 DEFAULT_DEBOUNCE_MS = 5000
+DEFAULT_BATCH_MS = 20 * 60 * 1000  # a Sitting sheet's results: idle time before the batch commits
 SUBJECT_MAX = 72
 GIT_TIMEOUT_S = 60.0
 STDERR_TAIL = 400
@@ -71,6 +83,22 @@ REGEN_SUBJECT = "map: regenerate project-map page"
 
 def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _is_results(rel: str) -> bool:
+    return rel.endswith(".results.yaml") and "/sheets/" in "/" + rel
+
+
+def _sheet_name(rel: str) -> str:
+    return os.path.basename(rel)[:-len(".results.yaml")]
+
+
+def batch_title(name: str, steps: "set") -> str:
+    """``Sitting sheet <name> steps a-b`` (``step a`` for one; no range when none is known)."""
+    if not steps:
+        return "Sitting sheet %s" % name
+    lo, hi = min(steps), max(steps)
+    return "Sitting sheet %s %s" % (name, "step %d" % lo if lo == hi else "steps %d-%d" % (lo, hi))
 
 
 class Banner:
@@ -125,7 +153,8 @@ def has_origin(repo_root: str) -> bool:
 class GitWriter:
     def __init__(self, repo_root: str, banner: Banner, items_rel: str = "map",
                  debounce_ms: int = DEFAULT_DEBOUNCE_MS, lock: Optional[Any] = None,
-                 on_repair: Optional[Callable[[], None]] = None) -> None:
+                 on_repair: Optional[Callable[[], None]] = None,
+                 batch_ms: int = DEFAULT_BATCH_MS) -> None:
         self.repo_root = repo_root
         self._on_repair = on_repair  # the store's invalidate: renumbered / now-pushed tiles refetch
         # Stems of the Items this clone created and has not pushed: their short ID is
@@ -139,6 +168,9 @@ class GitWriter:
         self._plock = threading.Lock()
         self._flock = threading.Lock()  # one flush at a time
         self._debounce = Debouncer(debounce_ms / 1000.0, self.flush, name="map-git")
+        self._batch_debounce = Debouncer(batch_ms / 1000.0, self.flush, name="map-git-batch")
+        # rel path of a batched results file -> the steps saved since its last commit
+        self._batch_steps: "Dict[str, set]" = {}
         self.enabled = False
         self.attempts = 0
         self.successes = 0
@@ -194,7 +226,9 @@ class GitWriter:
         with self._plock:
             self._unpushed = set(self._own_unpushed())  # left by a previous process
             for rel, (title, added) in left.items():
-                if added:
+                if _is_results(rel):
+                    self._batch_steps.setdefault(rel, set())  # a recovered batch: no step range known
+                elif added:
                     self._unpushed.add(os.path.basename(rel)[:-3])
                 self._pending.setdefault(rel, title)
         if left:
@@ -244,12 +278,16 @@ class GitWriter:
 
     def stop(self) -> None:
         self._debounce.close()
+        self._batch_debounce.close()
 
     # --- intake ---------------------------------------------------------------
-    def record(self, path: str, title: str, created: bool = False) -> None:
+    def record(self, path: str, title: str, created: bool = False, batch: bool = False,
+               step: Optional[int] = None) -> None:
         """An API edit touched ``path`` (absolute); commit it ``debounce_ms`` after the last one.
 
-        ``created``: the edit filed a new Item, which stays "unsent" until a push lands."""
+        ``created``: the edit filed a new Item, which stays "unsent" until a push lands.
+        ``batch``: a Sitting sheet's results file; ``step`` is the step just saved. Arms the
+        ``batch_ms`` idle timer instead of the short debounce (see the module doc)."""
         if not self.enabled:
             return
         rel = os.path.relpath(path, self.repo_root).replace(os.sep, "/")
@@ -258,7 +296,20 @@ class GitWriter:
                 self._unpushed.add(os.path.basename(rel)[:-3])
             self._pending.pop(rel, None)
             self._pending[rel] = title or rel
-        self._debounce.trigger()
+            if batch:
+                steps = self._batch_steps.setdefault(rel, set())
+                if step is not None:
+                    steps.add(int(step))
+        if batch:
+            self._batch_debounce.trigger()
+        else:
+            self._debounce.trigger()
+
+    def flush_async(self) -> None:
+        """Flush on a worker thread (a Launch group just completed); the caller is not held for
+        the push."""
+        t = threading.Thread(target=self.flush, name="map-git-flush", daemon=True)
+        t.start()
 
     def unpushed(self) -> "frozenset[str]":
         """Stems of own Items not yet on ``origin/main`` (see :meth:`record`)."""
@@ -268,7 +319,8 @@ class GitWriter:
     def idle(self) -> bool:
         with self._plock:
             empty = not self._pending
-        return empty and not self._debounce.pending() and not self._flock.locked()
+        return (empty and not self._debounce.pending() and not self._batch_debounce.pending()
+                and not self._flock.locked())
 
     # --- the flush ------------------------------------------------------------
     def flush(self) -> bool:
@@ -277,18 +329,25 @@ class GitWriter:
             return False
         with self._flock:
             self.attempts += 1
+            self._batch_debounce.cancel()
             try:
                 with self._store_lock:
                     with self._plock:
-                        titles = list(OrderedDict.fromkeys(self._pending.values()))
+                        batch = {rel: self._batch_steps.pop(rel) for rel in list(self._batch_steps)}
+                        titles = list(OrderedDict.fromkeys(
+                            t for rel, t in self._pending.items() if rel not in batch))
                         self._pending.clear()
                         self._sending = set(self._unpushed)
                     try:
+                        self._commit_batches(batch)
                         self._commit(titles)
                     except GitError:
                         with self._plock:  # keep the titles for the retry's message
                             for t in titles:
                                 self._pending.setdefault("retry:" + t, t)
+                            for rel, steps in batch.items():
+                                self._batch_steps.setdefault(rel, set()).update(steps)
+                                self._pending.setdefault(rel, "Sitting sheet " + _sheet_name(rel))
                         raise
                     if not self._ahead():
                         self._ok()
@@ -323,6 +382,17 @@ class GitWriter:
         self.successes += 1
         self.last_error = None
         self.banner.clear()
+
+    def _commit_batches(self, batch: "Dict[str, set]") -> None:
+        """One commit per batched results file, pathspec-limited to it, subject
+        ``map: Sitting sheet <name> steps a-b``. Runs before :meth:`_commit` so the generic sweep
+        of ``map/`` never takes a sheet under an Item's title."""
+        for rel, steps in batch.items():
+            self._git("add", "-A", "--", rel, op="git add")
+            if self._git("diff", "--cached", "--quiet", "--", rel, check=False).returncode == 0:
+                continue  # already committed (a retry), or never changed
+            msg = subject([batch_title(_sheet_name(rel), steps)])
+            self._git("commit", "--quiet", "-m", msg, "--", rel, op="git commit", bot=True)
 
     def _commit(self, titles: List[str]) -> None:
         self._git("add", "-A", "--", self.items_rel, op="git add")

@@ -11,18 +11,16 @@ import {
 } from 'react';
 import clsx from 'clsx';
 import {
-  VERDICTS,
   type Sheet,
   type SheetServe,
   type SheetStep,
   type SheetStepResult,
   type SheetVerdictResult,
   type SheetStepBody,
-  type Verdict,
 } from '../../api/schemas';
 import { copyText } from './copyText';
 import { rowRenderProbe } from './rowRenderProbe';
-import { VERDICT_COLOUR, VERDICT_HINT, VERDICT_LABEL } from './verdictLabels';
+import { VERDICT_COLOUR } from './verdictLabels';
 
 export interface SheetViewProps {
   sheet: Sheet;
@@ -36,7 +34,8 @@ export interface SheetViewProps {
 /** What the operator has typed on one step and not saved yet. */
 interface Draft {
   comments: string;
-  verdicts: Record<string, { verdict: Verdict | null; notes: string }>;
+  /** Notes per Item. The sheet records notes only; the debrief derives the verdict from the logs. */
+  verdicts: Record<string, { notes: string }>;
 }
 
 type SavedVerdicts = Record<string, SheetVerdictResult>;
@@ -56,13 +55,6 @@ const KIND_CHIP: Record<string, string> = {
 };
 const tiny =
   'rounded border border-slate-300 px-1.5 text-[11px] leading-5 hover:bg-slate-100 disabled:opacity-50 dark:border-slate-600 dark:hover:bg-slate-700';
-const verdictBtn = (on: boolean) =>
-  clsx(
-    'rounded border px-1.5 text-[11px] leading-5 disabled:opacity-60',
-    on
-      ? 'border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900'
-      : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700',
-  );
 const textarea =
   'w-full rounded border border-slate-300 bg-white p-1 text-xs dark:border-slate-600 dark:bg-slate-900';
 
@@ -168,30 +160,24 @@ function savedDraft(
   for (const sv of step.serves) {
     if (!sv.verdict) continue;
     const v = verdicts?.[sv.item];
-    out.verdicts[sv.item] = {
-      verdict:
-        v !== undefined && (VERDICTS as readonly string[]).includes(v.verdict)
-          ? (v.verdict as Verdict)
-          : null,
-      notes: v?.notes ?? '',
-    };
+    out.verdicts[sv.item] = { notes: v?.notes ?? '' };
   }
   return out;
 }
 
 const verdictItems = (step: SheetStep) => step.serves.filter((s) => s.verdict);
-/** Done = a simple step ticked done or skipped, or a verdict step with a saved verdict for every Item. */
+/**
+ * Done = a step ticked done or skipped, or a verdict step whose notes were saved. A verdict step
+ * is completable either way, so no step waits on a verdict the operator no longer chooses.
+ */
 function isDone(
   saved: SheetStepResult | undefined,
   verdicts: SavedVerdicts | undefined,
   step: SheetStep,
 ): boolean {
-  const vr = verdictItems(step);
-  if (vr.length === 0) {
-    const s = saved?.status;
-    return s === 'done' || s === 'skipped';
-  }
-  return vr.every((sv) => verdicts?.[sv.item] !== undefined);
+  const s = saved?.status;
+  if (s === 'done' || s === 'skipped') return true;
+  return verdictItems(step).some((sv) => verdicts?.[sv.item] !== undefined);
 }
 const savedAtOf = (
   saved: SheetStepResult | undefined,
@@ -253,13 +239,12 @@ const StepRow = memo(function StepRow({
   const onSave = async (s?: StepStatus) => {
     const body: Omit<SheetStepBody, 'date' | 'time'> = { comments: draft.comments };
     if (verdictItems(step).length > 0) {
-      const verdicts: Record<string, { verdict: Verdict; notes: string }> = {};
+      const verdicts: Record<string, { notes: string }> = {};
       for (const [item, v] of Object.entries(draft.verdicts))
-        if (v.verdict !== null) verdicts[item] = { verdict: v.verdict, notes: v.notes };
-      body.verdicts = verdicts;
-    } else if (s !== undefined) {
-      body.status = s;
+        if (v.notes.trim() !== '') verdicts[item] = { notes: v.notes };
+      if (Object.keys(verdicts).length > 0) body.verdicts = verdicts;
     }
+    if (s !== undefined) body.status = s;
     setSaving(true);
     try {
       const ok = await onSaveStep(step.n, body);
@@ -277,23 +262,11 @@ const StepRow = memo(function StepRow({
   const status = saved?.status ?? null;
   const priorVerdicts = savedVerdicts ?? {};
   const savedAt = savedAtOf(saved, savedVerdicts);
-  const ready =
-    draft.comments.trim() !== '' || Object.values(draft.verdicts).some((v) => v.verdict !== null);
-  const hasComment =
-    draft.comments.trim() !== '' ||
-    Object.values(draft.verdicts).some((v) => v.notes.trim() !== '');
-  const setVerdict = (item: string, patch: Partial<{ verdict: Verdict; notes: string }>) =>
-    onDraft({
-      ...draft,
-      verdicts: {
-        ...draft.verdicts,
-        [item]: {
-          verdict: draft.verdicts[item]?.verdict ?? null,
-          notes: draft.verdicts[item]?.notes ?? '',
-          ...patch,
-        },
-      },
-    });
+  const hasNotes = Object.values(draft.verdicts).some((v) => v.notes.trim() !== '');
+  const ready = draft.comments.trim() !== '' || hasNotes;
+  const hasComment = ready;
+  const setNotes = (item: string, notes: string) =>
+    onDraft({ ...draft, verdicts: { ...draft.verdicts, [item]: { notes } } });
   const statusBtn = (s: StepStatus, text: string, tip: string, on: string) => (
     <button
       type="button"
@@ -321,9 +294,8 @@ const StepRow = memo(function StepRow({
       onKeyDown={(e) => {
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !saving) {
           e.preventDefault();
-          if (isVerdict) {
-            if (ready) void onSave();
-          } else if (status === 'done' || status === 'problem' || status === 'skipped')
+          if (isVerdict && ready) void onSave();
+          else if (status === 'done' || status === 'problem' || status === 'skipped')
             void onSave(status);
         }
       }}
@@ -346,17 +318,13 @@ const StepRow = memo(function StepRow({
         ) : (
           <span className="w-6 text-right font-mono text-[11px] text-slate-500">{step.n}</span>
         )}
-        {!isVerdict && (
-          <>
-            {statusBtn('done', '✓', 'Done', 'border-emerald-600 bg-emerald-600 text-white')}
-            {statusBtn('problem', '!', 'Problem', 'border-red-600 bg-red-600 text-white')}
-            {statusBtn(
-              'skipped',
-              '–',
-              'Skipped (not flown this Sitting)',
-              'border-slate-500 bg-slate-500 text-white',
-            )}
-          </>
+        {statusBtn('done', '✓', 'Done', 'border-emerald-600 bg-emerald-600 text-white')}
+        {statusBtn('problem', '!', 'Problem', 'border-red-600 bg-red-600 text-white')}
+        {statusBtn(
+          'skipped',
+          '–',
+          'Skipped (not flown this Sitting)',
+          'border-slate-500 bg-slate-500 text-white',
         )}
         <button
           type="button"
@@ -449,41 +417,33 @@ const StepRow = memo(function StepRow({
         )}
         {isVerdict &&
           verdictRows.map((sv) => {
-            const d = draft.verdicts[sv.item] ?? { verdict: null, notes: '' };
             const prior = priorVerdicts[sv.item];
             return (
-              <div
-                key={sv.item}
-                data-testid="verdict-row"
-                className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5"
-              >
-                <span className="font-mono font-semibold">{sv.item}</span>
-                <span className={clsx('min-w-0', muted)}>
-                  passes when: {sv.pass_text ?? '(the Item is gone)'}
-                </span>
-                <span className="inline-flex gap-1">
-                  {VERDICTS.map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      disabled={saving}
-                      aria-pressed={d.verdict === v}
-                      aria-label={`${VERDICT_LABEL[v]} ${sv.item}`}
-                      title={VERDICT_HINT[v]}
-                      onClick={() => setVerdict(sv.item, { verdict: v })}
-                      className={verdictBtn(d.verdict === v)}
-                    >
-                      {VERDICT_LABEL[v]}
-                    </button>
-                  ))}
-                </span>
-                {prior !== undefined && (
-                  <span
-                    className={clsx('text-[11px] font-semibold', VERDICT_COLOUR[prior.verdict])}
-                  >
-                    saved: {prior.verdict}
+              <div key={sv.item} data-testid="verdict-row" className="flex flex-col gap-0.5">
+                <div className="flex flex-wrap items-center gap-x-1.5">
+                  <span className="font-mono font-semibold">{sv.item}</span>
+                  <span className={clsx('min-w-0', muted)}>
+                    passes when: {sv.pass_text ?? '(the Item is gone)'}
                   </span>
-                )}
+                  {prior?.verdict !== undefined && (
+                    <span
+                      data-testid="legacy-verdict"
+                      title="Chosen at the robot before the sheet recorded notes only"
+                      className={clsx('text-[11px] font-semibold', VERDICT_COLOUR[prior.verdict])}
+                    >
+                      saved verdict: {prior.verdict}
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  aria-label={`Notes for ${sv.item}`}
+                  placeholder={`Notes for ${sv.item}`}
+                  value={draft.verdicts[sv.item]?.notes ?? ''}
+                  readOnly={saving}
+                  onChange={(e) => setNotes(sv.item, e.target.value)}
+                  rows={2}
+                  className={textarea}
+                />
               </div>
             );
           })}
@@ -502,19 +462,6 @@ const StepRow = memo(function StepRow({
         )}
         {commentOpen && (
           <div data-testid="comment-panel" className="mt-1 flex flex-col gap-1">
-            {isVerdict &&
-              verdictRows.map((sv) => (
-                <textarea
-                  key={sv.item}
-                  aria-label={`Notes for ${sv.item}`}
-                  placeholder={`Notes for ${sv.item}`}
-                  value={draft.verdicts[sv.item]?.notes ?? ''}
-                  readOnly={saving}
-                  onChange={(e) => setVerdict(sv.item, { notes: e.target.value })}
-                  rows={2}
-                  className={textarea}
-                />
-              ))}
             <textarea
               aria-label={`Comments for step ${step.n}`}
               placeholder="Comments"

@@ -61,7 +61,8 @@ def test_list_and_get(c):
     rows = c.get("/api/v1/sheets").json()["sheets"]
     assert [(r["name"], r["rig"], r["steps"], r["saved"]) for r in rows] == [(NAME, "robot", 3, 0)]
     data = c.get("/api/v1/sheets/" + NAME).json()
-    assert data["name"] == NAME and data["results"] == {"schema": 1, "steps": {}, "verdicts": {}}
+    assert data["name"] == NAME and data["results"] == {"schema": 2, "steps": {}, "verdicts": {}, "derived": {},
+                                                  "confirmed": None, "closed": None}
     assert isinstance(data["check_errors"], list)
     assert isinstance(data["state_help"], dict)
     s1, s2, s3 = data["steps"]
@@ -87,44 +88,53 @@ def test_save_status_step(c, rb_repo):
     assert c.get("/api/v1/sheets/" + NAME).json()["results"]["steps"]["1"]["status"] == "done"
 
 
-def test_save_verdict_step_writes_item(c, rb_repo):
+def test_save_notes_step_writes_no_item(c, rb_repo):
     r = c.post("/api/v1/sheets/%s/steps/2" % NAME, json={
-        "verdicts": {"BUG-1": {"verdict": "pass", "notes": "clean"}}, "comments": "fine",
+        "verdicts": {"BUG-1": {"notes": "clean"}}, "comments": "fine",
         "date": "2026-11-10", "time": "10:30"})
     assert r.status_code == 200, r.text
-    assert r.json()["verdicts"]["2"]["BUG-1"]["verdict"] == "pass"
-    text = open(os.path.join(rb_repo, "map", "bug-lvl.md")).read()
-    assert text.count("## Sitting result (2026-11-10") == 1
-    assert "clean (sheet %s, step 2)" % NAME in text
-    assert os.path.exists(_res_path(rb_repo))
-    again = c.post("/api/v1/sheets/%s/steps/2" % NAME, json={
-        "verdicts": {"BUG-1": {"verdict": "fail", "notes": ""}}, "date": "2026-11-10"})
-    assert again.status_code == 200
-    assert open(os.path.join(rb_repo, "map", "bug-lvl.md")).read().count("## Sitting result") == 2
+    box = r.json()["verdicts"]["2"]["BUG-1"]
+    assert box == {"notes": "clean", "saved_at": "2026-11-10 10:30"}
+    assert "## Sitting result" not in open(os.path.join(rb_repo, "map", "bug-lvl.md")).read()
+    assert yaml.safe_load(open(_res_path(rb_repo)))["schema"] == 2
 
 
-def test_unchanged_verdict_resave_adds_no_item_result(c, rb_repo):
-    body = {"verdicts": {"BUG-1": {"verdict": "pass", "notes": "clean"}}, "date": "2026-11-10", "time": "10:30"}
-    assert c.post("/api/v1/sheets/%s/steps/2" % NAME, json=body).status_code == 200
-    again = c.post("/api/v1/sheets/%s/steps/2" % NAME, json=dict(body, comments="comment added later"))
-    assert again.status_code == 200
-    assert again.json()["steps"]["2"]["comments"] == "comment added later"
-    assert open(os.path.join(rb_repo, "map", "bug-lvl.md")).read().count("## Sitting result") == 1
+def test_verdict_is_refused_notes_only(c, rb_repo):
+    r = c.post("/api/v1/sheets/%s/steps/2" % NAME, json={
+        "verdicts": {"BUG-1": {"verdict": "pass", "notes": ""}}, "date": "2026-11-10"})
+    assert r.status_code == 422 and "notes only" in r.text
+    assert not os.path.exists(_res_path(rb_repo))
+
+
+def test_verdict_step_can_be_marked_done_without_notes(c, rb_repo):
+    r = c.post("/api/v1/sheets/%s/steps/2" % NAME, json={"status": "done", "date": "2026-11-10"})
+    assert r.status_code == 200
+    assert r.json()["steps"]["2"]["status"] == "done"
+
+
+def test_schema_1_results_still_load_and_render(c, rb_repo):
+    old = {"schema": 1, "steps": {1: {"status": "done", "comments": "", "saved_at": "2026-11-10 09:00"}},
+           "verdicts": {2: {"BUG-1": {"verdict": "pass", "notes": "old", "saved_at": "2026-11-10 09:05"}}}}
+    with open(_res_path(rb_repo), "w") as fh:
+        yaml.safe_dump(old, fh)
+    data = c.get("/api/v1/sheets/" + NAME).json()
+    assert data["results"]["schema"] == 1
+    assert data["results"]["verdicts"]["2"]["BUG-1"]["verdict"] == "pass"
+    assert c.get("/api/v1/sheets").json()["sheets"][0]["saved"] == 2
 
 
 def test_impossible_date_is_a_refusal_and_writes_nothing(c, rb_repo):
     r = c.post("/api/v1/sheets/%s/steps/2" % NAME, json={
-        "verdicts": {"BUG-1": {"verdict": "pass", "notes": ""}}, "date": "2026-13-45"})
+        "verdicts": {"BUG-1": {"notes": ""}}, "date": "2026-13-45"})
     assert r.status_code == 422
     assert not os.path.exists(_res_path(rb_repo))
     assert "## Sitting result" not in open(os.path.join(rb_repo, "map", "bug-lvl.md")).read()
 
 
 @pytest.mark.parametrize("n,body", [
-    (1, {"verdicts": {"BUG-1": {"verdict": "pass", "notes": ""}}}),   # a verdict on a step with none
-    (2, {"status": "done"}),                                         # a status on a verdict step
-    (2, {"verdicts": {"BUG-9": {"verdict": "pass", "notes": ""}}}),  # an unknown Item
-    (2, {"verdicts": {"BUG-1": {"verdict": "great", "notes": ""}}}),
+    (1, {"verdicts": {"BUG-1": {"notes": ""}}}),                     # notes on a step with none
+    (2, {}),                                                         # nothing to save
+    (2, {"verdicts": {"BUG-9": {"notes": ""}}}),                     # an unknown Item
     (1, {"status": "maybe"}),
     (9, {"status": "done"}),                                         # no such step
 ])

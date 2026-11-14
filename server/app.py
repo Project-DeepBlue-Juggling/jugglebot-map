@@ -8,6 +8,7 @@ with ``Accept: text/html``) to a non-``/api/`` path is answered with the SPA's
 """
 from __future__ import annotations
 
+import datetime
 import hashlib
 import logging
 import os
@@ -19,13 +20,14 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.concurrency import run_in_threadpool
 
 from server.config import MapConfig, setup
 from server.events import Broker
 from server.history import HistoryCache
 from server import nightshift
 from server.nightly import NightlyCache
-from server.gitwriter import DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
+from server.gitwriter import DEFAULT_BATCH_MS, DEFAULT_DEBOUNCE_MS, Banner, GitWriter, has_origin
 from server.watcher import DEFAULT_WATCH_MS, Watcher
 from server.models import (Count, Dependency, Glossary, Health, Membership, NightShiftQuestion,
                            NightShiftReport, NightShiftRun, NightShiftSummary, Project, Runbook, Task, TaskDetail, User)
@@ -91,16 +93,30 @@ async def _json_body(request: Request) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _ends_launch_group(sheet: Dict[str, Any], n: int) -> bool:
+    """True when step ``n`` is the last of its Launch group: the next step starts a launch, or
+    there is no next step (a group is a ``new_launch`` step and the steps up to the next one)."""
+    steps = [s for s in sheet.get("steps") or [] if isinstance(s, dict)]
+    for i, st in enumerate(steps):
+        if st.get("n") == n:
+            return i + 1 >= len(steps) or steps[i + 1].get("new_launch") is True
+    return False
+
+
 def _results_json(results: Dict[str, Any]) -> Dict[str, Any]:
     """Results with step numbers as JSON string keys (YAML keeps them ints)."""
     return {"schema": results.get("schema"),
             "steps": {str(k): v for k, v in (results.get("steps") or {}).items()},
-            "verdicts": {str(k): v for k, v in (results.get("verdicts") or {}).items()}}
+            "verdicts": {str(k): v for k, v in (results.get("verdicts") or {}).items()},
+            # the debrief's, absent until it runs: derived[n][ID] = {verdict, evidence, criterion, by}
+            "derived": {str(k): v for k, v in (results.get("derived") or {}).items()},
+            "confirmed": results.get("confirmed"), "closed": results.get("closed")}
 
 
 def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str] = None,
                git: Optional[bool] = None, debounce_ms: int = DEFAULT_DEBOUNCE_MS,
-               watch_ms: int = DEFAULT_WATCH_MS, watch: bool = True) -> FastAPI:
+               watch_ms: int = DEFAULT_WATCH_MS, watch: bool = True,
+               batch_ms: int = DEFAULT_BATCH_MS) -> FastAPI:
     """``git``: None = on when the checkout has an ``origin`` remote (``--no-git`` = False).
 
     The watcher and the git writer start with the app's lifespan (uvicorn, or a
@@ -123,7 +139,7 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         items_rel = os.path.relpath(cfg.items_dir, cfg.repo_root).replace(os.sep, "/")
         writer = GitWriter(cfg.repo_root, banner, items_rel=items_rel,
                            debounce_ms=debounce_ms, lock=store._lock,
-                           on_repair=store.invalidate)
+                           on_repair=store.invalidate, batch_ms=batch_ms)
         if writer.start():
             store.writer = writer
         else:
@@ -519,11 +535,10 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
 
     @r.post("/sheets/{name}/steps/{n}")
     async def sheets_save_step(name: str, n: int, request: Request) -> Any:
-        """Save step ``n``'s boxes: validate, write each verdict to its Item, then the results file."""
-        import inspect
+        """Save step ``n``'s notes into the results file. Notes only: no verdict, and nothing is
+        written into an Item (the debrief derives verdicts from the logs; C9). The results file's
+        commit is batched; saving the step that completes a Launch group flushes it."""
         from mapkit import sheet as sheetlib
-        from mapkit import sitting
-        from mapkit.sitting import append_sitting_result
         body = await _json_body(request)
         date, time = body.get("date"), body.get("time")
         if not isinstance(date, str) or not nightshift.DATE_RE.match(date):
@@ -538,12 +553,9 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
         if not isinstance(verdicts, dict) or not all(
                 isinstance(k, str) and isinstance(v, dict) and isinstance(v.get("notes", ""), str)
                 for k, v in verdicts.items()):
-            raise ApiError(422, {"detail": "verdicts must map an Item ID to {verdict, notes}"})
-        kwargs: Dict[str, Any] = {}
-        if time is not None and "time" in inspect.signature(append_sitting_result).parameters:
-            kwargs["time"] = time
-        try:  # the range check only append_sitting_result knows, before anything is written
-            append_sitting_result("", date, "pending", "", **kwargs)
+            raise ApiError(422, {"detail": "verdicts must map an Item ID to {notes}"})
+        try:  # the range check, before anything is written
+            datetime.date(int(date[:4]), int(date[5:7]), int(date[8:10]))
         except ValueError as exc:
             raise ApiError(422, {"detail": str(exc)})
         with store._lock:
@@ -556,27 +568,26 @@ def create_app(repo: Union[str, MapConfig, None] = None, dist_dir: Optional[str]
             except sheetlib.SheetError as exc:
                 raise ApiError(422, {"detail": str(exc)})
             ix = store.index()
-            nodes = {}
             for item_id in verdicts:
                 hits = ix.by_short.get(item_id, [])
                 if len(hits) != 1 or hits[0].item is None:
                     raise ApiError(422, {"detail": "%s is not an Item" % item_id})
-                nodes[item_id] = hits[0]
-            for item_id, box in verdicts.items():  # the Item's own Sitting result, as /runbook does
-                # An unchanged verdict is a re-save (a comment edit, a double click, a retry): one
-                # result on the Item, because /sitting-debrief acts on each Item's results.
-                prior = (results.get("verdicts", {}).get(n) or {}).get(item_id) or {}
-                if prior.get("verdict") == box["verdict"] and \
-                        prior.get("notes") == " ".join(str(box.get("notes", "")).split()):
-                    continue
-                node = store._node(store.index(), nodes[item_id].id, write=True)
-                t = store.index().task(node, cfg.repo_root)
-                notes = (str(box.get("notes", "")).strip() + " (sheet %s, step %d)" % (name, n)).strip()
-                store.update(node.id, {"description": append_sitting_result(
-                    t["description"], date, box["verdict"], notes, **kwargs)})
             path = sheetlib.write_results(cfg.repo_root, name, new)
-            store._commit(path, "Sitting sheet %s step %d" % (name, n))
-            return _results_json(new)
+            store._commit(path, "Sitting sheet %s" % name, batch=True, step=n)
+            ends_group = _ends_launch_group(sheet, n)
+            out = _results_json(new)
+        if ends_group and store.writer is not None:
+            store.writer.flush_async()  # a Launch group is done: commit the batch now
+        return out
+
+    @r.post("/sheets/{name}/close")
+    async def sheets_close(name: str) -> Any:
+        """End Sitting: commit and push whatever the batch holds, and answer when it has landed."""
+        _load_sheet_ro(name)  # the 404
+        if store.writer is None:
+            return {"name": name, "flushed": False, "git": False}
+        ok = await run_in_threadpool(store.writer.flush)
+        return {"name": name, "flushed": bool(ok), "git": True, "error": store.writer.last_error}
 
     # --- health and events ----------------------------------------------------
     @r.get("/health", response_model=Health)

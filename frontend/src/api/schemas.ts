@@ -572,16 +572,25 @@ export const SheetStepResult = z.object({
   saved_at: z.string(),
 });
 export type SheetStepResult = z.infer<typeof SheetStepResult>;
+/**
+ * Results schema 2 records notes only; a schema 1 file's entries still carry the verdict the operator
+ * chose, which the sheet shows read-only.
+ */
 export const SheetVerdictResult = z.object({
-  verdict: z.string(),
+  verdict: z.string().optional(),
   notes: z.string(),
   saved_at: z.string(),
 });
 export type SheetVerdictResult = z.infer<typeof SheetVerdictResult>;
 /** Step numbers are JSON string keys here (YAML keeps them ints server-side). */
 export const SheetResults = z.object({
+  schema: z.number().nullish(),
   steps: z.record(z.string(), SheetStepResult),
   verdicts: z.record(z.string(), z.record(z.string(), SheetVerdictResult)),
+  /** The debrief's, absent until it runs. Not rendered during a Sitting. */
+  derived: z.record(z.string(), z.record(z.string(), z.unknown())).nullish(),
+  confirmed: z.object({ at: z.string(), changed: z.array(z.string()) }).nullish(),
+  closed: z.object({ at: z.string(), items: z.array(z.string()) }).nullish(),
 });
 export type SheetResults = z.infer<typeof SheetResults>;
 
@@ -601,7 +610,8 @@ export type Sheet = z.infer<typeof Sheet>;
 export interface SheetStepBody {
   status?: 'done' | 'problem' | 'skipped' | undefined;
   comments?: string | undefined;
-  verdicts?: Record<string, { verdict: Verdict; notes: string }> | undefined;
+  /** Notes only; the debrief derives the verdict from the logs. */
+  verdicts?: Record<string, { notes: string }> | undefined;
   date: string;
   time?: string | undefined;
 }

@@ -56,6 +56,13 @@ class Debouncer:
         with self._lock:
             return self._timer is not None
 
+    def cancel(self) -> None:
+        """Drop an armed timer; later triggers still work (unlike :meth:`close`)."""
+        with self._lock:
+            if self._timer is not None:
+                self._timer.cancel()
+                self._timer = None
+
     def close(self) -> None:
         with self._lock:
             self._closed = True

@@ -300,8 +300,8 @@ export function useSheet(name: string | null) {
 /**
  * Save one step's boxes. The sheet is patched in the cache before the POST returns (rolled back
  * if the server refuses), then replaced by the results the POST answers with; no full-sheet
- * refetch is waited on. The Runbook and the Items' tasks refetch only when a verdict landed on an
- * Item.
+ * refetch is waited on. Nothing lands on an Item during a Sitting (the sheet records notes only;
+ * the debrief writes the Items' results), so neither the Runbook nor the Items refetch.
  */
 export function useSaveSheetStep() {
   const api = useApi();
@@ -324,10 +324,6 @@ export function useSaveSheetStep() {
         prev === undefined ? prev : { ...prev, results },
       );
       void qc.invalidateQueries({ queryKey: qk.sheets, exact: true });
-      if (Object.keys(v.body.verdicts ?? {}).length > 0) {
-        void qc.invalidateQueries({ queryKey: qk.runbook });
-        void qc.invalidateQueries({ queryKey: ['projects'] });
-      }
     },
   });
 }
@@ -336,12 +332,12 @@ export function useSaveSheetStep() {
 function optimisticSheet(sheet: Sheet, n: number, body: SheetStepBody): Sheet {
   const savedAt = body.time !== undefined ? `${body.date} ${body.time}` : body.date;
   const key = String(n);
-  const results = { steps: sheet.results.steps, verdicts: sheet.results.verdicts };
+  const results = { ...sheet.results };
   const comments = (body.comments ?? '').split(/\s+/).filter(Boolean).join(' ');
   if ((body.status !== undefined && body.status !== null) || comments !== '') {
     results.steps = {
       ...results.steps,
-      [key]: { status: body.status ?? null, comments, saved_at: savedAt },
+      [key]: { status: body.status ?? results.steps[key]?.status ?? null, comments, saved_at: savedAt },
     };
   }
   const vs = Object.entries(body.verdicts ?? {});
@@ -349,7 +345,6 @@ function optimisticSheet(sheet: Sheet, n: number, body: SheetStepBody): Sheet {
     const merged = { ...(results.verdicts[key] ?? {}) };
     for (const [item, box] of vs) {
       merged[item] = {
-        verdict: box.verdict,
         notes: box.notes.split(/\s+/).filter(Boolean).join(' '),
         saved_at: savedAt,
       };

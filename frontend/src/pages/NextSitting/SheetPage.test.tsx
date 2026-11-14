@@ -122,7 +122,7 @@ describe('Sitting sheet page', () => {
     expect(screen.getAllByTestId('sheet-step')).toHaveLength(3);
   });
 
-  it('saves verdicts per Item with the date, comments behind the icon, and shows the saved time', async () => {
+  it('saves notes per Item with the date, no verdict control, comments behind the icon', async () => {
     let posted: Record<string, unknown> | null = null;
     server.use(
       http.post(`${API}/sheets/2026-11-10-robot/steps/2`, async ({ request }) => {
@@ -130,11 +130,8 @@ describe('Sitting sheet page', () => {
         sheet = {
           ...sheet,
           results: results({
-            verdicts: {
-              '2': {
-                'BUG-1': { verdict: 'pass', notes: 'clean', saved_at: '2026-11-10 10:30' },
-              },
-            },
+            schema: 2,
+            verdicts: { '2': { 'BUG-1': { notes: 'clean', saved_at: '2026-11-10 10:30' } } },
           }),
         };
         return HttpResponse.json(sheet.results as Record<string, unknown>);
@@ -142,26 +139,71 @@ describe('Sitting sheet page', () => {
     );
     renderApp('/next-sitting', <NextSittingRoute />);
     await screen.findAllByTestId('sheet-step');
-    // comments are not open by default
-    expect(screen.queryByLabelText('Notes for BUG-1')).toBeNull();
+    // no pass/fail/pending control and no override anywhere
+    expect(screen.queryByRole('button', { name: /^(Pass|Fail|Pending) BUG-1$/ })).toBeNull();
+    // comments are not open by default; the Item's notes box is
+    expect(screen.queryByLabelText('Comments for step 2')).toBeNull();
     const fly = screen.getAllByTestId('sheet-step')[1] as HTMLElement;
     const save = within(fly).getByRole('button', { name: 'Save' });
     expect(save).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Pass BUG-1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Comment on step 2' }));
     fireEvent.change(screen.getByLabelText('Notes for BUG-1'), { target: { value: 'clean' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Comment on step 2' }));
     fireEvent.change(screen.getByLabelText('Comments for step 2'), { target: { value: 'ok' } });
     fireEvent.click(save);
     await waitFor(() => expect(posted).not.toBeNull());
     const body = posted as unknown as Record<string, unknown>;
-    expect(body.verdicts).toEqual({ 'BUG-1': { verdict: 'pass', notes: 'clean' } });
+    expect(body.verdicts).toEqual({ 'BUG-1': { notes: 'clean' } });
     expect(body.comments).toBe('ok');
     expect(body.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(body.status).toBeUndefined();
-    expect(await screen.findByText('Saved 2026-11-10 10:30')).toBeInTheDocument();
+    expect(await screen.findByText(/2026-11-10 10:30/)).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Go to current step 3 of 3' })).toBeInTheDocument(),
     );
+  });
+
+  it('a verdict step is completed by its Done button with no notes, and saves status only', async () => {
+    let posted: Record<string, unknown> | null = null;
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/2`, async ({ request }) => {
+        posted = (await request.json()) as Record<string, unknown>;
+        sheet = {
+          ...sheet,
+          results: results({
+            schema: 2,
+            steps: { '2': { status: 'done', comments: '', saved_at: '2026-11-10 10:40' } },
+          }),
+        };
+        return HttpResponse.json(sheet.results as Record<string, unknown>);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    const fly = screen.getAllByTestId('sheet-step')[1] as HTMLElement;
+    fireEvent.click(within(fly).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(posted).not.toBeNull());
+    expect(posted).toMatchObject({ status: 'done' });
+    expect((posted as unknown as Record<string, unknown>).verdicts).toBeUndefined();
+    expect(await screen.findByText(/2026-11-10 10:40/)).toBeInTheDocument();
+  });
+
+  it('a schema 1 sheet shows its old verdict read-only, and its notes, instead of losing them', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        schema: 1,
+        verdicts: {
+          '2': { 'BUG-1': { verdict: 'pass', notes: 'old note', saved_at: '2026-11-10 09:05' } },
+        },
+      }),
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    // a step with saved notes is done, so it folds; expanding it shows what was saved
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand step 2' }));
+    expect(await screen.findByTestId('legacy-verdict')).toHaveTextContent('saved verdict: pass');
+    expect(screen.getByLabelText('Notes for BUG-1')).toHaveValue('old note');
+    expect(screen.queryByRole('button', { name: /^(Pass|Fail|Pending) BUG-1$/ })).toBeNull();
   });
 
   it('one click on a simple step saves it done at once, with no Save button, then it collapses', async () => {
