@@ -62,8 +62,13 @@ def test_blocks_match_collect(c, rb_repo):
     data = c.get("/api/v1/runbook").json()
     assert [[r["short_id"] for r in b["rows"]] for b in data["blocks"]] == \
         [[r.item_id for r in b] for b in want["blocks"]]
-    assert [b["setup"] for b in data["blocks"]] == [list(b[0].spec.setup) for b in want["blocks"]]
-    assert len(_rows(data)) == 5 and len(data["blocks"]) == 4
+    # a block's setup is its rows' common set, else empty (mapkit of 2026-11-14 on: one block per
+    # rig, rows of differing setup; an older mapkit: one block per setup set)
+    assert [b["setup"] for b in data["blocks"]] == [
+        list(b[0].spec.setup) if all(x.spec.setup == b[0].spec.setup for x in b) else []
+        for b in want["blocks"]]
+    assert len(_rows(data)) == 5 and len(data["blocks"]) == len(want["blocks"])
+    assert all(r["on_sheet"] == "" for r in _rows(data))
     row = _rows(data)[0]
     assert row["pathway_title"] == "Alpha pathway"
     assert all(r["kind"] == "bug" for r in _rows(data))
@@ -79,11 +84,12 @@ def test_rigs_hardware_and_order(c):
     assert [r["hardware"] for r in data["rigs"]] == ["robot", "bench-leg", "bench-hand"]
     assert [r["label"] for r in data["rigs"]] == ["Robot", "Bench leg", "Bench hand"]
     robot, leg, hand = data["rigs"]
-    assert (robot["blocks"], robot["minutes"]) == (2, 35)
+    assert (robot["blocks"] in (1, 2)) and robot["minutes"] == 35
     assert (leg["blocks"], leg["minutes"]) == (1, 9)
     assert (hand["blocks"], hand["minutes"]) == (1, 7)
     # blocks come rig by rig in rig order; a block never mixes rigs
-    assert [b["hardware"] for b in data["blocks"]] == ["robot", "robot", "bench-leg", "bench-hand"]
+    assert [b["hardware"] for b in data["blocks"]][-2:] == ["bench-leg", "bench-hand"]
+    assert {b["hardware"] for b in data["blocks"]} == {"robot", "bench-leg", "bench-hand"}
     for b in data["blocks"]:
         assert {r["hardware"] for r in b["rows"]} == {b["hardware"]}
     titles = {r["title"]: r["hardware"] for r in _rows(data)}

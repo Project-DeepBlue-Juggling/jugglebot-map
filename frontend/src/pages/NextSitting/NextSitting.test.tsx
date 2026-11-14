@@ -28,7 +28,8 @@ const row = (over: Record<string, unknown>) => ({
   record: 'the number',
   minutes: 10,
   branch: null,
-  score: 0.3,
+  score: 0,
+  on_sheet: '',
   has_result: false,
   results: [],
   ...over,
@@ -136,8 +137,8 @@ describe('Next Sitting page', () => {
     const hand = heads.findIndex((t) => t?.includes('Bench hand'));
     expect(robot).toBeGreaterThanOrEqual(0);
     expect(hand).toBeGreaterThan(robot);
-    expect(heads[robot]).toContain('2 blocks · 35 min');
-    expect(heads[hand]).toContain('1 block · 7 min');
+    expect(heads[robot]).toContain('3 Items · 35 min');
+    expect(heads[hand]).toContain('1 Item · 7 min');
     expect(heads.some((t) => t?.includes('Bench leg') && t.includes('block'))).toBe(false);
     const handRig = screen.getByRole('region', { name: 'Rig: Bench hand' });
     expect(within(handRig).getByRole('region', { name: 'Block 3' })).toBeInTheDocument();

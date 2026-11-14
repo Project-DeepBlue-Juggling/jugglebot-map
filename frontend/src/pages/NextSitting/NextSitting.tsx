@@ -9,6 +9,8 @@ import {
   useSheets,
 } from '../../api/hooks';
 import { useToast } from '../../ui/useToast';
+import { groupSheets, rigLabel, rigsWithoutSheet } from './rigs';
+import { copyText } from './copyText';
 import { NextSittingView } from './NextSittingView';
 import { SheetView } from './SheetView';
 import { localTime, localToday } from './today';
@@ -26,6 +28,7 @@ export interface NextSittingProps {
  */
 export default function NextSitting({ onOpen = noop }: NextSittingProps) {
   const sheets = useSheets();
+  const runbookQuery = useRunbook();
   const [picked, setPicked] = useState<string | null>(null);
   const [allItems, setAllItems] = useState(false);
   const list = sheets.data?.sheets ?? [];
@@ -51,6 +54,8 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
       </div>
     );
   }
+  const sheetGroups = groupSheets(list);
+  const missing = rigsWithoutSheet(runbookQuery.data, list);
   const picker = (
     <>
       {list.length > 1 && (
@@ -58,12 +63,16 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
           aria-label="Sheet"
           value={name ?? ''}
           onChange={(e) => setPicked(e.target.value)}
-          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
+          className="max-w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm dark:border-slate-600 dark:bg-slate-900"
         >
-          {list.map((s) => (
-            <option key={s.name} value={s.name}>
-              {s.date} · {s.rig} ({s.saved}/{s.steps})
-            </option>
+          {sheetGroups.map((g) => (
+            <optgroup key={g.rig} label={rigLabel(g.rig)}>
+              {g.sheets.map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.date} · {s.rig} ({s.saved}/{s.steps})
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       )}
@@ -102,6 +111,13 @@ export default function NextSitting({ onOpen = noop }: NextSittingProps) {
           <h1 className="text-xl font-semibold">Next Sitting</h1>
           {picker}
         </div>
+      )}
+      {!allItems && missing.length > 0 && (
+        <ul aria-label="Rigs without a sheet" className="flex flex-col gap-1 px-6 pt-2">
+          {missing.map((m) => (
+            <NoSheetLine key={m.hardware} hardware={m.hardware} items={m.items} />
+          ))}
+        </ul>
       )}
       {allItems ? (
         <RunbookPage
@@ -178,5 +194,33 @@ function RunbookPage({
         }
       }}
     />
+  );
+}
+
+/** "Bench leg: 3 Items waiting, no sheet. In a Session: /sitting-sheet bench-leg" with a copy button. */
+function NoSheetLine({ hardware, items }: { hardware: string; items: number }) {
+  const toast = useToast();
+  const command = `/sitting-sheet ${hardware}`;
+  return (
+    <li
+      data-testid="no-sheet-line"
+      className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
+    >
+      <span className="min-w-0">
+        {rigLabel(hardware)}: {items} {items === 1 ? 'Item' : 'Items'} waiting, no sheet. In a
+        Session: <code className="font-mono break-all">{command}</code>
+      </span>
+      <button
+        type="button"
+        aria-label={`Copy ${command}`}
+        onClick={async () => {
+          if (await copyText(command)) toast.success('Copied');
+          else toast.error('Could not copy', command);
+        }}
+        className="shrink-0 rounded border border-slate-300 px-2 py-0.5 text-xs hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800"
+      >
+        Copy
+      </button>
+    </li>
   );
 }

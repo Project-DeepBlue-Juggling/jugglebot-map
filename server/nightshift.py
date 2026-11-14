@@ -351,9 +351,14 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
                          "pathway_title": pw["title"], "priority": r.priority,
                          "setup": list(s.setup), "why": s.why, "do": list(s.do), "pass": s.pass_,
                          "record": s.record, "minutes": s.minutes, "branch": s.branch,
-                         "score": r.score, "has_result": bool(results), "results": results})
-        blocks.append({"hardware": rows[0]["hardware"], "setup": list(block[0].spec.setup),
-                       "rows": rows})
+                         "score": r.score, "on_sheet": getattr(r, "on_sheet", "") or "",
+                         "has_result": bool(results), "results": results})
+        # mapkit of 2026-11-14 on holds one block per rig, whose rows differ in setup (the
+        # sheet orders, not the Runbook); an older mapkit groups by setup set. The block's
+        # setup is the rows' common set, else empty: each row carries its own.
+        same = all(tuple(x.spec.setup) == tuple(block[0].spec.setup) for x in block)
+        blocks.append({"hardware": rows[0]["hardware"],
+                       "setup": list(block[0].spec.setup) if same else [], "rows": rows})
     blocks.sort(key=lambda b: rig_order.index(b["hardware"]) if b["hardware"] in rig_order
                 else len(rig_order))  # stable: mapkit's score order holds within a rig
     rigs = []

@@ -465,6 +465,8 @@ export const RunbookRow = z.object({
   minutes: z.number(),
   branch: z.string().nullable(),
   score: z.number(),
+  /** Name of the open sheet that includes this Item; absent from a server on a mapkit older than 2026-11-14. */
+  on_sheet: z.string().optional(),
   has_result: z.boolean(),
   results: z.array(RunbookResult),
 });

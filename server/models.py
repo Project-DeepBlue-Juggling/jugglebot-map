@@ -230,6 +230,7 @@ class RunbookRow(_Strict):
     minutes: int
     branch: Optional[str]
     score: float
+    on_sheet: str = ""
     has_result: bool
     results: List[RunbookResult]
 

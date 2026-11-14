@@ -99,13 +99,14 @@ export function NextSittingView({ runbook, onOpen, onSave, toolbar }: NextSittin
               (m, { b }) => m + b.rows.reduce((k, r) => k + r.minutes, 0),
               0,
             );
+            const items = mine.reduce((m, { b }) => m + b.rows.length, 0);
             return (
               <section key={rig.hardware} aria-label={`Rig: ${rig.label}`} className="mb-8">
                 <h2 className="mb-3 border-b border-slate-200 pb-1 text-lg font-semibold dark:border-slate-700">
                   <RigChip hardware={rig.hardware} />
                   {rig.label}{' '}
                   <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                    {mine.length} {mine.length === 1 ? 'block' : 'blocks'} · {minutes} min
+                    {items} {items === 1 ? 'Item' : 'Items'} · {minutes} min
                   </span>
                 </h2>
                 {mine.map(({ b, n }) => (
@@ -114,12 +115,14 @@ export function NextSittingView({ runbook, onOpen, onSave, toolbar }: NextSittin
                     aria-label={`Block ${n + 1}`}
                     className="mb-6"
                   >
-                    <h3 className="mb-2 text-base font-semibold">
-                      Setup: {b.setup.join(', ') || 'none'}{' '}
-                      <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                        ({b.rows.reduce((m, r) => m + r.minutes, 0)} min)
-                      </span>
-                    </h3>
+                    {b.setup.length > 0 && (
+                      <h3 className="mb-2 text-base font-semibold">
+                        Setup: {b.setup.join(', ')}{' '}
+                        <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
+                          ({b.rows.reduce((m, r) => m + r.minutes, 0)} min)
+                        </span>
+                      </h3>
+                    )}
                     <ul className="flex flex-col gap-3">
                       {b.rows.map((r) => (
                         <RunbookRow key={r.task_id} row={r} onOpen={onOpen} onSave={onSave} />

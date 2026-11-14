@@ -51,7 +51,9 @@ export function RunbookRow({ row, onOpen, onSave }: RunbookRowProps) {
         </span>
         <span className="text-sm font-semibold">{row.title}</span>
         <span className="text-xs text-slate-500 dark:text-slate-400">
-          {row.minutes} min · {row.priority || 'unrated'} · {row.pathway_title ?? 'unattached'}
+          {row.minutes} min · {row.priority || 'unrated'} · {row.pathway_title ?? 'unattached'} ·
+          setup {row.setup.join(', ') || 'none'}
+          {(row.on_sheet ?? '') !== '' && ` · on ${row.on_sheet}`}
         </span>
       </div>
       <dl className="mb-3 grid grid-cols-[5rem_1fr] gap-x-3 gap-y-1 text-sm">
