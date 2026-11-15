@@ -336,37 +336,27 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
         item = getattr(node, "item", None)
         return (item.meta.get("hardware") if item is not None else None) or "robot"
 
-    blocks = []
-    for block in data["blocks"]:
-        rows = []
-        for r in block:
-            it = info(r.stem)
-            pw = info(r.pathway)
-            results = parse_results(it["body"])
-            s = r.spec
-            rows.append({"hardware": getattr(r, "hardware", None) or hw_of(r.stem),
-                         "task_id": it["task_id"] or r.stem, "short_id": it["short_id"] or r.item_id,
-                         "title": r.title, "kind": it["kind"], "ticket_type": it["ticket_type"],
-                         "pathway_short_id": pw["short_id"],
-                         "pathway_title": pw["title"], "priority": r.priority,
-                         "setup": list(s.setup), "why": s.why, "do": list(s.do), "pass": s.pass_,
-                         "record": s.record, "minutes": s.minutes, "branch": s.branch,
-                         "score": r.score, "on_sheet": getattr(r, "on_sheet", "") or "",
-                         "has_result": bool(results), "results": results})
-        # mapkit of 2026-11-14 on holds one block per rig, whose rows differ in setup (the
-        # sheet orders, not the Runbook); an older mapkit groups by setup set. The block's
-        # setup is the rows' common set, else empty: each row carries its own.
-        same = all(tuple(x.spec.setup) == tuple(block[0].spec.setup) for x in block)
-        blocks.append({"hardware": rows[0]["hardware"],
-                       "setup": list(block[0].spec.setup) if same else [], "rows": rows})
-    blocks.sort(key=lambda b: rig_order.index(b["hardware"]) if b["hardware"] in rig_order
-                else len(rig_order))  # stable: mapkit's score order holds within a rig
-    rigs = []
-    for hw in rig_order:
-        mine = [b for b in blocks if b["hardware"] == hw]
-        if mine:
-            rigs.append({"hardware": hw, "label": rig_labels.get(hw, hw), "blocks": len(mine),
-                         "minutes": sum(r["minutes"] for b in mine for r in b["rows"])})
+    by_rig: Dict[str, List[Dict[str, Any]]] = {}
+    for r in data["rows"]:
+        it = info(r.stem)
+        pw = info(r.pathway)
+        results = parse_results(it["body"])
+        s = r.spec
+        hw = getattr(r, "hardware", None) or hw_of(r.stem)
+        by_rig.setdefault(hw, []).append(
+            {"hardware": hw,
+             "task_id": it["task_id"] or r.stem, "short_id": it["short_id"] or r.item_id,
+             "title": r.title, "kind": it["kind"], "ticket_type": it["ticket_type"],
+             "pathway_short_id": pw["short_id"],
+             "pathway_title": pw["title"], "priority": r.priority,
+             "setup": list(s.setup), "why": s.why, "do": list(s.do), "pass": s.pass_,
+             "record": s.record, "minutes": s.minutes, "branch": s.branch,
+             "score": r.score, "on_sheet": getattr(r, "on_sheet", "") or "",
+             "has_result": bool(results), "results": results})
+    # mapkit's order (rig, priority, ID) holds within a rig; rigs follow rig_order
+    rigs = [{"hardware": hw, "label": rig_labels.get(hw, hw),
+             "minutes": sum(r["minutes"] for r in by_rig[hw]), "rows": by_rig[hw]}
+            for hw in rig_order if by_rig.get(hw)]
     needs = []
     for entry in data["needs_section"]:
         item_id, title, errors = entry[:3]
@@ -385,5 +375,5 @@ def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
                           "parent_task_id": p["task_id"], "parent_kind": p["kind"],
                           "parent_ticket_type": p["ticket_type"],
                           "parent_short_id": p["short_id"] or parent})
-    return {"rigs": rigs, "blocks": blocks, "needs_section": needs, "questions": questions,
+    return {"rigs": rigs, "needs_section": needs, "questions": questions,
             "page": sitting.render_runbook(repo_root)}

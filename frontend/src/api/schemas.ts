@@ -477,14 +477,7 @@ export const Runbook = z.object({
     z.object({
       hardware: HardwareValue.exclude(['none']),
       label: z.string(),
-      blocks: z.number(),
       minutes: z.number(),
-    }),
-  ),
-  blocks: z.array(
-    z.object({
-      hardware: HardwareValue.exclude(['none']),
-      setup: z.array(z.string()),
       rows: z.array(RunbookRow),
     }),
   ),

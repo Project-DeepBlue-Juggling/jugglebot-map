@@ -19,8 +19,7 @@ export function groupSheets(list: SheetSummary[]): { rig: string; sheets: SheetS
 
 /**
  * Rigs with waiting Items and no open sheet (a sheet is open while a step is unsaved), in rig
- * order. The Items come from the Runbook's rows, so this holds on a mapkit that still groups
- * them by setup set.
+ * order. The Items are the Runbook's rows.
  */
 export function rigsWithoutSheet(
   runbook: Runbook | undefined,
@@ -28,8 +27,7 @@ export function rigsWithoutSheet(
 ): { hardware: string; items: number }[] {
   if (runbook === undefined) return [];
   const count = new Map<string, number>();
-  for (const b of runbook.blocks)
-    count.set(b.hardware, (count.get(b.hardware) ?? 0) + b.rows.length);
+  for (const g of runbook.rigs) count.set(g.hardware, (count.get(g.hardware) ?? 0) + g.rows.length);
   return RIG_ORDER.filter(
     (hw) => (count.get(hw) ?? 0) > 0 && !list.some((s) => s.rig === hw && s.saved < s.steps),
   ).map((hw) => ({ hardware: hw, items: count.get(hw) ?? 0 }));

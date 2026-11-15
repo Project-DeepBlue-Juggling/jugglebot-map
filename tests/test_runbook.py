@@ -1,4 +1,4 @@
-"""Next Sitting Runbook: blocks from mapkit.sitting.collect, result writes, refusals."""
+"""Next Sitting Runbook: rows per rig from mapkit.sitting.collect, result writes, refusals."""
 from __future__ import annotations
 
 import os
@@ -53,21 +53,20 @@ def c(rb_repo):
 
 
 def _rows(data):
-    return [r for b in data["blocks"] for r in b["rows"]]
+    return [r for g in data["rigs"] for r in g["rows"]]
 
 
-def test_blocks_match_collect(c, rb_repo):
+def test_rows_match_collect(c, rb_repo):
     from mapkit import sitting
     want = sitting.collect(rb_repo)
     data = c.get("/api/v1/runbook").json()
-    assert [[r["short_id"] for r in b["rows"]] for b in data["blocks"]] == \
-        [[r.item_id for r in b] for b in want["blocks"]]
-    # a block's setup is its rows' common set, else empty (mapkit of 2026-11-14 on: one block per
-    # rig, rows of differing setup; an older mapkit: one block per setup set)
-    assert [b["setup"] for b in data["blocks"]] == [
-        list(b[0].spec.setup) if all(x.spec.setup == b[0].spec.setup for x in b) else []
-        for b in want["blocks"]]
-    assert len(_rows(data)) == 5 and len(data["blocks"]) == len(want["blocks"])
+    assert "blocks" not in data and all("blocks" not in g for g in data["rigs"])
+    # one entry per rig with a row, rows in mapkit's order within the rig
+    by_rig = {}
+    for r in want["rows"]:
+        by_rig.setdefault(r.hardware, []).append(r.item_id)
+    assert {g["hardware"]: [r["short_id"] for r in g["rows"]] for g in data["rigs"]} == by_rig
+    assert len(_rows(data)) == 5 == len(want["rows"])
     assert all(r["on_sheet"] == "" for r in _rows(data))
     row = _rows(data)[0]
     assert row["pathway_title"] == "Alpha pathway"
@@ -84,14 +83,10 @@ def test_rigs_hardware_and_order(c):
     assert [r["hardware"] for r in data["rigs"]] == ["robot", "bench-leg", "bench-hand"]
     assert [r["label"] for r in data["rigs"]] == ["Robot", "Bench leg", "Bench hand"]
     robot, leg, hand = data["rigs"]
-    assert (robot["blocks"] in (1, 2)) and robot["minutes"] == 35
-    assert (leg["blocks"], leg["minutes"]) == (1, 9)
-    assert (hand["blocks"], hand["minutes"]) == (1, 7)
-    # blocks come rig by rig in rig order; a block never mixes rigs
-    assert [b["hardware"] for b in data["blocks"]][-2:] == ["bench-leg", "bench-hand"]
-    assert {b["hardware"] for b in data["blocks"]} == {"robot", "bench-leg", "bench-hand"}
-    for b in data["blocks"]:
-        assert {r["hardware"] for r in b["rows"]} == {b["hardware"]}
+    assert [len(g["rows"]) for g in data["rigs"]] == [3, 1, 1]
+    assert (robot["minutes"], leg["minutes"], hand["minutes"]) == (35, 9, 7)
+    for g in data["rigs"]:
+        assert {r["hardware"] for r in g["rows"]} == {g["hardware"]}
     titles = {r["title"]: r["hardware"] for r in _rows(data)}
     assert titles["Hand one"] == "bench-hand" and titles["Leg one"] == "bench-leg"
     assert titles["Level one"] == "robot"

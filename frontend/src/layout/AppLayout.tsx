@@ -25,7 +25,7 @@ export default function AppLayout() {
   const { data: nightShift } = useNightShiftSummary();
   const openQuestions = nightShift?.open_questions ?? 0;
   const { data: runbook } = useRunbook();
-  const sittingRows = runbook?.blocks.reduce((n, b) => n + b.rows.length, 0) ?? 0;
+  const sittingRows = runbook?.rigs.reduce((n, g) => n + g.rows.length, 0) ?? 0;
   // The server has exactly one project; the nav links point at it.
   const fromPath = location.pathname.match(/^\/projects\/([^/]+)/)?.[1] ?? null;
   const projectId = fromPath ?? projects?.[0]?.id ?? null;

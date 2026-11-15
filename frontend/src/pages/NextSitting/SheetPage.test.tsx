@@ -319,7 +319,7 @@ describe('Sitting sheet page', () => {
   it('All Items shows the per-Item view and back returns to the sheet', async () => {
     server.use(
       http.get(`${API}/runbook`, () =>
-        HttpResponse.json({ rigs: [], blocks: [], needs_section: [], questions: [], page: '' }),
+        HttpResponse.json({ rigs: [], needs_section: [], questions: [], page: '' }),
       ),
     );
     renderApp('/next-sitting', <NextSittingRoute />);

@@ -39,15 +39,10 @@ const rbRow = (hardware: string, id: string) => ({
   results: [],
 });
 const runbook = (counts: Record<string, number>) => ({
-  rigs: Object.keys(counts).map((hardware) => ({
+  rigs: Object.entries(counts).map(([hardware, n]) => ({
     hardware,
     label: hardware,
-    blocks: 1,
     minutes: 5,
-  })),
-  blocks: Object.entries(counts).map(([hardware, n]) => ({
-    hardware,
-    setup: [],
     rows: Array.from({ length: n }, (_, i) => rbRow(hardware, `${hardware}-${i}`)),
   })),
   needs_section: [],

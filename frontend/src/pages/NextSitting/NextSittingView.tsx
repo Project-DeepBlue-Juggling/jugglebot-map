@@ -15,36 +15,24 @@ export interface NextSittingViewProps {
 
 const UNATTACHED = 'unattached';
 
-/** The page's `## Setup 0` lines, taken from the generated Markdown (the file is the source). */
-function setupZero(page: string): string[] {
-  const out: string[] = [];
-  let inside = false;
-  for (const line of page.split('\n')) {
-    if (line.startsWith('## ')) inside = line.startsWith('## Setup 0');
-    else if (inside && line.startsWith('- ')) out.push(line.slice(2).replace(/`/g, ''));
-  }
-  return out;
-}
-
 export function NextSittingView({ runbook, onOpen, onSave, toolbar }: NextSittingViewProps) {
   const [pathway, setPathway] = useState<string | null>(null);
   const pathways = useMemo(() => {
     const seen = new Map<string, string>();
-    for (const b of runbook.blocks)
-      for (const r of b.rows)
+    for (const g of runbook.rigs)
+      for (const r of g.rows)
         seen.set(r.pathway_short_id ?? UNATTACHED, r.pathway_title ?? UNATTACHED);
     return [...seen.entries()];
   }, [runbook]);
-  const blocks = runbook.blocks
-    .map((b) => ({
-      ...b,
-      rows: b.rows.filter(
+  const rigs = runbook.rigs
+    .map((g) => ({
+      ...g,
+      rows: g.rows.filter(
         (r) => pathway === null || (r.pathway_short_id ?? UNATTACHED) === pathway,
       ),
     }))
-    .filter((b) => b.rows.length > 0);
-  const before = setupZero(runbook.page);
-  const empty = runbook.blocks.length === 0;
+    .filter((g) => g.rows.length > 0);
+  const empty = runbook.rigs.length === 0;
   return (
     <div className="px-6 pb-6">
       <div
@@ -80,26 +68,9 @@ export function NextSittingView({ runbook, onOpen, onSave, toolbar }: NextSittin
         <p className="text-sm text-slate-500 dark:text-slate-400">No hardware checks waiting</p>
       ) : (
         <>
-          {before.length > 0 && (
-            <section aria-label="Before power" className="mb-6">
-              <h2 className="mb-1 text-base font-semibold">Before power</h2>
-              <ul className="list-disc pl-5 text-sm">
-                {before.map((l, i) => (
-                  <li key={i}>{l}</li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {runbook.rigs.map((rig) => {
-            const mine = blocks
-              .map((b, n) => ({ b, n }))
-              .filter(({ b }) => b.hardware === rig.hardware);
-            if (mine.length === 0) return null;
-            const minutes = mine.reduce(
-              (m, { b }) => m + b.rows.reduce((k, r) => k + r.minutes, 0),
-              0,
-            );
-            const items = mine.reduce((m, { b }) => m + b.rows.length, 0);
+          {rigs.map((rig) => {
+            const minutes = rig.rows.reduce((k, r) => k + r.minutes, 0);
+            const items = rig.rows.length;
             return (
               <section key={rig.hardware} aria-label={`Rig: ${rig.label}`} className="mb-8">
                 <h2 className="mb-3 border-b border-slate-200 pb-1 text-lg font-semibold dark:border-slate-700">
@@ -109,27 +80,11 @@ export function NextSittingView({ runbook, onOpen, onSave, toolbar }: NextSittin
                     {items} {items === 1 ? 'Item' : 'Items'} · {minutes} min
                   </span>
                 </h2>
-                {mine.map(({ b, n }) => (
-                  <section
-                    key={b.setup.join(',') + n}
-                    aria-label={`Block ${n + 1}`}
-                    className="mb-6"
-                  >
-                    {b.setup.length > 0 && (
-                      <h3 className="mb-2 text-base font-semibold">
-                        Setup: {b.setup.join(', ')}{' '}
-                        <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
-                          ({b.rows.reduce((m, r) => m + r.minutes, 0)} min)
-                        </span>
-                      </h3>
-                    )}
-                    <ul className="flex flex-col gap-3">
-                      {b.rows.map((r) => (
-                        <RunbookRow key={r.task_id} row={r} onOpen={onOpen} onSave={onSave} />
-                      ))}
-                    </ul>
-                  </section>
-                ))}
+                <ul className="flex flex-col gap-3">
+                  {rig.rows.map((r) => (
+                    <RunbookRow key={r.task_id} row={r} onOpen={onOpen} onSave={onSave} />
+                  ))}
+                </ul>
               </section>
             );
           })}

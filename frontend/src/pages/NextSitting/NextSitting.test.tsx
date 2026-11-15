@@ -43,13 +43,10 @@ beforeEach(() => {
   state.tasks = [mapTask({ id: 'b1', kind: 'bug', title: 'Level check', status: 'backlog' })];
   rb = {
     rigs: [
-      { hardware: 'robot', label: 'Robot', blocks: 2, minutes: 35 },
-      { hardware: 'bench-hand', label: 'Bench hand', blocks: 1, minutes: 7 },
-    ],
-    blocks: [
       {
         hardware: 'robot',
-        setup: ['level'],
+        label: 'Robot',
+        minutes: 35,
         rows: [
           row({}),
           row({
@@ -61,12 +58,6 @@ beforeEach(() => {
             branch: 'night-shift/x',
             minutes: 5,
           }),
-        ],
-      },
-      {
-        hardware: 'robot',
-        setup: ['level', 'armed'],
-        rows: [
           row({
             task_id: 'b3',
             short_id: 'BUG-3',
@@ -78,7 +69,8 @@ beforeEach(() => {
       },
       {
         hardware: 'bench-hand',
-        setup: ['level'],
+        label: 'Bench hand',
+        minutes: 7,
         rows: [
           row({
             hardware: 'bench-hand',
@@ -102,7 +94,7 @@ beforeEach(() => {
       },
     ],
     questions: [],
-    page: '# Next Sitting Runbook\n\n## Setup 0: before power\n\n- Power-cycle the can-bridge.\n- Latch `hand_source` first.\n\n## Block 1: level\n',
+    page: '# Next Sitting Runbook\n',
   };
   server = makeServer(state);
   server.use(http.get(URL, () => HttpResponse.json(rb)));
@@ -116,20 +108,16 @@ afterEach(() => {
 });
 
 describe('Next Sitting page', () => {
-  it('renders setup zero, blocks, rows and needs-a-section', async () => {
+  it('renders the rows per rig and needs-a-section', async () => {
     renderApp('/next-sitting', <NextSittingRoute />);
-    expect(await screen.findByText('Power-cycle the can-bridge.')).toBeInTheDocument();
-    expect(screen.getByText('Latch hand_source first.')).toBeInTheDocument();
-    expect(screen.getAllByTestId('runbook-row')).toHaveLength(4);
-    expect(screen.getByText('Setup: level, armed')).toBeInTheDocument();
-    expect(screen.getByText('(15 min)')).toBeInTheDocument();
+    expect(await screen.findAllByTestId('runbook-row')).toHaveLength(4);
     expect(screen.getByText('night-shift/x')).toBeInTheDocument();
     expect(screen.getAllByText('step two')).toHaveLength(4);
     expect(screen.getByText(/no ## Sitting section/)).toBeInTheDocument();
     expect(await screen.findByTestId('next-sitting-badge')).toHaveTextContent('4');
   });
 
-  it('heads each rig present, in order, with blocks beneath and a chip on needs entries', async () => {
+  it('heads each rig present, in order, with its rows beneath and a chip on needs entries', async () => {
     renderApp('/next-sitting', <NextSittingRoute />);
     await screen.findAllByTestId('runbook-row');
     const heads = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
@@ -139,9 +127,8 @@ describe('Next Sitting page', () => {
     expect(hand).toBeGreaterThan(robot);
     expect(heads[robot]).toContain('3 Items · 35 min');
     expect(heads[hand]).toContain('1 Item · 7 min');
-    expect(heads.some((t) => t?.includes('Bench leg') && t.includes('block'))).toBe(false);
+    expect(heads.some((t) => t?.includes('Bench leg'))).toBe(false);
     const handRig = screen.getByRole('region', { name: 'Rig: Bench hand' });
-    expect(within(handRig).getByRole('region', { name: 'Block 3' })).toBeInTheDocument();
     expect(within(handRig).getByText('Hand check')).toBeInTheDocument();
     const needs = screen.getByRole('region', { name: 'Needs a Sitting section' });
     expect(within(needs).getByTestId('rig-chip')).toHaveTextContent('Bench leg');
@@ -191,11 +178,11 @@ describe('Next Sitting page', () => {
         posted = await request.json();
         rb = {
           ...rb,
-          rigs: [{ hardware: 'robot', label: 'Robot', blocks: 1, minutes: 10 }],
-          blocks: [
+          rigs: [
             {
               hardware: 'robot',
-              setup: ['level'],
+              label: 'Robot',
+              minutes: 10,
               rows: [
                 row({
                   has_result: true,
@@ -341,11 +328,11 @@ describe('Next Sitting page', () => {
         posted = await request.json();
         rb = {
           ...rb,
-          rigs: [{ hardware: 'robot', label: 'Robot', blocks: 1, minutes: 10 }],
-          blocks: [
+          rigs: [
             {
               hardware: 'robot',
-              setup: ['level'],
+              label: 'Robot',
+              minutes: 10,
               rows: [
                 row({
                   has_result: true,
@@ -385,11 +372,11 @@ describe('Next Sitting page', () => {
   it('keeps the save controls open and lists every result, legacy ones date-only', async () => {
     rb = {
       ...rb,
-      rigs: [{ hardware: 'robot', label: 'Robot', blocks: 1, minutes: 10 }],
-      blocks: [
+      rigs: [
         {
           hardware: 'robot',
-          setup: ['level'],
+          label: 'Robot',
+          minutes: 10,
           rows: [
             row({
               has_result: true,
@@ -414,7 +401,7 @@ describe('Next Sitting page', () => {
   });
 
   it('shows the empty state', async () => {
-    rb = { rigs: [], blocks: [], needs_section: [], questions: [], page: '' };
+    rb = { rigs: [], needs_section: [], questions: [], page: '' };
     renderApp('/next-sitting', <NextSittingRoute />);
     expect(await screen.findByText('No hardware checks waiting')).toBeInTheDocument();
     expect(screen.queryByTestId('next-sitting-badge')).toBeNull();

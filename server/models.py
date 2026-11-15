@@ -235,12 +235,6 @@ class RunbookRow(_Strict):
     results: List[RunbookResult]
 
 
-class RunbookBlock(_Strict):
-    hardware: str
-    setup: List[str]
-    rows: List[RunbookRow]
-
-
 class RunbookNeeds(_Strict):
     hardware: str
     task_id: str
@@ -266,13 +260,12 @@ class RunbookQuestion(_Strict):
 class RunbookRig(_Strict):
     hardware: str
     label: str
-    blocks: int
     minutes: int
+    rows: List[RunbookRow]
 
 
 class Runbook(_Strict):
     rigs: List[RunbookRig]
-    blocks: List[RunbookBlock]
     needs_section: List[RunbookNeeds]
     questions: List[RunbookQuestion]
     page: str
