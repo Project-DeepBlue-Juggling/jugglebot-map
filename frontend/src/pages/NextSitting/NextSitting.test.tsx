@@ -94,7 +94,7 @@ beforeEach(() => {
       },
     ],
     questions: [],
-    page: '# Next Sitting Runbook\n',
+    page: '# Sitting index\n',
   };
   server = makeServer(state);
   server.use(http.get(URL, () => HttpResponse.json(rb)));

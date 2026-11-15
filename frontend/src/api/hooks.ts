@@ -252,7 +252,7 @@ export function useAnswerQuestion() {
   });
 }
 
-// -- Next Sitting Runbook ---------------------------------------------------
+// -- Sitting index ---------------------------------------------------
 
 export function useRunbook() {
   const api = useApi();

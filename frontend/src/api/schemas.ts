@@ -434,7 +434,7 @@ export const NightShiftSummary = z.object({
 });
 export type NightShiftSummary = z.infer<typeof NightShiftSummary>;
 
-// -- Next Sitting Runbook (server/nightshift.py `runbook`) --
+// -- Sitting index (server/nightshift.py `runbook`) --
 
 export const RunbookResult = z.object({
   date: z.string(),

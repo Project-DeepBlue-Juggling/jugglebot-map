@@ -304,7 +304,7 @@ def _rig_constants() -> Any:
 
 
 def runbook(ix: Any, repo_root: str) -> Dict[str, Any]:
-    """The Next Sitting Runbook for the API: ``mapkit.sitting.collect`` plus store ids.
+    """The Sitting index for the API: ``mapkit.sitting.collect`` plus store ids.
 
     Parsing lives in the checkout's mapkit (one parser); this only attaches the
     store's node ids (``task_id``, the app's ``?item=`` key) and each Item's

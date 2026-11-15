@@ -151,7 +151,7 @@ export function createApiClient(auth: AuthClient) {
         Task,
       ),
 
-    // -- Next Sitting Runbook
+    // -- Sitting index
     getRunbook: () => request('/runbook', jsonInit('GET'), Runbook),
     saveSittingResult: (
       taskId: string,

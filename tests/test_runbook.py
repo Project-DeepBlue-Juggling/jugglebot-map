@@ -1,4 +1,4 @@
-"""Next Sitting Runbook: rows per rig from mapkit.sitting.collect, result writes, refusals."""
+"""Sitting index: rows per rig from mapkit.sitting.collect, result writes, refusals."""
 from __future__ import annotations
 
 import os
@@ -75,7 +75,7 @@ def test_rows_match_collect(c, rb_repo):
     assert row["do"] == ["step one", "step two"] and row["pass"] == "it works"
     assert row["has_result"] is False and row["results"] == []
     assert any(r["branch"] == "night-shift/x" for r in _rows(data))
-    assert data["page"].startswith("# Next Sitting Runbook")
+    assert data["page"].startswith("# Sitting index")
 
 
 def test_rigs_hardware_and_order(c):
