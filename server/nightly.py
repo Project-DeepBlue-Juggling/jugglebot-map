@@ -1,4 +1,4 @@
-"""Nightly status: the 04:00 full-tier run's ``status`` line, read by a timer.
+"""Nightly status: the 02:00 full-tier run's ``status`` line, read by a timer.
 
 ``MAP_NIGHTLY_DIR`` names the live checkout's ``temp/reports/nightly``; unset
 means NEVER and ``configured`` false. The directory is only ever read, never
