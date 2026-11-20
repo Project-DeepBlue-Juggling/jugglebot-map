@@ -58,6 +58,54 @@ const tiny =
 const textarea =
   'w-full rounded border border-slate-300 bg-white p-1 text-xs dark:border-slate-600 dark:bg-slate-900';
 
+const sectionBox = 'flex border-l-2 pl-1';
+const labelCol = clsx('w-12 shrink-0 text-[11px] lowercase', muted);
+/** 0 -> a, 1 -> b, ... for the numbered sub-steps of a Step with several actions. */
+const subLetter = (i: number) => String.fromCharCode(97 + (i % 26));
+
+/** One labelled field group; newline-separated text renders one line per entry. */
+function Field({
+  label,
+  text,
+  tint,
+  warning,
+}: {
+  label: string;
+  text: string;
+  tint: string;
+  warning?: boolean;
+}) {
+  const lines = text.split('\n').filter((l) => l.trim() !== '');
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      data-warning={warning === true ? 'true' : undefined}
+      className={clsx(sectionBox, tint)}
+    >
+      <span
+        className={clsx(
+          labelCol,
+          warning === true && 'font-semibold text-amber-700 dark:text-amber-400',
+        )}
+      >
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">
+        {lines.length <= 1 ? (
+          <div>{lines[0] ?? text}</div>
+        ) : (
+          <ul className="list-none">
+            {lines.map((l, i) => (
+              <li key={i}>{l}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CopyButton({ text }: { text: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   return (
@@ -383,43 +431,60 @@ const StepRow = memo(function StepRow({
         )}
       </div>
       <div className="pl-7">
-        {step.actions.map((a, i) => (
-          <div key={i} className="flex flex-wrap items-baseline gap-x-1.5">
-            <span className="rounded bg-slate-200 px-1 text-[10px] dark:bg-slate-700">
-              {a.where}
-            </span>
-            {a.text != null && a.text !== '' && <span>{a.text}</span>}
-            {a.command != null && a.command !== '' && (
-              <span className="flex w-full items-start gap-1">
-                <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] dark:bg-slate-900">
-                  {a.command}
-                </code>
-                <CopyButton text={a.command} />
-              </span>
-            )}
+        {step.actions.length > 0 && (
+          <div role="group" aria-label="do" className={clsx(sectionBox, 'border-l-slate-400')}>
+            <span className={labelCol}>do</span>
+            <div className="min-w-0 flex-1">
+              {step.actions.map((a, i) => (
+                <div
+                  key={i}
+                  data-testid="sheet-action"
+                  className="flex flex-wrap items-baseline gap-x-1.5"
+                >
+                  {step.actions.length > 1 && (
+                    <span data-testid="sub-step" className="font-mono text-[11px] text-slate-500">
+                      {step.n}
+                      {subLetter(i)}
+                    </span>
+                  )}
+                  <span className="rounded bg-slate-200 px-1 text-[10px] dark:bg-slate-700">
+                    {a.where}
+                  </span>
+                  {a.text != null && a.text !== '' && <span>{a.text}</span>}
+                  {a.command != null && a.command !== '' && (
+                    <span className="flex w-full items-start gap-1">
+                      <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] dark:bg-slate-900">
+                        {a.command}
+                      </code>
+                      <CopyButton text={a.command} />
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-        <div>
-          <span className={lbl}>see</span>
-          {step.see}
-        </div>
-        <div>
-          <span className="mr-1 text-[11px] lowercase text-amber-700 dark:text-amber-400">
-            stop if
-          </span>
-          {step.stop_if}
-        </div>
+        )}
+        <Field label="see" text={step.see} tint="border-l-sky-400 dark:border-l-sky-600" />
+        <Field
+          label="stop if"
+          text={step.stop_if}
+          warning
+          tint="border-l-amber-500 bg-amber-50/60 dark:border-l-amber-500 dark:bg-amber-950/30"
+        />
         {step.record != null && step.record !== '' && (
-          <div>
-            <span className={lbl}>record</span>
-            {step.record}
-          </div>
+          <Field label="record" text={step.record} tint="border-l-slate-400" />
         )}
         {isVerdict &&
           verdictRows.map((sv) => {
             const prior = priorVerdicts[sv.item];
             return (
-              <div key={sv.item} data-testid="verdict-row" className="flex flex-col gap-0.5">
+              <div
+                key={sv.item}
+                data-testid="verdict-row"
+                role="group"
+                aria-label={`pass ${sv.item}`}
+                className={clsx(sectionBox, 'flex-col gap-0.5 border-l-emerald-500')}
+              >
                 <div className="flex flex-wrap items-center gap-x-1.5">
                   <span className="font-mono font-semibold">{sv.item}</span>
                   <span className={clsx('min-w-0', muted)}>

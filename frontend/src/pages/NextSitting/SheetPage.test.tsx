@@ -511,4 +511,41 @@ describe('Sitting sheet page', () => {
     expect(screen.getAllByTestId('sheet-step')).toHaveLength(3);
     expect(screen.getByTestId('launch-progress')).toHaveTextContent('0/3');
   });
+
+  it('marks each field group, warns on stop if, lists multi-line fields and numbers sub-steps', async () => {
+    const steps = sheet.steps as Record<string, unknown>[];
+    steps[0] = step({
+      n: 1,
+      kind: 'setup',
+      title: 'Launch',
+      actions: [
+        { where: 'Terminal 1', text: 'first', command: null },
+        { where: 'Terminal 2', text: 'second', command: null },
+      ],
+      see: 'line one\nline two',
+      stop_if: 'smoke\nburning smell',
+      record: 'the bag',
+    });
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const cards = await screen.findAllByTestId('sheet-step');
+    const first = cards[0] as HTMLElement;
+    const doGroup = within(first).getByRole('group', { name: 'do' });
+    expect(within(doGroup).getAllByTestId('sub-step').map((e) => e.textContent)).toEqual([
+      '1a',
+      '1b',
+    ]);
+    const see = within(first).getByRole('group', { name: 'see' });
+    expect(within(see).getAllByRole('listitem').map((e) => e.textContent)).toEqual([
+      'line one',
+      'line two',
+    ]);
+    const stop = within(first).getByRole('group', { name: 'stop if' });
+    expect(stop).toHaveAttribute('data-warning', 'true');
+    expect(within(stop).getAllByRole('listitem')).toHaveLength(2);
+    expect(see).not.toHaveAttribute('data-warning');
+    expect(within(first).getByRole('group', { name: 'record' })).toBeInTheDocument();
+    const fly = cards[1] as HTMLElement;
+    expect(within(fly).getByRole('group', { name: 'pass BUG-1' })).toBeInTheDocument();
+    expect(within(fly).queryByTestId('sub-step')).toBeNull();
+  });
 });
