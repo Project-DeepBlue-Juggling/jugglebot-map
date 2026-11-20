@@ -20,6 +20,7 @@ import {
 } from '../../api/schemas';
 import { copyText } from './copyText';
 import { rowRenderProbe } from './rowRenderProbe';
+import { STEP_RAIL_STATES, type StepRailState } from '../../theme/palette';
 import { VERDICT_COLOUR } from './verdictLabels';
 
 export interface SheetViewProps {
@@ -178,6 +179,23 @@ function isDone(
   const s = saved?.status;
   if (s === 'done' || s === 'skipped') return true;
   return verdictItems(step).some((sv) => verdicts?.[sv.item] !== undefined);
+}
+/**
+ * The rail's state for a Step, from what was recorded only. A Problem status, or a schema 1 file's
+ * saved `fail` verdict, is Problem; Done or saved notes is Done; Skipped is Skipped.
+ */
+function railState(
+  saved: SheetStepResult | undefined,
+  verdicts: SavedVerdicts | undefined,
+  step: SheetStep,
+): StepRailState {
+  if (
+    saved?.status === 'problem' ||
+    Object.values(verdicts ?? {}).some((v) => v.verdict === 'fail')
+  )
+    return 'problem';
+  if (saved?.status === 'skipped') return 'skipped';
+  return isDone(saved, verdicts, step) ? 'done' : 'untouched';
 }
 const savedAtOf = (
   saved: SheetStepResult | undefined,
@@ -630,8 +648,9 @@ function storeDeselected(name: string, list: string[]) {
 
 /** One Sitting sheet: its steps in order, grouped by launch; drafts keyed by step number. */
 /**
- * A thin index down the left edge: one segment per group, as tall as its step count, filled from
- * the top by the steps done, with a dot at the current step. Decoration only (aria-hidden).
+ * A thin index down the left edge: one segment per group, one strip per Step, each coloured by the
+ * Step's recorded state (done green, problem red, skipped amber, untouched grey; see the palette),
+ * with a dot at the current step. Folding or opening a card never changes a strip.
  */
 function SheetRail({
   sheet,
@@ -643,15 +662,18 @@ function SheetRail({
   current: number | null;
 }) {
   return (
-    <div className="w-1 shrink-0" aria-hidden="true">
+    <div className="w-1 shrink-0">
       <div
         data-testid="sheet-rail"
+        role="list"
+        aria-label="Step progress"
         className="sticky top-0 flex h-[calc(100vh-3.5rem)] flex-col gap-1.5 py-1"
       >
         {groups.map((g) => {
-          const done = g.steps.filter((s) =>
-            isDone(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
-          ).length;
+          const states = g.steps.map((s) =>
+            railState(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
+          );
+          const done = states.filter((st) => st === 'done' || st === 'skipped').length;
           const at = g.steps.findIndex((s) => s.n === current);
           return (
             <div
@@ -661,13 +683,25 @@ function SheetRail({
               data-total={g.steps.length}
               data-current={at >= 0 ? 'true' : undefined}
               style={{ flexGrow: g.steps.length, flexBasis: 0 }}
-              className="relative min-h-1 w-full overflow-visible rounded-full bg-slate-300 dark:bg-slate-700"
+              className="relative flex min-h-1 w-full flex-col gap-px overflow-visible"
             >
-              <div
-                data-testid="sheet-rail-fill"
-                style={{ height: `${(100 * done) / g.steps.length}%` }}
-                className="w-full rounded-full bg-emerald-500 dark:bg-emerald-400"
-              />
+              {g.steps.map((s, i) => {
+                const st = STEP_RAIL_STATES[states[i] ?? 'untouched'];
+                const name = `Step ${s.n}: ${s.title}, ${st.label}`;
+                return (
+                  <div
+                    key={s.n}
+                    role="listitem"
+                    data-testid="sheet-rail-strip"
+                    data-step={s.n}
+                    data-state={states[i]}
+                    title={name}
+                    aria-label={name}
+                    style={{ flex: '1 1 0' }}
+                    className={clsx('min-h-px w-full first:rounded-t-full last:rounded-b-full', st.fill)}
+                  />
+                );
+              })}
               {at >= 0 && (
                 <div
                   data-testid="sheet-rail-marker"

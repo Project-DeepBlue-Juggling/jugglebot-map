@@ -331,13 +331,15 @@ describe('Sitting sheet page', () => {
     expect(await screen.findAllByTestId('sheet-step')).toHaveLength(3);
   });
 
-  it('draws a progress rail: one segment per group, filled by the steps done, a dot at the current step', async () => {
+  it('draws a progress rail: one segment per group, one strip per step coloured by its recorded state, a dot at the current step', async () => {
     sheet = {
       ...sheet,
       results: results({
         steps: {
           '1': { status: 'done', comments: '', saved_at: '2026-11-10 09:00' },
           '2': { status: 'done', comments: '', saved_at: '2026-11-10 09:00' },
+          '3': { status: 'problem', comments: 'tripped', saved_at: '2026-11-10 09:00' },
+          '4': { status: 'skipped', comments: '', saved_at: '2026-11-10 09:00' },
         },
       }),
       steps: [
@@ -345,21 +347,47 @@ describe('Sitting sheet page', () => {
         step({ n: 2, title: 'Launch 1 of 2 (main)', new_launch: true }),
         step({ n: 3, title: 'More' }),
         step({ n: 4, title: 'Launch 2 of 2 (cand)', new_launch: true }),
+        step({ n: 5, title: 'Tail' }),
       ],
     };
     renderApp('/next-sitting', <NextSittingRoute />);
     const rail = await screen.findByTestId('sheet-rail');
-    expect(rail.parentElement).toHaveAttribute('aria-hidden', 'true');
     const segs = within(rail).getAllByTestId('sheet-rail-segment');
-    expect(segs.map((g) => [g.dataset.done, g.dataset.total])).toEqual([
-      ['1', '1'],
-      ['1', '2'],
-      ['0', '1'],
+    expect(segs.map((g) => g.dataset.total)).toEqual(['1', '2', '2']);
+    const strips = within(rail).getAllByTestId('sheet-rail-strip');
+    expect(strips.map((s) => s.dataset.state)).toEqual([
+      'done',
+      'done',
+      'problem',
+      'skipped',
+      'untouched',
     ]);
-    const fills = within(rail).getAllByTestId('sheet-rail-fill');
-    expect(fills.map((f) => f.style.height)).toEqual(['100%', '50%', '0%']);
-    expect(segs[1]).toHaveAttribute('data-current', 'true');
+    expect(strips[2]).toHaveClass('bg-red-500');
+    expect(strips[2]).toHaveAttribute('aria-label', 'Step 3: More, Problem');
+    expect(strips[1]).toHaveClass('bg-emerald-500');
+    expect(segs[2]).toHaveAttribute('data-current', 'true');
     expect(within(rail).getAllByTestId('sheet-rail-marker')).toHaveLength(1);
+  });
+
+  it('colours a strip by the recorded state, not by whether its card is folded', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        steps: {
+          '1': { status: 'done', comments: '', saved_at: '2026-11-10 09:00' },
+          '2': { status: 'problem', comments: '', saved_at: '2026-11-10 09:00' },
+        },
+      }),
+      steps: [step({ n: 1, title: 'Prep' }), step({ n: 2, title: 'Go' }), step({ n: 3, title: 'End' })],
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const before = (await screen.findAllByTestId('sheet-rail-strip')).map((s) => s.dataset.state);
+    // Open the folded done step: the strip must not change.
+    const folded = screen.getAllByTestId('sheet-step-done');
+    fireEvent.click(within(folded[0] as HTMLElement).getByRole('button'));
+    const after = screen.getAllByTestId('sheet-rail-strip').map((s) => s.dataset.state);
+    expect(before).toEqual(['done', 'problem', 'untouched']);
+    expect(after).toEqual(before);
   });
 
   it('groups steps by launch with item sub-headers and a setup sub-header', async () => {

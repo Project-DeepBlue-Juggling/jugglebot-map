@@ -197,3 +197,16 @@ export const MAP_STATUS_LABELS: Record<string, string> = {
 export function statusLabel(status: string): string {
   return MAP_STATUS_LABELS[status] ?? status;
 }
+
+/**
+ * Next Sitting progress rail: one strip per Step, coloured by the Step's recorded state only (never
+ * by whether its card is folded). Done green, Problem red, Skipped amber, untouched slate. Colour is
+ * never the only carrier: each strip has a title and aria-label naming the Step and the state word.
+ */
+export type StepRailState = 'untouched' | 'done' | 'problem' | 'skipped';
+export const STEP_RAIL_STATES: Record<StepRailState, { label: string; fill: string }> = {
+  untouched: { label: 'Not yet done', fill: 'bg-slate-300 dark:bg-slate-700' },
+  done: { label: 'Done', fill: 'bg-emerald-500 dark:bg-emerald-400' },
+  problem: { label: 'Problem', fill: 'bg-red-500 dark:bg-red-400' },
+  skipped: { label: 'Skipped', fill: 'bg-amber-400 dark:bg-amber-300' },
+};
