@@ -219,6 +219,8 @@ const StepRow = memo(function StepRow({
   rowRenderProbe.hook?.(step.n);
   const [commentOpen, setCommentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Which boxes a failed save left unsaved (their text is kept); null when nothing failed. */
+  const [failed, setFailed] = useState<string[] | null>(null);
   // The typed draft is local to the row, so a keystroke renders this row and no other.
   const [typed, setTyped] = useState<Draft | null>(() => draftsRef.current.get(step.n) ?? null);
   const draft = useMemo(
@@ -228,6 +230,7 @@ const StepRow = memo(function StepRow({
   const onDraft = (d: Draft) => {
     draftsRef.current.set(step.n, d);
     setTyped(d);
+    setFailed(null);
   };
   const mounted = useRef(true);
   useEffect(() => {
@@ -245,12 +248,25 @@ const StepRow = memo(function StepRow({
       if (Object.keys(verdicts).length > 0) body.verdicts = verdicts;
     }
     if (s !== undefined) body.status = s;
+    // One request carries every box; the server takes all of it or none, so a failure leaves
+    // every box unsaved and we name them (the typed text is kept either way).
+    const unsaved: string[] = [];
+    if (draft.comments.trim() !== '') unsaved.push('comments');
+    for (const [item, v] of Object.entries(draft.verdicts))
+      if (v.notes.trim() !== '') unsaved.push(`notes for ${item}`);
     setSaving(true);
     try {
       const ok = await onSaveStep(step.n, body);
       if (ok) {
         draftsRef.current.delete(step.n);
-        if (mounted.current) setTyped(null);
+        if (mounted.current) {
+          setTyped(null);
+          setFailed(null);
+        }
+        // A step the operator expanded stays open until told otherwise: a save closes it.
+        if (open) onToggle(step.n);
+      } else if (mounted.current) {
+        setFailed(unsaved);
       }
     } finally {
       if (mounted.current) setSaving(false);
@@ -447,19 +463,6 @@ const StepRow = memo(function StepRow({
               </div>
             );
           })}
-        {isVerdict && (
-          <div className="mt-0.5">
-            <button
-              type="button"
-              disabled={!ready || saving}
-              onClick={() => void onSave()}
-              className="rounded bg-slate-900 px-2 text-[11px] leading-5 font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <span className={clsx('ml-2 text-[11px]', muted)}>Ctrl+Enter saves</span>
-          </div>
-        )}
         {commentOpen && (
           <div data-testid="comment-panel" className="mt-1 flex flex-col gap-1">
             <textarea
@@ -472,16 +475,7 @@ const StepRow = memo(function StepRow({
               className={textarea}
             />
             <div className="flex flex-wrap gap-1">
-              {isVerdict ? (
-                <button
-                  type="button"
-                  disabled={!ready || saving}
-                  onClick={() => void onSave()}
-                  className={tiny}
-                >
-                  Save comment
-                </button>
-              ) : status === null ? (
+              {isVerdict ? null : status === null ? (
                 (['done', 'problem', 'skipped'] as const).map((s) => (
                   <button
                     key={s}
@@ -500,10 +494,30 @@ const StepRow = memo(function StepRow({
                   onClick={() => void onSave(status as StepStatus)}
                   className={tiny}
                 >
-                  {saving ? 'Saving…' : 'Save comment'}
+                  {saving ? 'Saving…' : 'Save feedback'}
                 </button>
               )}
             </div>
+          </div>
+        )}
+        {isVerdict && (
+          <div className="mt-0.5">
+            <button
+              type="button"
+              disabled={!ready || saving}
+              onClick={() => void onSave()}
+              className="rounded bg-slate-900 px-2 text-[11px] leading-5 font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+            >
+              {saving ? 'Saving…' : 'Save feedback'}
+            </button>
+            <span className={clsx('ml-2 text-[11px]', muted)}>
+              Ctrl+Enter saves the comments and every Item&apos;s notes
+            </span>
+          </div>
+        )}
+        {failed !== null && (
+          <div role="alert" data-testid="step-save-failed" className="mt-0.5 text-[11px] font-semibold text-red-700 dark:text-red-400">
+            Not saved{failed.length > 0 ? `: ${failed.join(', ')}` : ''} (your text is kept).
           </div>
         )}
       </div>

@@ -144,7 +144,7 @@ describe('Sitting sheet page', () => {
     // comments are not open by default; the Item's notes box is
     expect(screen.queryByLabelText('Comments for step 2')).toBeNull();
     const fly = screen.getAllByTestId('sheet-step')[1] as HTMLElement;
-    const save = within(fly).getByRole('button', { name: 'Save' });
+    const save = within(fly).getByRole('button', { name: 'Save feedback' });
     expect(save).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Notes for BUG-1'), { target: { value: 'clean' } });
     fireEvent.click(screen.getByRole('button', { name: 'Comment on step 2' }));
@@ -160,6 +160,103 @@ describe('Sitting sheet page', () => {
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Go to current step 3 of 3' })).toBeInTheDocument(),
     );
+  });
+
+  it('a step with several boxes has one save button; Ctrl+Enter in any box saves all boxes once', async () => {
+    const posts: Record<string, unknown>[] = [];
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/2`, async ({ request }) => {
+        posts.push((await request.json()) as Record<string, unknown>);
+        sheet = {
+          ...sheet,
+          results: results({
+            schema: 2,
+            steps: { '2': { status: null, comments: 'gen', saved_at: '2026-11-10 10:30' } },
+            verdicts: {
+              '2': {
+                'BUG-1': { notes: 'n1', saved_at: '2026-11-10 10:30' },
+                'BUG-2': { notes: 'n2', saved_at: '2026-11-10 10:30' },
+              },
+            },
+          }),
+        };
+        return HttpResponse.json(sheet.results as Record<string, unknown>);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    const fly = screen.getAllByTestId('sheet-step')[1] as HTMLElement;
+    fireEvent.click(within(fly).getByRole('button', { name: 'Comment on step 2' }));
+    fireEvent.change(screen.getByLabelText('Comments for step 2'), { target: { value: 'gen' } });
+    fireEvent.change(screen.getByLabelText('Notes for BUG-1'), { target: { value: 'n1' } });
+    fireEvent.change(screen.getByLabelText('Notes for BUG-2'), { target: { value: 'n2' } });
+    // exactly one save control on the step, however many boxes it has
+    const saveButtons = within(fly)
+      .getAllByRole('button')
+      .filter((b) => /^save/i.test(b.textContent ?? ''));
+    expect(saveButtons).toHaveLength(1);
+    expect(saveButtons[0]).toHaveTextContent('Save feedback');
+    // Ctrl+Enter from the last Item's box saves the general comment and both Items' notes
+    fireEvent.keyDown(screen.getByLabelText('Notes for BUG-2'), { key: 'Enter', ctrlKey: true });
+    await waitFor(() => expect(posts).toHaveLength(1));
+    expect(posts[0]).toMatchObject({
+      comments: 'gen',
+      verdicts: { 'BUG-1': { notes: 'n1' }, 'BUG-2': { notes: 'n2' } },
+    });
+    // the step collapses to its saved line
+    await waitFor(() => expect(screen.getAllByTestId('sheet-step-done')).toHaveLength(1));
+  });
+
+  it('an expanded saved step collapses again when its feedback is saved', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        schema: 2,
+        verdicts: { '2': { 'BUG-1': { notes: 'old', saved_at: '2026-11-10 09:05' } } },
+        steps: { '3': { status: 'done', comments: '', saved_at: '2026-11-10 09:06' } },
+      }),
+    };
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/2`, async () => {
+        return HttpResponse.json(sheet.results as Record<string, unknown>);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand step 2' }));
+    fireEvent.change(await screen.findByLabelText('Notes for BUG-1'), {
+      target: { value: 'old, edited' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
+    await waitFor(() => expect(screen.queryByLabelText('Notes for BUG-1')).toBeNull());
+    expect(screen.getByRole('button', { name: 'Expand step 2' })).toBeInTheDocument();
+  });
+
+  it('a failed save keeps the step open, says which boxes are unsaved and keeps every text', async () => {
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/2`, () =>
+        HttpResponse.json({ detail: 'nope' }, { status: 422 }),
+      ),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    await screen.findAllByTestId('sheet-step');
+    const fly = screen.getAllByTestId('sheet-step')[1] as HTMLElement;
+    fireEvent.click(within(fly).getByRole('button', { name: 'Comment on step 2' }));
+    fireEvent.change(screen.getByLabelText('Comments for step 2'), { target: { value: 'gen' } });
+    fireEvent.change(screen.getByLabelText('Notes for BUG-2'), { target: { value: 'n2' } });
+    fireEvent.keyDown(screen.getByLabelText('Comments for step 2'), {
+      key: 'Enter',
+      ctrlKey: true,
+    });
+    const msg = await screen.findByTestId('step-save-failed');
+    expect(msg).toHaveTextContent('comments');
+    expect(msg).toHaveTextContent('notes for BUG-2');
+    expect(msg).not.toHaveTextContent('notes for BUG-1');
+    expect(screen.queryByTestId('sheet-step-done')).toBeNull();
+    expect(screen.getByLabelText('Comments for step 2')).toHaveValue('gen');
+    expect(screen.getByLabelText('Notes for BUG-2')).toHaveValue('n2');
+    // typing again clears the stale message
+    fireEvent.change(screen.getByLabelText('Notes for BUG-2'), { target: { value: 'n2b' } });
+    expect(screen.queryByTestId('step-save-failed')).toBeNull();
   });
 
   it('a verdict step is completed by its Done button with no notes, and saves status only', async () => {
@@ -223,7 +320,7 @@ describe('Sitting sheet page', () => {
     renderApp('/next-sitting', <NextSittingRoute />);
     await screen.findAllByTestId('sheet-step');
     const first = screen.getAllByTestId('sheet-step')[0] as HTMLElement;
-    expect(within(first).queryByRole('button', { name: 'Save' })).toBeNull();
+    expect(within(first).queryByRole('button', { name: 'Save feedback' })).toBeNull();
     expect(screen.queryByLabelText('Comments for step 1')).toBeNull();
     fireEvent.click(within(first).getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(posted).toMatchObject({ status: 'done', comments: '' }));
