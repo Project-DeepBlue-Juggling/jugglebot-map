@@ -493,9 +493,13 @@ describe('Sitting sheet page', () => {
   });
 
   it('an optimistic status rolls back when the server refuses (422)', async () => {
+    // The refusal is held until the test has seen the optimistic state: a fixed
+    // delay left a window a loaded box could poll straight past (BUG-128).
+    let release: () => void = () => {};
+    const gate = new Promise<void>((res) => (release = res));
     server.use(
       http.post(`${API}/sheets/2026-11-10-robot/steps/1`, async () => {
-        await delay(30);
+        await gate;
         return HttpResponse.json({ detail: 'nope' }, { status: 422 });
       }),
     );
@@ -507,6 +511,7 @@ describe('Sitting sheet page', () => {
       }),
     );
     expect(await screen.findByTestId('sheet-step-done')).toBeInTheDocument();
+    release();
     await waitFor(() => expect(screen.queryByTestId('sheet-step-done')).toBeNull());
     expect(screen.getAllByTestId('sheet-step')).toHaveLength(3);
     expect(screen.getByTestId('launch-progress')).toHaveTextContent('0/3');
