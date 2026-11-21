@@ -230,7 +230,8 @@ function isDone(
 }
 /**
  * The rail's state for a Step, from what was recorded only. A Problem status, or a schema 1 file's
- * saved `fail` verdict, is Problem; Done or saved notes is Done; Skipped is Skipped.
+ * saved `fail` verdict, is Problem; Done or saved notes is Done; Skipped is Skipped. A saved `fail`
+ * verdict wins over any status, so a Step ticked Done with a failed Item still shows red, as its card does.
  */
 function railState(
   saved: SheetStepResult | undefined,
@@ -733,7 +734,6 @@ function storeDeselected(name: string, list: string[]) {
   }
 }
 
-/** One Sitting sheet: its steps in order, grouped by launch; drafts keyed by step number. */
 /**
  * A thin index down the left edge: one segment per group, one strip per Step, each coloured by the
  * Step's recorded state (done green, problem red, skipped amber, untouched grey; see the palette),
@@ -805,6 +805,7 @@ function SheetRail({
   );
 }
 
+/** One Sitting sheet: its steps in order, grouped by launch; drafts keyed by step number. */
 export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProps) {
   const draftsRef = useRef<Map<number, Draft>>(new Map());
   const [deselected, setDeselected] = useState<string[]>(() => loadDeselected(sheet.name));

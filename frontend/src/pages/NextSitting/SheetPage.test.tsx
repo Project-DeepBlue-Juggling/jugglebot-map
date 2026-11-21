@@ -520,7 +520,7 @@ describe('Sitting sheet page', () => {
     const rail = await screen.findByTestId('sheet-rail');
     const segs = within(rail).getAllByTestId('sheet-rail-segment');
     expect(segs.map((g) => g.dataset.total)).toEqual(['1', '2', '2']);
-    // a Problem Step counts as recorded: group 3 has one problem + one skipped of two, group 2 has done + problem
+    // a Problem Step counts as recorded: group 2 is done + problem (2), group 3 is skipped + untouched (1)
     expect(segs.map((g) => g.dataset.done)).toEqual(['1', '2', '1']);
     const strips = within(rail).getAllByTestId('sheet-rail-strip');
     expect(strips.map((s) => s.dataset.state)).toEqual([
@@ -553,6 +553,8 @@ describe('Sitting sheet page', () => {
     // Open the folded done step: the strip must not change.
     const folded = screen.getAllByTestId('sheet-step-done');
     fireEvent.click(within(folded[0] as HTMLElement).getByRole('button'));
+    // the card really unfolded: one folded line fewer
+    expect(screen.queryAllByTestId('sheet-step-done')).toHaveLength(folded.length - 1);
     const after = screen.getAllByTestId('sheet-rail-strip').map((s) => s.dataset.state);
     expect(before).toEqual(['done', 'problem', 'untouched']);
     expect(after).toEqual(before);
@@ -598,6 +600,22 @@ describe('Sitting sheet page', () => {
     const strips = await screen.findAllByTestId('sheet-rail-strip');
     expect(strips.map((s) => s.dataset.state)).toEqual(['untouched', 'problem', 'untouched']);
     expect(strips[1]).toHaveClass('bg-red-500');
+  });
+
+  it('a saved fail verdict wins over a Done status: the strip is red', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        schema: 1,
+        steps: { '2': { status: 'done', comments: '', saved_at: '2026-11-10 09:00' } },
+        verdicts: {
+          '2': { 'BUG-1': { verdict: 'fail', notes: 'bad', saved_at: '2026-11-10 09:05' } },
+        },
+      }),
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const strips = await screen.findAllByTestId('sheet-rail-strip');
+    expect(strips[1]).toHaveAttribute('data-state', 'problem');
   });
 
   it('saved notes on a status-less Step give a green strip', async () => {
