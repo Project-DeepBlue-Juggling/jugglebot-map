@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import type { ComponentProps } from 'react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { HttpResponse, delay, http } from 'msw';
 import { NextSittingRoute } from '../../features/drawer/routes';
 import { renderApp } from '../../test/renderApp';
+import { SheetView } from './SheetView';
 import { rowRenderProbe } from './rowRenderProbe';
 import { createState, makeServer, type TestState } from '../../test/server';
 
@@ -257,6 +259,73 @@ describe('Sitting sheet page', () => {
     // typing again clears the stale message
     fireEvent.change(screen.getByLabelText('Notes for BUG-2'), { target: { value: 'n2b' } });
     expect(screen.queryByTestId('step-save-failed')).toBeNull();
+  });
+
+  const savedBug1 = () => ({
+    ...sheet,
+    results: results({
+      schema: 2,
+      verdicts: { '2': { 'BUG-1': { notes: 'old', saved_at: '2026-11-10 09:05' } } },
+      steps: { '3': { status: 'done', comments: '', saved_at: '2026-11-10 09:06' } },
+    }),
+  });
+
+  it('a step collapsed while its save is in flight stays collapsed when the save lands', async () => {
+    sheet = savedBug1();
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/2`, async () => {
+        await delay(150);
+        return HttpResponse.json(sheet.results as Record<string, unknown>);
+      }),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand step 2' }));
+    fireEvent.change(await screen.findByLabelText('Notes for BUG-1'), {
+      target: { value: 'old, edited' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse step 2' }));
+    expect(screen.getByRole('button', { name: 'Expand step 2' })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 400));
+    expect(screen.getByRole('button', { name: 'Expand step 2' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Notes for BUG-1')).toBeNull();
+  });
+
+  it('a failed save names only the boxes that differ from the last saved text', async () => {
+    sheet = savedBug1();
+    server.use(
+      http.post(`${API}/sheets/2026-11-10-robot/steps/2`, () =>
+        HttpResponse.json({ detail: 'nope' }, { status: 422 }),
+      ),
+    );
+    renderApp('/next-sitting', <NextSittingRoute />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand step 2' }));
+    fireEvent.change(await screen.findByLabelText('Notes for BUG-2'), { target: { value: 'n2' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save feedback' }));
+    const msg = await screen.findByTestId('step-save-failed');
+    expect(msg).toHaveTextContent('notes for BUG-2');
+    expect(msg).not.toHaveTextContent('notes for BUG-1');
+    expect(screen.getByLabelText('Notes for BUG-1')).toHaveValue('old');
+  });
+
+  it('a save that throws shows the same not-saved message and keeps the text', async () => {
+    // The page wrapper turns every failure into `false`; drive SheetView with a save that rejects.
+    const onSaveStep = vi.fn().mockRejectedValue(new Error('boom'));
+    render(
+      <SheetView
+        sheet={sheet as unknown as ComponentProps<typeof SheetView>['sheet']}
+        onOpen={() => undefined}
+        onSaveStep={onSaveStep}
+      />,
+    );
+    const fly = screen.getAllByTestId('sheet-step')[1] as HTMLElement;
+    fireEvent.click(within(fly).getByRole('button', { name: 'Comment on step 2' }));
+    fireEvent.change(screen.getByLabelText('Notes for BUG-2'), { target: { value: 'n2' } });
+    fireEvent.click(within(fly).getByRole('button', { name: 'Save feedback' }));
+    const msg = await screen.findByTestId('step-save-failed');
+    expect(onSaveStep).toHaveBeenCalledTimes(1);
+    expect(msg).toHaveTextContent('notes for BUG-2');
+    expect(screen.getByLabelText('Notes for BUG-2')).toHaveValue('n2');
   });
 
   it('a verdict step is completed by its Done button with no notes, and saves status only', async () => {

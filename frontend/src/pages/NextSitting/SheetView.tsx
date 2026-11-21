@@ -250,6 +250,8 @@ interface RowProps {
   /** True for a folded step the operator expanded: the number collapses it again. */
   open: boolean;
   onToggle: (n: number) => void;
+  /** Sets the step closed (never toggles), so a collapse during a save is not undone. */
+  onClose: (n: number) => void;
 }
 
 const StepRow = memo(function StepRow({
@@ -263,6 +265,7 @@ const StepRow = memo(function StepRow({
   onOpen,
   open,
   onToggle,
+  onClose,
 }: RowProps) {
   rowRenderProbe.hook?.(step.n);
   const [commentOpen, setCommentOpen] = useState(false);
@@ -296,12 +299,14 @@ const StepRow = memo(function StepRow({
       if (Object.keys(verdicts).length > 0) body.verdicts = verdicts;
     }
     if (s !== undefined) body.status = s;
-    // One request carries every box; the server takes all of it or none, so a failure leaves
-    // every box unsaved and we name them (the typed text is kept either way).
+    // One request carries every box; the server takes all of it or none. On failure we name only
+    // the boxes whose text differs from the last saved text (the typed text is kept either way).
+    const base = savedDraft(saved, savedVerdicts, step);
     const unsaved: string[] = [];
-    if (draft.comments.trim() !== '') unsaved.push('comments');
+    if (draft.comments.trim() !== '' && draft.comments !== base.comments) unsaved.push('comments');
     for (const [item, v] of Object.entries(draft.verdicts))
-      if (v.notes.trim() !== '') unsaved.push(`notes for ${item}`);
+      if (v.notes.trim() !== '' && v.notes !== (base.verdicts[item]?.notes ?? ''))
+        unsaved.push(`notes for ${item}`);
     setSaving(true);
     try {
       const ok = await onSaveStep(step.n, body);
@@ -312,10 +317,13 @@ const StepRow = memo(function StepRow({
           setFailed(null);
         }
         // A step the operator expanded stays open until told otherwise: a save closes it.
-        if (open) onToggle(step.n);
+        // Close, never toggle: the operator may have collapsed it while the save was in flight.
+        onClose(step.n);
       } else if (mounted.current) {
         setFailed(unsaved);
       }
+    } catch {
+      if (mounted.current) setFailed(unsaved);
     } finally {
       if (mounted.current) setSaving(false);
     }
@@ -804,6 +812,10 @@ export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProp
     (n: number) => setOpened((o) => (o.includes(n) ? o.filter((x) => x !== n) : [...o, n])),
     [],
   );
+  const closeOpened = useCallback(
+    (n: number) => setOpened((o) => (o.includes(n) ? o.filter((x) => x !== n) : o)),
+    [],
+  );
   const dimmed = (step: SheetStep) =>
     step.serves.length > 0 && step.serves.every((s) => deselected.includes(s.item));
   return (
@@ -957,6 +969,7 @@ export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProp
                         onOpen={stableOpen}
                         open={open}
                         onToggle={toggleOpened}
+                        onClose={closeOpened}
                       />,
                     );
                   return out;
