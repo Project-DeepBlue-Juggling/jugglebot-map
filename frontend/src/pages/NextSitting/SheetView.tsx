@@ -760,7 +760,8 @@ function SheetRail({
           const states = g.steps.map((s) =>
             railState(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
           );
-          const done = states.filter((st) => st === 'done' || st === 'skipped').length;
+          // Every recorded Step counts: done, Problem and skipped (owner, TKT-90).
+          const done = states.filter((st) => st !== 'untouched').length;
           const at = g.steps.findIndex((s) => s.n === current);
           return (
             <div
@@ -922,8 +923,11 @@ export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProp
           {trailing !== undefined && <span className="ml-auto shrink-0 pl-2">{trailing}</span>}
         </div>
         {groups.map((g) => {
-          const done = g.steps.filter((s) =>
-            isDone(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s),
+          // Same rule as the rail: every recorded Step counts, a Problem Step included.
+          const done = g.steps.filter(
+            (s) =>
+              railState(sheet.results.steps[String(s.n)], sheet.results.verdicts[String(s.n)], s) !==
+              'untouched',
           ).length;
           let prevKey: string | null = null;
           return (

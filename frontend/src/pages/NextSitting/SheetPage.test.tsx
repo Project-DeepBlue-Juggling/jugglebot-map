@@ -520,6 +520,8 @@ describe('Sitting sheet page', () => {
     const rail = await screen.findByTestId('sheet-rail');
     const segs = within(rail).getAllByTestId('sheet-rail-segment');
     expect(segs.map((g) => g.dataset.total)).toEqual(['1', '2', '2']);
+    // a Problem Step counts as recorded: group 3 has one problem + one skipped of two, group 2 has done + problem
+    expect(segs.map((g) => g.dataset.done)).toEqual(['1', '2', '1']);
     const strips = within(rail).getAllByTestId('sheet-rail-strip');
     expect(strips.map((s) => s.dataset.state)).toEqual([
       'done',
@@ -554,6 +556,61 @@ describe('Sitting sheet page', () => {
     const after = screen.getAllByTestId('sheet-rail-strip').map((s) => s.dataset.state);
     expect(before).toEqual(['done', 'problem', 'untouched']);
     expect(after).toEqual(before);
+  });
+
+  it('the rail counter counts every recorded Step: done, problem and skipped, not untouched', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        steps: {
+          '1': { status: 'done', comments: '', saved_at: '2026-11-10 09:00' },
+          '2': { status: 'problem', comments: '', saved_at: '2026-11-10 09:00' },
+          '3': { status: 'skipped', comments: '', saved_at: '2026-11-10 09:00' },
+        },
+      }),
+      steps: [
+        step({ n: 1, title: 'A' }),
+        step({ n: 2, title: 'B' }),
+        step({ n: 3, title: 'C' }),
+        step({ n: 4, title: 'D' }),
+      ],
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const segs = await screen.findAllByTestId('sheet-rail-segment');
+    expect(segs).toHaveLength(1);
+    expect(segs[0]).toHaveAttribute('data-done', '3');
+    expect(segs[0]).toHaveAttribute('data-total', '4');
+    // the header progress count agrees: a Problem Step with no notes counts
+    expect(screen.getByTestId('launch-progress')).toHaveTextContent('3/4');
+  });
+
+  it('a schema 1 saved fail verdict gives a red strip', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        schema: 1,
+        verdicts: {
+          '2': { 'BUG-1': { verdict: 'fail', notes: 'bad', saved_at: '2026-11-10 09:05' } },
+        },
+      }),
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const strips = await screen.findAllByTestId('sheet-rail-strip');
+    expect(strips.map((s) => s.dataset.state)).toEqual(['untouched', 'problem', 'untouched']);
+    expect(strips[1]).toHaveClass('bg-red-500');
+  });
+
+  it('saved notes on a status-less Step give a green strip', async () => {
+    sheet = {
+      ...sheet,
+      results: results({
+        verdicts: { '2': { 'BUG-1': { notes: 'clean', saved_at: '2026-11-10 09:05' } } },
+      }),
+    };
+    renderApp('/next-sitting', <NextSittingRoute />);
+    const strips = await screen.findAllByTestId('sheet-rail-strip');
+    expect(strips.map((s) => s.dataset.state)).toEqual(['untouched', 'done', 'untouched']);
+    expect(strips[1]).toHaveClass('bg-emerald-500');
   });
 
   it('groups steps by launch with item sub-headers and a setup sub-header', async () => {
