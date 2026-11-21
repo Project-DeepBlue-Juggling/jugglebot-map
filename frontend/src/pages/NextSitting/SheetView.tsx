@@ -59,6 +59,54 @@ const tiny =
 const textarea =
   'w-full rounded border border-slate-300 bg-white p-1 text-xs dark:border-slate-600 dark:bg-slate-900';
 
+const sectionBox = 'flex border-l-2 pl-1';
+const labelCol = clsx('w-12 shrink-0 text-[11px] lowercase', muted);
+/** 0 -> a, 1 -> b, ... for the numbered sub-steps of a Step with several actions. */
+const subLetter = (i: number) => String.fromCharCode(97 + (i % 26));
+
+/** One labelled field group; newline-separated text renders one line per entry. */
+function Field({
+  label,
+  text,
+  tint,
+  warning,
+}: {
+  label: string;
+  text: string;
+  tint: string;
+  warning?: boolean;
+}) {
+  const lines = text.split('\n').filter((l) => l.trim() !== '');
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      data-warning={warning === true ? 'true' : undefined}
+      className={clsx(sectionBox, tint)}
+    >
+      <span
+        className={clsx(
+          labelCol,
+          warning === true && 'font-semibold text-amber-700 dark:text-amber-400',
+        )}
+      >
+        {label}
+      </span>
+      <div className="min-w-0 flex-1">
+        {lines.length <= 1 ? (
+          <div>{lines[0] ?? text}</div>
+        ) : (
+          <ul className="list-none">
+            {lines.map((l, i) => (
+              <li key={i}>{l}</li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CopyButton({ text }: { text: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
   return (
@@ -220,6 +268,8 @@ interface RowProps {
   /** True for a folded step the operator expanded: the number collapses it again. */
   open: boolean;
   onToggle: (n: number) => void;
+  /** Sets the step closed (never toggles), so a collapse during a save is not undone. */
+  onClose: (n: number) => void;
 }
 
 const StepRow = memo(function StepRow({
@@ -233,10 +283,13 @@ const StepRow = memo(function StepRow({
   onOpen,
   open,
   onToggle,
+  onClose,
 }: RowProps) {
   rowRenderProbe.hook?.(step.n);
   const [commentOpen, setCommentOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  /** Which boxes a failed save left unsaved (their text is kept); null when nothing failed. */
+  const [failed, setFailed] = useState<string[] | null>(null);
   // The typed draft is local to the row, so a keystroke renders this row and no other.
   const [typed, setTyped] = useState<Draft | null>(() => draftsRef.current.get(step.n) ?? null);
   const draft = useMemo(
@@ -246,6 +299,7 @@ const StepRow = memo(function StepRow({
   const onDraft = (d: Draft) => {
     draftsRef.current.set(step.n, d);
     setTyped(d);
+    setFailed(null);
   };
   const mounted = useRef(true);
   useEffect(() => {
@@ -263,13 +317,31 @@ const StepRow = memo(function StepRow({
       if (Object.keys(verdicts).length > 0) body.verdicts = verdicts;
     }
     if (s !== undefined) body.status = s;
+    // One request carries every box; the server takes all of it or none. On failure we name only
+    // the boxes whose text differs from the last saved text (the typed text is kept either way).
+    const base = savedDraft(saved, savedVerdicts, step);
+    const unsaved: string[] = [];
+    if (draft.comments.trim() !== '' && draft.comments !== base.comments) unsaved.push('comments');
+    for (const [item, v] of Object.entries(draft.verdicts))
+      if (v.notes.trim() !== '' && v.notes !== (base.verdicts[item]?.notes ?? ''))
+        unsaved.push(`notes for ${item}`);
     setSaving(true);
     try {
       const ok = await onSaveStep(step.n, body);
       if (ok) {
         draftsRef.current.delete(step.n);
-        if (mounted.current) setTyped(null);
+        if (mounted.current) {
+          setTyped(null);
+          setFailed(null);
+        }
+        // A step the operator expanded stays open until told otherwise: a save closes it.
+        // Close, never toggle: the operator may have collapsed it while the save was in flight.
+        onClose(step.n);
+      } else if (mounted.current) {
+        setFailed(unsaved);
       }
+    } catch {
+      if (mounted.current) setFailed(unsaved);
     } finally {
       if (mounted.current) setSaving(false);
     }
@@ -401,43 +473,60 @@ const StepRow = memo(function StepRow({
         )}
       </div>
       <div className="pl-7">
-        {step.actions.map((a, i) => (
-          <div key={i} className="flex flex-wrap items-baseline gap-x-1.5">
-            <span className="rounded bg-slate-200 px-1 text-[10px] dark:bg-slate-700">
-              {a.where}
-            </span>
-            {a.text != null && a.text !== '' && <span>{a.text}</span>}
-            {a.command != null && a.command !== '' && (
-              <span className="flex w-full items-start gap-1">
-                <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] dark:bg-slate-900">
-                  {a.command}
-                </code>
-                <CopyButton text={a.command} />
-              </span>
-            )}
+        {step.actions.length > 0 && (
+          <div role="group" aria-label="do" className={clsx(sectionBox, 'border-l-slate-400')}>
+            <span className={labelCol}>do</span>
+            <div className="min-w-0 flex-1">
+              {step.actions.map((a, i) => (
+                <div
+                  key={i}
+                  data-testid="sheet-action"
+                  className="flex flex-wrap items-baseline gap-x-1.5"
+                >
+                  {step.actions.length > 1 && (
+                    <span data-testid="sub-step" className="font-mono text-[11px] text-slate-500">
+                      {step.n}
+                      {subLetter(i)}
+                    </span>
+                  )}
+                  <span className="rounded bg-slate-200 px-1 text-[10px] dark:bg-slate-700">
+                    {a.where}
+                  </span>
+                  {a.text != null && a.text !== '' && <span>{a.text}</span>}
+                  {a.command != null && a.command !== '' && (
+                    <span className="flex w-full items-start gap-1">
+                      <code className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all rounded bg-slate-100 px-1 py-0.5 font-mono text-[11px] dark:bg-slate-900">
+                        {a.command}
+                      </code>
+                      <CopyButton text={a.command} />
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-        ))}
-        <div>
-          <span className={lbl}>see</span>
-          {step.see}
-        </div>
-        <div>
-          <span className="mr-1 text-[11px] lowercase text-amber-700 dark:text-amber-400">
-            stop if
-          </span>
-          {step.stop_if}
-        </div>
+        )}
+        <Field label="see" text={step.see} tint="border-l-sky-400 dark:border-l-sky-600" />
+        <Field
+          label="stop if"
+          text={step.stop_if}
+          warning
+          tint="border-l-amber-500 bg-amber-50/60 dark:border-l-amber-500 dark:bg-amber-950/30"
+        />
         {step.record != null && step.record !== '' && (
-          <div>
-            <span className={lbl}>record</span>
-            {step.record}
-          </div>
+          <Field label="record" text={step.record} tint="border-l-slate-400" />
         )}
         {isVerdict &&
           verdictRows.map((sv) => {
             const prior = priorVerdicts[sv.item];
             return (
-              <div key={sv.item} data-testid="verdict-row" className="flex flex-col gap-0.5">
+              <div
+                key={sv.item}
+                data-testid="verdict-row"
+                role="group"
+                aria-label={`pass ${sv.item}`}
+                className={clsx(sectionBox, 'flex-col gap-0.5 border-l-emerald-500')}
+              >
                 <div className="flex flex-wrap items-center gap-x-1.5">
                   <span className="font-mono font-semibold">{sv.item}</span>
                   <span className={clsx('min-w-0', muted)}>
@@ -465,19 +554,6 @@ const StepRow = memo(function StepRow({
               </div>
             );
           })}
-        {isVerdict && (
-          <div className="mt-0.5">
-            <button
-              type="button"
-              disabled={!ready || saving}
-              onClick={() => void onSave()}
-              className="rounded bg-slate-900 px-2 text-[11px] leading-5 font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
-            >
-              {saving ? 'Saving…' : 'Save'}
-            </button>
-            <span className={clsx('ml-2 text-[11px]', muted)}>Ctrl+Enter saves</span>
-          </div>
-        )}
         {commentOpen && (
           <div data-testid="comment-panel" className="mt-1 flex flex-col gap-1">
             <textarea
@@ -490,16 +566,7 @@ const StepRow = memo(function StepRow({
               className={textarea}
             />
             <div className="flex flex-wrap gap-1">
-              {isVerdict ? (
-                <button
-                  type="button"
-                  disabled={!ready || saving}
-                  onClick={() => void onSave()}
-                  className={tiny}
-                >
-                  Save comment
-                </button>
-              ) : status === null ? (
+              {isVerdict ? null : status === null ? (
                 (['done', 'problem', 'skipped'] as const).map((s) => (
                   <button
                     key={s}
@@ -518,10 +585,30 @@ const StepRow = memo(function StepRow({
                   onClick={() => void onSave(status as StepStatus)}
                   className={tiny}
                 >
-                  {saving ? 'Saving…' : 'Save comment'}
+                  {saving ? 'Saving…' : 'Save feedback'}
                 </button>
               )}
             </div>
+          </div>
+        )}
+        {isVerdict && (
+          <div className="mt-0.5">
+            <button
+              type="button"
+              disabled={!ready || saving}
+              onClick={() => void onSave()}
+              className="rounded bg-slate-900 px-2 text-[11px] leading-5 font-medium text-white hover:bg-slate-700 disabled:opacity-40 dark:bg-slate-100 dark:text-slate-900"
+            >
+              {saving ? 'Saving…' : 'Save feedback'}
+            </button>
+            <span className={clsx('ml-2 text-[11px]', muted)}>
+              Ctrl+Enter saves the comments and every Item&apos;s notes
+            </span>
+          </div>
+        )}
+        {failed !== null && (
+          <div role="alert" data-testid="step-save-failed" className="mt-0.5 text-[11px] font-semibold text-red-700 dark:text-red-400">
+            Not saved{failed.length > 0 ? `: ${failed.join(', ')}` : ''} (your text is kept).
           </div>
         )}
       </div>
@@ -759,6 +846,10 @@ export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProp
     (n: number) => setOpened((o) => (o.includes(n) ? o.filter((x) => x !== n) : [...o, n])),
     [],
   );
+  const closeOpened = useCallback(
+    (n: number) => setOpened((o) => (o.includes(n) ? o.filter((x) => x !== n) : o)),
+    [],
+  );
   const dimmed = (step: SheetStep) =>
     step.serves.length > 0 && step.serves.every((s) => deselected.includes(s.item));
   return (
@@ -912,6 +1003,7 @@ export function SheetView({ sheet, onOpen, onSaveStep, trailing }: SheetViewProp
                         onOpen={stableOpen}
                         open={open}
                         onToggle={toggleOpened}
+                        onClose={closeOpened}
                       />,
                     );
                   return out;
