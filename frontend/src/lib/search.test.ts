@@ -230,4 +230,39 @@ describe('per-kind short IDs (T-U11)', () => {
     expect(exact('1')).toEqual(['d']);
     expect(exact('120')).toEqual(['c']);
   });
+
+  it('lists groups with an ongoing exact-number match first, then closed ones, then the rest', () => {
+    const tasks = [
+      mapTask({
+        id: 'i',
+        kind: 'idea',
+        title: 'Idea twenty',
+        status: 'complete',
+        short_id: 'IDEA-20',
+      }),
+      mapTask({
+        id: 't',
+        kind: 'ticket',
+        title: 'Ticket twenty',
+        status: 'open',
+        short_id: 'TKT-20',
+      }),
+      mapTask({
+        id: 'f',
+        kind: 'feature',
+        title: 'Feature twenty',
+        status: 'open',
+        short_id: 'FEAT-20',
+      }),
+      mapTask({ id: 'b', kind: 'bug', title: 'Bug twenty', status: 'open', short_id: 'BUG-20' }),
+      mapTask({ id: 'p', kind: 'plan', title: 'Plan about 20 things', short_id: null }),
+    ];
+    expect(searchMap(tasks, undefined, '20').map((g) => g.key)).toEqual([
+      'bug',
+      'feature',
+      'ticket',
+      'idea',
+      'plan',
+    ]);
+  });
 });

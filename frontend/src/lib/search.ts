@@ -128,7 +128,10 @@ const ITEM_GROUPS: ReadonlySet<string> = new Set([
   'plan',
 ]);
 
-/** Search tasks and glossary for `query`; groups in display order, empty groups omitted. */
+/**
+ * Search tasks and glossary for `query`; empty groups omitted. Groups are in display order,
+ * except that groups holding an exact ID match lead: ongoing Items' groups, then closed ones.
+ */
 export function searchMap(
   tasks: readonly Task[],
   glossary: Glossary | undefined,
@@ -173,18 +176,22 @@ export function searchMap(
       });
     }
   }
-  const out: SearchGroup[] = [];
+  // Bands, each in display order: (0) a group whose best hit is an exact ID match on an
+  // ongoing Item, (1) one whose exact ID match is closed, (2) the rest. A bare number shared
+  // by several kinds thus lists the ongoing Items' groups first, not the last-pushed first.
+  const bands: SearchGroup[][] = [[], [], []];
   for (const { key, label } of SEARCH_GROUPS) {
     const mine = hits.filter((h) => h.group === key).sort(compare);
-    if (mine.length === 0) continue;
-    // The group holding an exact ID match is shown first.
-    const at = mine[0]?.tier === -1 ? 0 : out.length;
-    out.splice(at, 0, {
+    const best = mine[0];
+    if (best === undefined) continue;
+    const band = best.tier !== -1 ? 2 : best.closed ? 1 : 0;
+    bands[band]?.push({
       key,
       label,
       hits: mine.slice(0, GROUP_CAP),
       more: Math.max(0, mine.length - GROUP_CAP),
     });
   }
+  const out: SearchGroup[] = bands.flat();
   return out;
 }
